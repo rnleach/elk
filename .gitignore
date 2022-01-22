@@ -2,6 +2,7 @@
 Session.vim
 tags
 .vscode
+.gdb*
 
 # Project layout
 debug
