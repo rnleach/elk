@@ -17,6 +17,7 @@
  *  5. As a result of number 4, all functions must be re-entrant so as long as the input parameters
  *     are protected from data races before being passed into the function, the function itself
  *     will not introduce any data races.
+ *  6. Does not rely on system specific code, only C11 standard library functions and API's.
  *
  */
 #include <stdbool.h>
@@ -317,7 +318,7 @@ typedef struct Elk2DRect {
  * Once the view has been created, the list it was created from should not be modified again as
  * that will invalidate the tree view.
  */
-typedef Elk2DRTreeView Elk2DRTreeView;
+typedef struct Elk2DRTreeView Elk2DRTreeView;
 
 /** Create a new R-Tree View of the list.
  *
@@ -338,9 +339,15 @@ Elk2DRTreeView *elk_2d_rtree_view_new(ElkList *const list, Elk2DCoord (*centroid
  *
  * \returns \c NULL, which should be assigned to the \p tv so there isn't a dangling pointer.
  */
-Elk2DTreeView *elk_2d_rtree_view_free(Elk2DRTreeView *tv);
+Elk2DRTreeView *elk_2d_rtree_view_free(Elk2DRTreeView *tv);
 
 /** Search an R-Tree and apply the function to each item that overlaps the provided rectangle.
+ *
+ * Iterates over any elements in the root list of \p tv that have rectangles that overlap with the
+ * provided \p region and applies the function \p update to those items. If \p update returns
+ * \c false, then further items will not be processed. This function assumes that \p update is
+ * infallible, so if you need to return an error code of some kind you'll have to pass it through
+ * the \p user_data argument.
  *
  * \param tv is the tree to search.
  * \param region is the region to search.
