@@ -192,7 +192,7 @@ ElkList *elk_list_free(ElkList *list);
  * The length of the list is set to zero without freeing any memory so the list is ready to use
  * again.
  *
- * \param list is the list to clear out.
+ * \param list is the list to clear out. The list must not be \c NULL.
  *
  * \returns a pointer to \p list. Assigning \p list the return value is not strictly necessary,
  * since shrinking an array is not cause for a reallocation, however, the return value is set up
@@ -203,7 +203,8 @@ ElkList *elk_list_clear(ElkList *list);
 /** Append \p item to the end of the list.
  *
  * \param list is the list to add the \p item too. It must not be \c NULL.
- * \param item is the item to add! The item is copied into place with \c memcpy().
+ * \param item is the item to add! The item is copied into place with \c memcpy(). \p item must not
+ * be \c NULL.
  *
  * \returns a (possibly different) pointer to \p list. This may be different if a reallocation was
  * needed. As a result, this value should be reassigned to \p list.
@@ -212,7 +213,7 @@ ElkList *elk_list_push_back(ElkList *list, void *item);
 
 /** Remove an item from the back of the list.
  *
- * \param list is the list to remove an item from.
+ * \param list is the list to remove an item from. This must NOT be \c NULL.
  * \param item is a memory location to move the last item in the list into. If this is \c NULL, then
  * the element is just removed from the list and not copied anywhere. If the list is empty, then
  * this will fill the location pointed to by \p item to all zeroes, so it is the user's
@@ -229,7 +230,7 @@ ElkList *elk_list_pop_back(ElkList *list, void *item);
  * This will remove an item at the \p index by swapping its position with the element at the end of
  * the list and then decrementing the length of the list.
  *
- * \param list is the list to remove the item from.
+ * \param list is the list to remove the item from. \p list must NOT be \c NULL.
  * \param index is the position in the list to remove. There is no check to make sure this is in
  * bounds for the list, so the user must be sure the index isn't out of bounds (e.g. by using
  * elk_list_count()).
@@ -242,7 +243,12 @@ ElkList *elk_list_pop_back(ElkList *list, void *item);
  */
 ElkList *elk_list_swap_remove(ElkList *const list, size_t index, void *item);
 
-/** The number of items currently in the list. */
+/** The number of items currently in the list.
+ *
+ * \param list must NOT be \c NULL.
+ *
+ * \returns the number of items in the \p list.
+ */
 size_t elk_list_count(ElkList const *const list);
 
 /** Create a copy of this list.
@@ -284,7 +290,7 @@ void *const elk_list_get_alias_at_index(ElkList *const list, size_t index);
  * if that is not the case then any error codes should be returned via \p user_data.
  * \param user_data will be supplied to \p ifunc as the second argument each time it is called.
  */
-void elk_list_foreach(ElkList const *const list, IterFunc ifunc, void *user_data);
+void elk_list_foreach(ElkList *const list, IterFunc ifunc, void *user_data);
 
 /** Filter elements out of \p src and put them into \p sink.
  *
@@ -292,11 +298,13 @@ void elk_list_foreach(ElkList const *const list, IterFunc ifunc, void *user_data
  * the pointer will never move. It must not be \c NULL.
  * \param sink is the list to drop the filtered items into. If this is \c NULL then the items
  * selected to be filtered out will be removed from the list.
+ * \param filter, if this returns \c true, the element will be removed from the \p src list.
+ * \param user_data is passed through to \p filter on each call.
  *
  * \returns a (potentially new and different) pointer to \p sink since it may have been reallocated.
  * If the passed in \p sink was \c NULL, then \c NULL is returned.
  */
-ElkList *elk_list_filter_out(ElkList *const src, ElkList *sink, FilterFunc filter);
+ElkList *elk_list_filter_out(ElkList *const src, ElkList *sink, FilterFunc filter, void *user_data);
 
 /*-------------------------------------------------------------------------------------------------
  *                                          2D RTreeView
