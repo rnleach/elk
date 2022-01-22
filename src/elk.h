@@ -26,11 +26,13 @@
 /*-------------------------------------------------------------------------------------------------
  *                                    Error Handling Macros
  *-----------------------------------------------------------------------------------------------*/
+/// \cond HIDDEN
 #ifdef ELK_PANIC_CRASH
 #    define HARD_EXIT (fprintf(0, "CRASH"))
 #else
 #    define HARD_EXIT (exit(EXIT_FAILURE))
 #endif
+/// \endcond HIDDEN
 
 /** Clean error handling not removed in release builds.
  *
