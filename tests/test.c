@@ -3,6 +3,7 @@
 #endif
 
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -39,17 +40,59 @@ test_elk_list_data_integrity(void)
 
     ElkList *list = build_double_list(list_size);
 
+    // Check that the values in the list are what they should be.
     for (size_t i = 0; i < list_size; ++i) {
         double value = i;
         double *alias = elk_list_get_alias_at_index(list, i);
         assert(*alias == value);
     }
 
-    list = elk_list_free(list);
+    // Check that pop gives the correct value back to you.
+    for (size_t i = list_size -1; elk_list_count(list) > 0; --i) {
+        double value = i;
+        double value_from_list = HUGE_VAL;
+        list = elk_list_pop_back(list, &value_from_list);
 
+        assert(value_from_list == value);
+    }
+
+    assert(elk_list_count(list) == 0);
+
+    list = elk_list_free(list);
     assert(!list);
 }
 
+/*-------------------------------------------------------------------------------------------------
+ *                                         Test copy
+ *-----------------------------------------------------------------------------------------------*/
+static void
+test_elk_list_copy(void)
+{
+    size_t const list_size = 1000;
+
+    ElkList *list = build_double_list(list_size);
+
+    ElkList *copy = elk_list_copy(list);
+
+    assert(elk_list_count(list) == elk_list_count(copy));
+
+    for(size_t i = 0; i < elk_list_count(list); ++i) {
+        double *item = elk_list_get_alias_at_index(list, i);
+        double *item_copy = elk_list_get_alias_at_index(copy, i);
+
+        assert(*item == *item_copy);
+    }
+
+    list = elk_list_free(list);
+    assert(!list);
+
+    copy = elk_list_free(copy);
+    assert(!copy);
+}
+
+/*-------------------------------------------------------------------------------------------------
+ *                                       Test foreach
+ *-----------------------------------------------------------------------------------------------*/
 static bool
 square_small_double(void *val_ptr, void *unused)
 {
@@ -84,6 +127,9 @@ test_elk_list_foreach(void)
     assert(!list);
 }
 
+/*-------------------------------------------------------------------------------------------------
+ *                                       Test filter_out
+ *-----------------------------------------------------------------------------------------------*/
 static bool
 delete_large_double(void const *val_ptr, void *unused)
 {
@@ -127,10 +173,14 @@ test_elk_list_filter_out(void)
     assert(!sink);
 }
 
+/*-------------------------------------------------------------------------------------------------
+ *                                      All ElkList tests
+ *-----------------------------------------------------------------------------------------------*/
 static void
 elk_list_tests(void)
 {
     test_elk_list_data_integrity();
+    test_elk_list_copy();
     test_elk_list_foreach();
     test_elk_list_filter_out();
 }
