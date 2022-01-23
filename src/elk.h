@@ -20,6 +20,7 @@
  *  6. Does not rely on system specific code, only C11 standard library functions and API's.
  *
  */
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -307,7 +308,7 @@ void elk_list_foreach(ElkList *const list, IterFunc ifunc, void *user_data);
 ElkList *elk_list_filter_out(ElkList *const src, ElkList *sink, FilterFunc filter, void *user_data);
 
 /*-------------------------------------------------------------------------------------------------
- *                                          2D RTreeView
+ *                                    Coordinates and Rectangles
  *-----------------------------------------------------------------------------------------------*/
 /** A simple x-y 2 dimensional coordinate. */
 typedef struct Elk2DCoord {
@@ -321,6 +322,84 @@ typedef struct Elk2DRect {
     Elk2DCoord ur; /**< The upper right corner of a rectangle (maximum x and maximum y) */
 } Elk2DRect;
 
+/*-------------------------------------------------------------------------------------------------
+ *                                       Hilbert Curves
+ *-----------------------------------------------------------------------------------------------*/
+/** A 2D Hilbert Curve.
+ *
+ * This might seem really weird to have in a "general" library. However, as a result of goal number
+ * 1 above, here it is. This didn't really need to be in the public API, but it makes testing
+ * easier.
+ *
+ * I ported this code from an implementation in Python at https://github.com/galtay/hilbertcurve,
+ * which is itself an implementation based on the 2004 paper "Programming the Hilbert Curve" by
+ * John Skilling (http://adsabs.harvard.edu/abs/2004AIPC..707..381S)(DOI: 10.10631/1.1751381).
+ */
+struct HilbertCurve {
+    /** The number of iterations to use for this curve.
+     *
+     * This can be a maximum of 31. If it is larger than 31, we won't have enough bits to do the
+     * binary transformations correctly.
+     */
+    uint64_t iterations;
+
+    /** This is the domain that the curve will cover. */
+    Elk2DRect domain;
+};
+
+/** A point in the Hilbert space. */
+struct HilbertCoord {
+    uint32_t x;
+    uint32_t y;
+};
+
+/** Create a new Hilbert Curve description.
+ *
+ * \param iterations is a number between 1 and 31 inclusive. If the number is outside that range,
+ * the program will exit and print an error message.
+ * \param domain is a rectanglular region to map this Hilbert curve onto.
+ */
+struct HilbertCurve elk_hilbert_curve_new(unsigned int iterations, Elk2DRect domain);
+
+/** Convert the distance along the curve to coordinates in the X-Y plane.
+ *
+ * In debug mode (no \c NDEBUG macro defined), assertions will check to make sure the distance
+ * is within the allowable range for this curve.
+ */
+struct HilbertCoord elk_hilbert_integer_to_coords(struct HilbertCurve const *hc, uint64_t hi);
+
+/** Convert the coordinates into a distance along the Hilbert curve.
+ *
+ * In debug mode (compiled without \c NDEBUG macro defined), assertions will check to make sure
+ * the \p coords are the allowable range for this curve.
+ */
+uint64_t elk_hilbert_coords_to_integer(struct HilbertCurve const *hc, struct HilbertCoord coords);
+
+/** Translate a point into the nearest set of coordinates for this Hilbert curve \p hc.
+ *
+ * \param hc the Hilbert curve.
+ * \param coord the coordinate to translate.
+ *
+ * \returns the nearest coordinate in the coordinates of the Hilbert curve.
+ */
+struct HilbertCoord elk_hilbert_translate_to_curve_coords(struct HilbertCurve hc, Elk2DCoord coord);
+
+/** Translate a point to the distance along the curve to the nearest set of coordinates for this
+ * Hilbert curve \p hc.
+ *
+ * This is basically a convenience method for calling elk_hilbert_translate_to_curve_coords() and
+ * then calling elk_hilbert_coords_to_integer().
+ *
+ * \param hc the Hilbert curve.
+ * \param coord the coordinate to translate.
+ *
+ * \returns the nearest coordinate in the coordinates of the Hilbert curve.
+ */
+uint64_t elk_hilbert_translate_to_curve_distance(struct HilbertCurve hc, Elk2DCoord coord);
+
+/*-------------------------------------------------------------------------------------------------
+ *                                          2D RTreeView
+ *-----------------------------------------------------------------------------------------------*/
 /** An R-Tree view into a list.
  *
  * Once the view has been created, the list it was created from should not be modified again as

@@ -1,20 +1,9 @@
 #include "elk.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stddef.h>
 #include <string.h>
-
-/*
-
-Notes: I'm looking for a way to generate a Hilbert curve, and then use that to create a tree view
-of an ElkList. I found an algorithm for generating such a curver iteratively here:
-
-http://blog.marcinchwedczuk.pl/iterative-algorithm-for-drawing-hilbert-curve
-
-a better algorithm coded in python can be found here:
-https://github.com/galtay/hilbertcurve/blob/main/hilbertcurve/hilbertcurve.py
-
-*/
 
 // Constant messages for errors.
 static const char *err_out_of_mem = "out of memory";
@@ -213,12 +202,168 @@ elk_list_filter_out(ElkList *const src, ElkList *sink, FilterFunc filter, void *
 }
 
 /*-------------------------------------------------------------------------------------------------
+ *                                       Hilbert Curves
+ *-----------------------------------------------------------------------------------------------*/
+
+struct HilbertCurve
+elk_hilbert_curve_new(unsigned int iterations, Elk2DRect domain)
+{
+    Panicif(iterations < 1, "Require at least 1 iteration for Hilbert curve.");
+    Panicif(iterations > 31, "Maximum 31 iterations for Hilbert curve.");
+    return (struct HilbertCurve){.iterations = iterations, .domain = domain};
+}
+
+struct HilbertCoord
+elk_hilbert_integer_to_coords(struct HilbertCurve const *hc, uint64_t hi)
+{
+    assert(hc);
+    assert(hi <= ((UINT64_C(1) << (2 * hc->iterations)) - 1));
+
+    uint32_t x = 0;
+    uint32_t y = 0;
+
+    // This is the "transpose" operation.
+    for (uint32_t b = 0; b < hc->iterations; ++b) {
+        uint64_t x_mask = UINT64_C(1) << (2 * b + 1);
+        uint64_t y_mask = UINT64_C(1) << (2 * b);
+
+        uint32_t x_val = (hi & x_mask) >> (b + 1);
+        uint32_t y_val = (hi & y_mask) >> (b);
+
+        x |= x_val;
+        y |= y_val;
+    }
+
+    // Gray decode
+    uint32_t z = UINT32_C(2) << (hc->iterations - 1);
+    uint32_t t = y >> 1;
+
+    y ^= x;
+    x ^= t;
+
+    // Undo excess work
+    uint32_t q = 2;
+    while (q != z) {
+        uint32_t p = q - 1;
+
+        if (y & q) {
+            x ^= p;
+        } else {
+            t = (x ^ y) & p;
+            x ^= t;
+            y ^= t;
+        }
+
+        if (x & q) {
+            x ^= p;
+        } else {
+            t = (x ^ x) & p;
+            x ^= t;
+            x ^= t;
+        }
+
+        q <<= 1;
+    }
+
+    assert(x <= ((UINT32_C(1) << hc->iterations) - 1));
+    assert(y <= ((UINT32_C(1) << hc->iterations) - 1));
+
+    return (struct HilbertCoord){.x = x, .y = y};
+}
+
+uint64_t
+elk_hilbert_coords_to_integer(struct HilbertCurve const *hc, struct HilbertCoord coords)
+{
+    assert(hc);
+    assert(coords.x <= ((UINT32_C(1) << hc->iterations) - 1));
+    assert(coords.y <= ((UINT32_C(1) << hc->iterations) - 1));
+
+    uint32_t x = coords.x;
+    uint32_t y = coords.y;
+
+    uint32_t m = UINT32_C(1) << (hc->iterations - 1);
+
+    // Inverse undo excess work
+    uint32_t q = m;
+    while (q > 1) {
+        uint32_t p = q - 1;
+
+        if (x & q) {
+            x ^= p;
+        } else {
+            uint32_t t = (x ^ x) & p;
+            x ^= t;
+            x ^= t;
+        }
+
+        if (y & q) {
+            x ^= p;
+        } else {
+            uint32_t t = (x ^ y) & p;
+            x ^= t;
+            y ^= t;
+        }
+
+        q >>= 1;
+    }
+
+    // Gray encode
+    y ^= x;
+    uint32_t t = 0;
+    q = m;
+    while (q > 1) {
+        if (y & q) {
+            t ^= (q - 1);
+        }
+
+        q >>= 1;
+    }
+
+    x ^= t;
+    y ^= t;
+
+    // This is the transpose operation
+    uint64_t hi = 0;
+    for (uint32_t b = 0; b < hc->iterations; ++b) {
+
+        uint64_t x_val = (((UINT64_C(1) << b) & x) >> b) << (2 * b + 1);
+        uint64_t y_val = (((UINT64_C(1) << b) & y) >> b) << (2 * b);
+
+        hi |= x_val;
+        hi |= y_val;
+    }
+
+    assert(hi <= ((UINT64_C(1) << (2 * hc->iterations)) - 1));
+    return hi;
+}
+
+struct HilbertCoord
+elk_hilbert_translate_to_curve_coords(struct HilbertCurve hc, Elk2DCoord coord)
+{
+    // TODO implement
+    assert(false);
+
+    struct HilbertCoord hcoords = {0};
+    return hcoords;
+}
+
+uint64_t
+elk_hilbert_translate_to_curve_distance(struct HilbertCurve hc, Elk2DCoord coord)
+{
+    // TODO implement
+    assert(false);
+    return 0;
+}
+
+/*-------------------------------------------------------------------------------------------------
  *                                          2D RTreeView
  *-----------------------------------------------------------------------------------------------*/
 
-/* Remember these are defined in elk.h
+/*
 
- typedef struct Elk2DCoord {
+NOTE: Remember these are defined in elk.h
+
+typedef struct Elk2DCoord {
     double x;
     double y;
 } Elk2DCoord;

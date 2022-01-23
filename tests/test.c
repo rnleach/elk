@@ -48,7 +48,7 @@ test_elk_list_data_integrity(void)
     }
 
     // Check that pop gives the correct value back to you.
-    for (size_t i = list_size -1; elk_list_count(list) > 0; --i) {
+    for (size_t i = list_size - 1; elk_list_count(list) > 0; --i) {
         double value = i;
         double value_from_list = HUGE_VAL;
         list = elk_list_pop_back(list, &value_from_list);
@@ -76,7 +76,7 @@ test_elk_list_copy(void)
 
     assert(elk_list_count(list) == elk_list_count(copy));
 
-    for(size_t i = 0; i < elk_list_count(list); ++i) {
+    for (size_t i = 0; i < elk_list_count(list); ++i) {
         double *item = elk_list_get_alias_at_index(list, i);
         double *item_copy = elk_list_get_alias_at_index(copy, i);
 
@@ -187,6 +187,63 @@ elk_list_tests(void)
 
 /*-------------------------------------------------------------------------------------------------
  *
+ *                                       Hilbert Curves
+ *
+ *-----------------------------------------------------------------------------------------------*/
+
+/*-------------------------------------------------------------------------------------------------
+ *                                      All ElkList tests
+ *-----------------------------------------------------------------------------------------------*/
+static void
+elk_hilbert_tests(void)
+{
+    struct Elk2DRect domain = {.ll = (struct Elk2DCoord){.x = 0.0, .y = 0.0},
+                               .ur = (struct Elk2DCoord){.x = 1.0, .y = 1.0}};
+
+    struct HilbertCoord test_coords_i1[] = {
+        (struct HilbertCoord){.x = 0, .y = 0},
+        (struct HilbertCoord){.x = 0, .y = 1},
+        (struct HilbertCoord){.x = 1, .y = 1},
+        (struct HilbertCoord){.x = 1, .y = 0},
+    };
+
+    struct HilbertCoord test_coords_i2[] = {
+        (struct HilbertCoord){.x = 0, .y = 0}, (struct HilbertCoord){.x = 1, .y = 0},
+        (struct HilbertCoord){.x = 1, .y = 1}, (struct HilbertCoord){.x = 0, .y = 1},
+
+        (struct HilbertCoord){.x = 0, .y = 2}, (struct HilbertCoord){.x = 0, .y = 3},
+        (struct HilbertCoord){.x = 1, .y = 3}, (struct HilbertCoord){.x = 1, .y = 2},
+
+        (struct HilbertCoord){.x = 2, .y = 2}, (struct HilbertCoord){.x = 2, .y = 3},
+        (struct HilbertCoord){.x = 3, .y = 3}, (struct HilbertCoord){.x = 3, .y = 2},
+
+        (struct HilbertCoord){.x = 3, .y = 1}, (struct HilbertCoord){.x = 2, .y = 1},
+        (struct HilbertCoord){.x = 2, .y = 0}, (struct HilbertCoord){.x = 3, .y = 0},
+    };
+
+    uint64_t test_dist[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+
+    struct HilbertCurve hc = elk_hilbert_curve_new(1, domain);
+    for (uint64_t h = 0; h < 4; ++h) {
+        struct HilbertCoord coords = elk_hilbert_integer_to_coords(&hc, test_dist[h]);
+        assert(coords.x == test_coords_i1[h].x && coords.y == test_coords_i1[h].y);
+
+        uint64_t h2 = elk_hilbert_coords_to_integer(&hc, test_coords_i1[h]);
+        assert(h2 == test_dist[h]);
+    }
+
+    hc = elk_hilbert_curve_new(2, domain);
+    for (uint64_t h = 0; h < 16; ++h) {
+        struct HilbertCoord coords = elk_hilbert_integer_to_coords(&hc, test_dist[h]);
+        assert(coords.x == test_coords_i2[h].x && coords.y == test_coords_i2[h].y);
+
+        uint64_t h2 = elk_hilbert_coords_to_integer(&hc, test_coords_i2[h]);
+        assert(h2 == test_dist[h]);
+    }
+}
+
+/*-------------------------------------------------------------------------------------------------
+ *
  *                                       Main - Run the tests
  *
  *-----------------------------------------------------------------------------------------------*/
@@ -196,6 +253,7 @@ main(void)
     printf("Starting Tests.\n");
 
     elk_list_tests();
+    elk_hilbert_tests();
 
     printf("\n\n*** Tests completed successfully. ***\n\n");
     return EXIT_SUCCESS;
