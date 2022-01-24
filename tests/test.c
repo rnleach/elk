@@ -327,34 +327,34 @@ elk_hilbert_test_domain_mapping(void)
     hc = elk_hilbert_curve_free(hc);
     assert(!hc);
 
-    domain = (struct Elk2DRect){.ll = (struct Elk2DCoord){.x = 0.0, .y = 0.0},
-                                .ur = (struct Elk2DCoord){.x = 12.0, .y = 12.0}};
+    domain = (struct Elk2DRect){.ll = (struct Elk2DCoord){.x = -2.0, .y = 5.0},
+                                .ur = (struct Elk2DCoord){.x = 10.0, .y = 17.0}};
 
     // Test values for the N=2 Hilbert curve on a square with edges of 12.0
     // clang-format off
     struct DomainPair n2_pairs[] = {
-        (struct DomainPair){.coord = (Elk2DCoord){.x =   1.5, .y =  1.5}, .hilbert_dist =  0},
-        (struct DomainPair){.coord = (Elk2DCoord){.x =   4.5, .y =  1.5}, .hilbert_dist =  1},
-        (struct DomainPair){.coord = (Elk2DCoord){.x =   4.5, .y =  4.5}, .hilbert_dist =  2},
-        (struct DomainPair){.coord = (Elk2DCoord){.x =   1.5, .y =  4.5}, .hilbert_dist =  3},
-        (struct DomainPair){.coord = (Elk2DCoord){.x =   1.5, .y =  7.5}, .hilbert_dist =  4},
-        (struct DomainPair){.coord = (Elk2DCoord){.x =   1.5, .y = 10.5}, .hilbert_dist =  5},
-        (struct DomainPair){.coord = (Elk2DCoord){.x =   4.5, .y = 10.5}, .hilbert_dist =  6},
-        (struct DomainPair){.coord = (Elk2DCoord){.x =   4.5, .y =  7.5}, .hilbert_dist =  7},
-        (struct DomainPair){.coord = (Elk2DCoord){.x =   7.5, .y =  7.5}, .hilbert_dist =  8},
-        (struct DomainPair){.coord = (Elk2DCoord){.x =   7.5, .y = 10.5}, .hilbert_dist =  9},
-        (struct DomainPair){.coord = (Elk2DCoord){.x =  10.5, .y = 10.5}, .hilbert_dist = 10},
-        (struct DomainPair){.coord = (Elk2DCoord){.x =  10.5, .y =  7.5}, .hilbert_dist = 11},
-        (struct DomainPair){.coord = (Elk2DCoord){.x =  10.5, .y =  4.5}, .hilbert_dist = 12},
-        (struct DomainPair){.coord = (Elk2DCoord){.x =   7.5, .y =  4.5}, .hilbert_dist = 13},
-        (struct DomainPair){.coord = (Elk2DCoord){.x =   7.5, .y =  1.5}, .hilbert_dist = 14},
-        (struct DomainPair){.coord = (Elk2DCoord){.x =  10.5, .y =  1.5}, .hilbert_dist = 15},
+        (struct DomainPair){.coord = (Elk2DCoord){.x =  -0.5, .y =  5.5}, .hilbert_dist =  0},
+        (struct DomainPair){.coord = (Elk2DCoord){.x =   2.5, .y =  5.5}, .hilbert_dist =  1},
+        (struct DomainPair){.coord = (Elk2DCoord){.x =   2.5, .y =  9.5}, .hilbert_dist =  2},
+        (struct DomainPair){.coord = (Elk2DCoord){.x =  -0.5, .y =  9.5}, .hilbert_dist =  3},
+        (struct DomainPair){.coord = (Elk2DCoord){.x =  -0.5, .y = 12.5}, .hilbert_dist =  4},
+        (struct DomainPair){.coord = (Elk2DCoord){.x =  -0.5, .y = 15.5}, .hilbert_dist =  5},
+        (struct DomainPair){.coord = (Elk2DCoord){.x =   2.5, .y = 15.5}, .hilbert_dist =  6},
+        (struct DomainPair){.coord = (Elk2DCoord){.x =   2.5, .y = 12.5}, .hilbert_dist =  7},
+        (struct DomainPair){.coord = (Elk2DCoord){.x =   5.5, .y = 12.5}, .hilbert_dist =  8},
+        (struct DomainPair){.coord = (Elk2DCoord){.x =   5.5, .y = 15.5}, .hilbert_dist =  9},
+        (struct DomainPair){.coord = (Elk2DCoord){.x =   8.5, .y = 15.5}, .hilbert_dist = 10},
+        (struct DomainPair){.coord = (Elk2DCoord){.x =   8.5, .y = 12.5}, .hilbert_dist = 11},
+        (struct DomainPair){.coord = (Elk2DCoord){.x =   8.5, .y =  9.5}, .hilbert_dist = 12},
+        (struct DomainPair){.coord = (Elk2DCoord){.x =   5.5, .y =  9.5}, .hilbert_dist = 13},
+        (struct DomainPair){.coord = (Elk2DCoord){.x =   5.5, .y =  5.5}, .hilbert_dist = 14},
+        (struct DomainPair){.coord = (Elk2DCoord){.x =   8.5, .y =  5.5}, .hilbert_dist = 15},
 
         // Corners.
-        (struct DomainPair){.coord = (Elk2DCoord){.x =  0.0, .y =  0.0}, .hilbert_dist =  0},
-        (struct DomainPair){.coord = (Elk2DCoord){.x =  0.0, .y = 12.0}, .hilbert_dist =  5},
-        (struct DomainPair){.coord = (Elk2DCoord){.x = 12.0, .y = 12.0}, .hilbert_dist = 10},
-        (struct DomainPair){.coord = (Elk2DCoord){.x = 12.0, .y =  0.0}, .hilbert_dist = 15},
+        (struct DomainPair){.coord = (Elk2DCoord){.x = -2.0, .y =  5.0}, .hilbert_dist =  0},
+        (struct DomainPair){.coord = (Elk2DCoord){.x = -2.0, .y = 17.0}, .hilbert_dist =  5},
+        (struct DomainPair){.coord = (Elk2DCoord){.x = 10.0, .y = 17.0}, .hilbert_dist = 10},
+        (struct DomainPair){.coord = (Elk2DCoord){.x = 10.0, .y =  5.0}, .hilbert_dist = 15},
     };
     // clang-format on
 
