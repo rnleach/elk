@@ -206,23 +206,45 @@ elk_list_filter_out(ElkList *const src, ElkList *sink, FilterFunc filter, void *
  *-----------------------------------------------------------------------------------------------*/
 
 struct ElkHilbertCurve {
-    /** The number of iterations to use for this curve.
+    /* The number of iterations to use for this curve.
      *
      * This can be a maximum of 31. If it is larger than 31, we won't have enough bits to do the
      * binary transformations correctly.
      */
     uint64_t iterations;
 
-    /** This is the domain that the curve will cover. */
+    /* This is the domain that the curve will cover. */
     Elk2DRect domain;
+
+    /* This is needed for fast transformations from the "domain" space into "Hilbert" space. */
+    uint32_t max_dim;
+    double width;
+    double height;
 };
+
+static uint32_t
+elk_hilbert_max_dim(unsigned int iterations)
+{
+    return (UINT32_C(1) << iterations) - UINT32_C(1);
+}
 
 static struct ElkHilbertCurve
 elk_hilbert_curve_initialize(unsigned int iterations, Elk2DRect domain)
 {
     Panicif(iterations < 1, "Require at least 1 iteration for Hilbert curve.");
     Panicif(iterations > 31, "Maximum 31 iterations for Hilbert curve.");
-    return (struct ElkHilbertCurve){.iterations = iterations, .domain = domain};
+
+    uint32_t max_dim = elk_hilbert_max_dim(iterations);
+    double width = domain.ur.x - domain.ll.x;
+    double height = domain.ur.y - domain.ll.y;
+
+    Panicif(width <= 0.0 || height <= 0.0, "Invalid rectangle, negative width or height.");
+
+    return (struct ElkHilbertCurve){.iterations = iterations,
+                                    .domain = domain,
+                                    .max_dim = max_dim,
+                                    .width = width,
+                                    .height = height};
 }
 
 struct ElkHilbertCurve *
@@ -246,11 +268,19 @@ elk_hilbert_curve_free(struct ElkHilbertCurve *hc)
     return NULL;
 }
 
+#ifndef NDEBUG
+static uint64_t
+elk_hilbert_max_num(unsigned int iterations)
+{
+    return (UINT64_C(1) << (2 * iterations)) - UINT64_C(1);
+}
+#endif
+
 struct HilbertCoord
 elk_hilbert_integer_to_coords(struct ElkHilbertCurve const *hc, uint64_t hi)
 {
     assert(hc);
-    assert(hi <= ((UINT64_C(1) << (2 * hc->iterations)) - 1));
+    assert(hi <= elk_hilbert_max_num(hc->iterations));
 
     uint32_t x = 0;
     uint32_t y = 0;
@@ -298,8 +328,8 @@ elk_hilbert_integer_to_coords(struct ElkHilbertCurve const *hc, uint64_t hi)
         q <<= 1;
     }
 
-    assert(x <= ((UINT32_C(1) << hc->iterations) - 1));
-    assert(y <= ((UINT32_C(1) << hc->iterations) - 1));
+    assert(x <= elk_hilbert_max_dim(hc->iterations));
+    assert(y <= elk_hilbert_max_dim(hc->iterations));
 
     return (struct HilbertCoord){.x = x, .y = y};
 }
@@ -308,8 +338,8 @@ uint64_t
 elk_hilbert_coords_to_integer(struct ElkHilbertCurve const *hc, struct HilbertCoord coords)
 {
     assert(hc);
-    assert(coords.x <= ((UINT32_C(1) << hc->iterations) - 1));
-    assert(coords.y <= ((UINT32_C(1) << hc->iterations) - 1));
+    assert(coords.x <= elk_hilbert_max_dim(hc->iterations));
+    assert(coords.y <= elk_hilbert_max_dim(hc->iterations));
 
     uint32_t x = coords.x;
     uint32_t y = coords.y;
@@ -366,7 +396,7 @@ elk_hilbert_coords_to_integer(struct ElkHilbertCurve const *hc, struct HilbertCo
         hi |= y_val;
     }
 
-    assert(hi <= ((UINT64_C(1) << (2 * hc->iterations)) - 1));
+    assert(hi <= elk_hilbert_max_num(hc->iterations));
     return hi;
 }
 
@@ -375,10 +405,15 @@ elk_hilbert_translate_to_curve_coords(struct ElkHilbertCurve *hc, Elk2DCoord coo
 {
     assert(hc);
 
-    // TODO implement
-    assert(false);
+    double hilbert_edge_len = hc->max_dim + 1;
 
-    struct HilbertCoord hcoords = {0};
+    uint32_t x = (coord.x - hc->domain.ll.x) / hc->width * hilbert_edge_len;
+    uint32_t y = (coord.y - hc->domain.ll.y) / hc->height * hilbert_edge_len;
+
+    x = x > hc->max_dim ? hc->max_dim : x;
+    y = y > hc->max_dim ? hc->max_dim : y;
+
+    struct HilbertCoord hcoords = {.x = x, .y = y};
     return hcoords;
 }
 
@@ -387,9 +422,8 @@ elk_hilbert_translate_to_curve_distance(struct ElkHilbertCurve *hc, Elk2DCoord c
 {
     assert(hc);
 
-    // TODO implement
-    assert(false);
-    return 0;
+    struct HilbertCoord hc_coords = elk_hilbert_translate_to_curve_coords(hc, coord);
+    return elk_hilbert_coords_to_integer(hc, hc_coords);
 }
 
 /*-------------------------------------------------------------------------------------------------
