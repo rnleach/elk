@@ -223,23 +223,27 @@ elk_hilbert_tests(void)
 
     uint64_t test_dist[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 
-    struct HilbertCurve hc = elk_hilbert_curve_new(1, domain);
+    struct HilbertCurve *hc = elk_hilbert_curve_new(1, domain);
     for (uint64_t h = 0; h < 4; ++h) {
-        struct HilbertCoord coords = elk_hilbert_integer_to_coords(&hc, test_dist[h]);
+        struct HilbertCoord coords = elk_hilbert_integer_to_coords(hc, test_dist[h]);
         assert(coords.x == test_coords_i1[h].x && coords.y == test_coords_i1[h].y);
 
-        uint64_t h2 = elk_hilbert_coords_to_integer(&hc, test_coords_i1[h]);
+        uint64_t h2 = elk_hilbert_coords_to_integer(hc, test_coords_i1[h]);
         assert(h2 == test_dist[h]);
     }
+
+    hc = elk_hilbert_curve_free(hc);
 
     hc = elk_hilbert_curve_new(2, domain);
     for (uint64_t h = 0; h < 16; ++h) {
-        struct HilbertCoord coords = elk_hilbert_integer_to_coords(&hc, test_dist[h]);
+        struct HilbertCoord coords = elk_hilbert_integer_to_coords(hc, test_dist[h]);
         assert(coords.x == test_coords_i2[h].x && coords.y == test_coords_i2[h].y);
 
-        uint64_t h2 = elk_hilbert_coords_to_integer(&hc, test_coords_i2[h]);
+        uint64_t h2 = elk_hilbert_coords_to_integer(hc, test_coords_i2[h]);
         assert(h2 == test_dist[h]);
     }
+
+    hc = elk_hilbert_curve_free(hc);
 }
 
 /*-------------------------------------------------------------------------------------------------
