@@ -205,7 +205,7 @@ elk_list_filter_out(ElkList *const src, ElkList *sink, FilterFunc filter, void *
  *                                       Hilbert Curves
  *-----------------------------------------------------------------------------------------------*/
 
-struct HilbertCurve {
+struct ElkHilbertCurve {
     /** The number of iterations to use for this curve.
      *
      * This can be a maximum of 31. If it is larger than 31, we won't have enough bits to do the
@@ -217,18 +217,18 @@ struct HilbertCurve {
     Elk2DRect domain;
 };
 
-static struct HilbertCurve
+static struct ElkHilbertCurve
 elk_hilbert_curve_initialize(unsigned int iterations, Elk2DRect domain)
 {
     Panicif(iterations < 1, "Require at least 1 iteration for Hilbert curve.");
     Panicif(iterations > 31, "Maximum 31 iterations for Hilbert curve.");
-    return (struct HilbertCurve){.iterations = iterations, .domain = domain};
+    return (struct ElkHilbertCurve){.iterations = iterations, .domain = domain};
 }
 
-struct HilbertCurve *
+struct ElkHilbertCurve *
 elk_hilbert_curve_new(unsigned int iterations, Elk2DRect domain)
 {
-    struct HilbertCurve *new = malloc(sizeof(struct HilbertCurve));
+    struct ElkHilbertCurve *new = malloc(sizeof(struct ElkHilbertCurve));
     Panicif(!new, "%s", err_out_of_mem);
 
     *new = elk_hilbert_curve_initialize(iterations, domain);
@@ -236,8 +236,8 @@ elk_hilbert_curve_new(unsigned int iterations, Elk2DRect domain)
     return new;
 }
 
-struct HilbertCurve *
-elk_hilbert_curve_free(struct HilbertCurve *hc)
+struct ElkHilbertCurve *
+elk_hilbert_curve_free(struct ElkHilbertCurve *hc)
 {
     if (hc) {
         free(hc);
@@ -247,7 +247,7 @@ elk_hilbert_curve_free(struct HilbertCurve *hc)
 }
 
 struct HilbertCoord
-elk_hilbert_integer_to_coords(struct HilbertCurve const *hc, uint64_t hi)
+elk_hilbert_integer_to_coords(struct ElkHilbertCurve const *hc, uint64_t hi)
 {
     assert(hc);
     assert(hi <= ((UINT64_C(1) << (2 * hc->iterations)) - 1));
@@ -305,7 +305,7 @@ elk_hilbert_integer_to_coords(struct HilbertCurve const *hc, uint64_t hi)
 }
 
 uint64_t
-elk_hilbert_coords_to_integer(struct HilbertCurve const *hc, struct HilbertCoord coords)
+elk_hilbert_coords_to_integer(struct ElkHilbertCurve const *hc, struct HilbertCoord coords)
 {
     assert(hc);
     assert(coords.x <= ((UINT32_C(1) << hc->iterations) - 1));
@@ -371,7 +371,7 @@ elk_hilbert_coords_to_integer(struct HilbertCurve const *hc, struct HilbertCoord
 }
 
 struct HilbertCoord
-elk_hilbert_translate_to_curve_coords(struct HilbertCurve *hc, Elk2DCoord coord)
+elk_hilbert_translate_to_curve_coords(struct ElkHilbertCurve *hc, Elk2DCoord coord)
 {
     assert(hc);
 
@@ -383,7 +383,7 @@ elk_hilbert_translate_to_curve_coords(struct HilbertCurve *hc, Elk2DCoord coord)
 }
 
 uint64_t
-elk_hilbert_translate_to_curve_distance(struct HilbertCurve *hc, Elk2DCoord coord)
+elk_hilbert_translate_to_curve_distance(struct ElkHilbertCurve *hc, Elk2DCoord coord)
 {
     assert(hc);
 

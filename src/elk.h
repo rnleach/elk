@@ -335,7 +335,7 @@ typedef struct Elk2DRect {
  * which is itself an implementation based on the 2004 paper "Programming the Hilbert Curve" by
  * John Skilling (http://adsabs.harvard.edu/abs/2004AIPC..707..381S)(DOI: 10.10631/1.1751381).
  */
-struct HilbertCurve;
+struct ElkHilbertCurve;
 
 /** A point in the Hilbert space. */
 struct HilbertCoord {
@@ -349,29 +349,30 @@ struct HilbertCoord {
  * the program will exit and print an error message.
  * \param domain is a rectanglular region to map this Hilbert curve onto.
  */
-struct HilbertCurve *elk_hilbert_curve_new(unsigned int iterations, Elk2DRect domain);
+struct ElkHilbertCurve *elk_hilbert_curve_new(unsigned int iterations, Elk2DRect domain);
 
-/** Free all memory associated with a HilbertCurve
+/** Free all memory associated with a ElkHilbertCurve
  *
  * \param hc is the object to free. A \c NULL pointer is acceptable and is ignored.
  *
  * \returns \c NULL, which should be assigned to the original object, \p hc.
  */
-struct HilbertCurve *elk_hilbert_curve_free(struct HilbertCurve *hc);
+struct ElkHilbertCurve *elk_hilbert_curve_free(struct ElkHilbertCurve *hc);
 
 /** Convert the distance along the curve to coordinates in the X-Y plane.
  *
  * In debug mode (no \c NDEBUG macro defined), assertions will check to make sure the distance
  * is within the allowable range for this curve.
  */
-struct HilbertCoord elk_hilbert_integer_to_coords(struct HilbertCurve const *hc, uint64_t hi);
+struct HilbertCoord elk_hilbert_integer_to_coords(struct ElkHilbertCurve const *hc, uint64_t hi);
 
 /** Convert the coordinates into a distance along the Hilbert curve.
  *
  * In debug mode (compiled without \c NDEBUG macro defined), assertions will check to make sure
  * the \p coords are the allowable range for this curve.
  */
-uint64_t elk_hilbert_coords_to_integer(struct HilbertCurve const *hc, struct HilbertCoord coords);
+uint64_t elk_hilbert_coords_to_integer(struct ElkHilbertCurve const *hc,
+                                       struct HilbertCoord coords);
 
 /** Translate a point into the nearest set of coordinates for this Hilbert curve \p hc.
  *
@@ -380,7 +381,7 @@ uint64_t elk_hilbert_coords_to_integer(struct HilbertCurve const *hc, struct Hil
  *
  * \returns the nearest coordinate in the coordinates of the Hilbert curve.
  */
-struct HilbertCoord elk_hilbert_translate_to_curve_coords(struct HilbertCurve *hc,
+struct HilbertCoord elk_hilbert_translate_to_curve_coords(struct ElkHilbertCurve *hc,
                                                           Elk2DCoord coord);
 
 /** Translate a point to the distance along the curve to the nearest set of coordinates for this
@@ -394,7 +395,7 @@ struct HilbertCoord elk_hilbert_translate_to_curve_coords(struct HilbertCurve *h
  *
  * \returns the nearest coordinate in the coordinates of the Hilbert curve.
  */
-uint64_t elk_hilbert_translate_to_curve_distance(struct HilbertCurve *hc, Elk2DCoord coord);
+uint64_t elk_hilbert_translate_to_curve_distance(struct ElkHilbertCurve *hc, Elk2DCoord coord);
 
 /*-------------------------------------------------------------------------------------------------
  *                                          2D RTreeView

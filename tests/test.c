@@ -223,7 +223,7 @@ elk_hilbert_tests(void)
 
     uint64_t test_dist[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 
-    struct HilbertCurve *hc = elk_hilbert_curve_new(1, domain);
+    struct ElkHilbertCurve *hc = elk_hilbert_curve_new(1, domain);
     for (uint64_t h = 0; h < 4; ++h) {
         struct HilbertCoord coords = elk_hilbert_integer_to_coords(hc, test_dist[h]);
         assert(coords.x == test_coords_i1[h].x && coords.y == test_coords_i1[h].y);
