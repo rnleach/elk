@@ -335,7 +335,7 @@ typedef struct Elk2DRect {
  * which is itself an implementation based on the 2004 paper "Programming the Hilbert Curve" by
  * John Skilling (http://adsabs.harvard.edu/abs/2004AIPC..707..381S)(DOI: 10.10631/1.1751381).
  */
-struct ElkHilbertCurve;
+typedef struct ElkHilbertCurve ElkHilbertCurve;
 
 /** A point in the Hilbert space. */
 struct HilbertCoord {
@@ -416,17 +416,22 @@ typedef struct Elk2DRTreeView Elk2DRTreeView;
  * it.
  * \param rect is a function that takes an item from the \p list and calculates a bounding rectangle
  * for it.
+ * \param domain is the boundaries of data in the list. If this is \c NULL, then this constructor
+ * will do an initial pass over the list and calculate it.
  *
  * \returns A view of the list.
  */
 Elk2DRTreeView *elk_2d_rtree_view_new(ElkList *const list, Elk2DCoord (*centroid)(void *),
-                                      Elk2DRect (*rect)(void *));
+                                      Elk2DRect (*rect)(void *), Elk2DRect *domain);
 
 /** Free an R-Tree view of the list.
  *
  * \returns \c NULL, which should be assigned to the \p tv so there isn't a dangling pointer.
  */
 Elk2DRTreeView *elk_2d_rtree_view_free(Elk2DRTreeView *tv);
+
+/** Print a tree, which is useful for debugging. */
+void elk_2d_rtree_view_print(Elk2DRTreeView *rtree);
 
 /** Search an R-Tree and apply the function to each item that overlaps the provided rectangle.
  *

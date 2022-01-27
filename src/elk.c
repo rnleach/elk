@@ -4,6 +4,7 @@
 #include <inttypes.h>
 #include <stddef.h>
 #include <string.h>
+#include <tgmath.h>
 
 // Constant messages for errors.
 static const char *err_out_of_mem = "out of memory";
@@ -199,6 +200,33 @@ elk_list_filter_out(ElkList *const src, ElkList *sink, FilterFunc filter, void *
     }
 
     return sink;
+}
+
+/*-------------------------------------------------------------------------------------------------
+ *                                    Coordinates and Rectangles
+ *-----------------------------------------------------------------------------------------------*/
+static bool
+elk_rect_overlaps(Elk2DRect const *left, Elk2DRect const *right)
+{
+    double left_min_x = left->ll.x;
+    double left_min_y = left->ll.y;
+    double right_max_x = right->ur.x;
+    double right_max_y = right->ur.y;
+
+    if (left_min_x > right_max_x || left_min_y > right_max_y) {
+        return false;
+    }
+
+    double left_max_x = left->ur.x;
+    double left_max_y = left->ur.y;
+    double right_min_x = right->ll.x;
+    double right_min_y = right->ll.y;
+
+    if (left_max_x < right_min_x || left_max_y < right_min_y) {
+        return false;
+    }
+
+    return true;
 }
 
 /*-------------------------------------------------------------------------------------------------
@@ -430,46 +458,361 @@ elk_hilbert_translate_to_curve_distance(struct ElkHilbertCurve *hc, Elk2DCoord c
  *                                          2D RTreeView
  *-----------------------------------------------------------------------------------------------*/
 
-/*
+#define ELK_RTREE_CHILDREN_PER_NODE 4
 
-NOTE: Remember these are defined in elk.h
+enum NodeType { ELK_RTREE_LEAF_NODE, ELK_RTREE_GROUP };
 
-typedef struct Elk2DCoord {
-    double x;
-    double y;
-} Elk2DCoord;
+struct ElkRTreeLeaf {
+    void *item;
+    uint64_t hilbert_num;
+    Elk2DRect mbr;
+};
 
-typedef struct Elk2DRect {
-    Elk2DCoord ll;
-    Elk2DCoord ur;
-} Elk2DRect;
-
-*/
+struct RTreeNode {
+    Elk2DRect mbr;
+    union {
+        struct ElkRTreeLeaf *item[ELK_RTREE_CHILDREN_PER_NODE];
+        struct RTreeNode *child[ELK_RTREE_CHILDREN_PER_NODE];
+    };
+    enum NodeType child_type;
+    unsigned char num_children;
+};
 
 struct Elk2DRTreeView {
+    ElkList *leaves;
+    struct RTreeNode nodes[];
 };
+
+struct BuildQSortDataArgs {
+    Elk2DRect (*rect)(void *);
+    Elk2DCoord (*centroid)(void *);
+    ElkList *qsort_data;
+    ElkHilbertCurve *hc;
+};
+
+static bool
+build_qsort_data(void *item, void *user_data)
+{
+    struct BuildQSortDataArgs *args = user_data;
+
+    Elk2DCoord centroid = args->centroid(item);
+    Elk2DRect bbox = args->rect(item);
+    uint64_t hilbert_num = elk_hilbert_translate_to_curve_distance(args->hc, centroid);
+
+    struct ElkRTreeLeaf element = {.item = item, .hilbert_num = hilbert_num, .mbr = bbox};
+
+    args->qsort_data = elk_list_push_back(args->qsort_data, &element);
+
+    return true;
+}
+
+static int
+compare_hilbert_nums(void const *left, void const *right)
+{
+    struct ElkRTreeLeaf const *a = left;
+    struct ElkRTreeLeaf const *b = right;
+
+    if (a->hilbert_num == b->hilbert_num)
+        return 0;
+    if (a->hilbert_num < b->hilbert_num)
+        return -1;
+    return 1;
+}
+
+struct MaxBoundingRectCallBackArgs {
+    Elk2DRect mbr;
+    Elk2DRect (*rect)(void *);
+};
+
+static bool
+build_bounding_rectangle(void *item, void *user_data)
+{
+    struct MaxBoundingRectCallBackArgs *args = user_data;
+
+    Elk2DRect item_rect = args->rect(item);
+
+    args->mbr.ll.x = fmin(args->mbr.ll.x, item_rect.ll.x);
+    args->mbr.ll.y = fmin(args->mbr.ll.y, item_rect.ll.y);
+
+    args->mbr.ur.x = fmax(args->mbr.ur.x, item_rect.ur.x);
+    args->mbr.ur.y = fmax(args->mbr.ur.y, item_rect.ur.y);
+
+    return true;
+}
+
+static Elk2DRect
+build_rtree_domain(ElkList *const list, Elk2DRect (*rect)(void *), Elk2DRect *pre_computed_domain)
+{
+    if (pre_computed_domain) {
+        return *pre_computed_domain;
+    } else {
+        // We need to calculate the MBR (domain)
+        struct MaxBoundingRectCallBackArgs args = {
+            .rect = rect,
+            .mbr = (Elk2DRect){.ll = (Elk2DCoord){.x = HUGE_VAL, .y = HUGE_VAL},
+                               .ur = (Elk2DCoord){.x = -HUGE_VAL, .y = -HUGE_VAL}},
+        };
+
+        elk_list_foreach(list, build_bounding_rectangle, &args);
+
+        return args.mbr;
+    }
+}
 
 Elk2DRTreeView *
 elk_2d_rtree_view_new(ElkList *const list, Elk2DCoord (*centroid)(void *),
-                      Elk2DRect (*rect)(void *))
+                      Elk2DRect (*rect)(void *), Elk2DRect *pre_computed_domain)
 {
-    // TODO implement
-    assert(false);
-    return 0;
+    assert(list);
+    assert(centroid);
+    assert(rect);
+
+    // Calculate the domain if a pre-computed domain was not supplied and use that to set up the
+    // Hilbert curve.
+    Elk2DRect data_domain = build_rtree_domain(list, rect, pre_computed_domain);
+    ElkHilbertCurve hc = elk_hilbert_curve_initialize(16, data_domain);
+
+    // Create the leaf nodes as a list of ElkRTreeLeaf, then process the data from our list to fill
+    // those nodes.
+    ElkList *q_data = elk_list_new_with_capacity(elk_list_count(list), sizeof(struct ElkRTreeLeaf));
+    struct BuildQSortDataArgs args = {
+        .rect = rect, .centroid = centroid, .qsort_data = q_data, .hc = &hc};
+    elk_list_foreach(list, build_qsort_data, &args);
+
+    // Sort the leaf nodes by Hilbert number. This is how we get locality for the parent nodes.
+    qsort(q_data->data, q_data->len, q_data->element_size, compare_hilbert_nums);
+
+    // Calculate the memory for the groups.
+    size_t num_nodes_with_leaf_children = q_data->len / ELK_RTREE_CHILDREN_PER_NODE +
+                                          (q_data->len % ELK_RTREE_CHILDREN_PER_NODE > 0 ? 1 : 0);
+    size_t num_nodes = num_nodes_with_leaf_children;
+    size_t level_nodes = num_nodes;
+    while (level_nodes > 1) {
+        level_nodes = level_nodes / ELK_RTREE_CHILDREN_PER_NODE +
+                      (level_nodes % ELK_RTREE_CHILDREN_PER_NODE > 0 ? 1 : 0);
+        num_nodes += level_nodes;
+    }
+
+    // Allocate the memory for the tree structure including the group nodes and associate the leaf
+    // nodes with it.
+    struct Elk2DRTreeView *rtree =
+        malloc(sizeof(Elk2DRTreeView) + sizeof(struct RTreeNode) * num_nodes);
+    Panicif(!rtree, "%s", err_out_of_mem);
+    rtree->leaves = q_data;
+
+    //
+    // Initialize the group nodes to point down the tree and have the correct minimum bounding
+    // rectangles.
+    //
+
+    // Fill in the nodes whose children are leaves, call these level 1 nodes.
+    // (Leaf nodes are level 0 nodes.)
+    size_t first_level_1_node_index = num_nodes - num_nodes_with_leaf_children;
+    size_t num_leaves_left_to_process = q_data->len;
+    size_t next_leaf = 0;
+    for (unsigned int i = first_level_1_node_index; i < num_nodes; ++i) {
+
+        unsigned num_leaves_to_process = num_leaves_left_to_process < ELK_RTREE_CHILDREN_PER_NODE
+                                             ? num_leaves_left_to_process
+                                             : ELK_RTREE_CHILDREN_PER_NODE;
+
+        assert(num_leaves_to_process > 0);
+
+        // Initialize the minimum bounding rectangle to values that will certainly be overwritten.
+        rtree->nodes[i].mbr = (Elk2DRect){.ll = (Elk2DCoord){.x = HUGE_VAL, .y = HUGE_VAL},
+                                          .ur = (Elk2DCoord){.x = -HUGE_VAL, .y = -HUGE_VAL}};
+
+        for (unsigned j = 0; j < num_leaves_to_process; ++j) {
+            struct ElkRTreeLeaf *leaf =
+                (struct ElkRTreeLeaf *)elk_list_get_alias_at_index(rtree->leaves, next_leaf);
+            rtree->nodes[i].item[j] = leaf;
+
+            // Update the mbr for the parent node
+            rtree->nodes[i].mbr.ll.x = fmin(rtree->nodes[i].mbr.ll.x, leaf->mbr.ll.x);
+            rtree->nodes[i].mbr.ll.y = fmin(rtree->nodes[i].mbr.ll.y, leaf->mbr.ll.y);
+            rtree->nodes[i].mbr.ur.x = fmax(rtree->nodes[i].mbr.ur.x, leaf->mbr.ur.x);
+            rtree->nodes[i].mbr.ur.y = fmax(rtree->nodes[i].mbr.ur.y, leaf->mbr.ur.y);
+
+            ++next_leaf;
+            --num_leaves_left_to_process;
+        }
+
+        rtree->nodes[i].child_type = ELK_RTREE_LEAF_NODE;
+        rtree->nodes[i].num_children = num_leaves_to_process;
+    }
+
+    // Fill in the nodes whose children are not leaves.
+    level_nodes = num_nodes_with_leaf_children;
+    size_t num_filled_so_far = num_nodes_with_leaf_children;
+    while (num_filled_so_far < num_nodes) {
+
+        size_t num_children_at_level_below = level_nodes;
+        size_t num_children_left_to_process = num_children_at_level_below;
+
+        level_nodes = level_nodes / ELK_RTREE_CHILDREN_PER_NODE +
+                      (level_nodes % ELK_RTREE_CHILDREN_PER_NODE > 0 ? 1 : 0);
+
+        size_t first_node_at_level = num_nodes - num_filled_so_far - level_nodes;
+        for (unsigned int i = first_node_at_level; i < num_nodes - num_filled_so_far; ++i) {
+
+            unsigned num_to_fill = num_children_left_to_process < ELK_RTREE_CHILDREN_PER_NODE
+                                       ? num_children_left_to_process
+                                       : ELK_RTREE_CHILDREN_PER_NODE;
+
+            assert(num_to_fill > 0);
+
+            // Initialize the minimum bounding rectangle to values that will certainly be
+            // overwritten.
+            rtree->nodes[i].mbr = (Elk2DRect){.ll = (Elk2DCoord){.x = HUGE_VAL, .y = HUGE_VAL},
+                                              .ur = (Elk2DCoord){.x = -HUGE_VAL, .y = -HUGE_VAL}};
+
+            for (unsigned char j = 0; j < num_to_fill; ++j) {
+                size_t child_index = first_node_at_level + level_nodes +
+                                     (i - first_node_at_level) * ELK_RTREE_CHILDREN_PER_NODE + j;
+
+                struct RTreeNode *node = &rtree->nodes[child_index];
+
+                rtree->nodes[i].child[j] = node;
+
+                // Update the mbr for the parent node
+                rtree->nodes[i].mbr.ll.x = fmin(rtree->nodes[i].mbr.ll.x, node->mbr.ll.x);
+                rtree->nodes[i].mbr.ll.y = fmin(rtree->nodes[i].mbr.ll.y, node->mbr.ll.y);
+                rtree->nodes[i].mbr.ur.x = fmax(rtree->nodes[i].mbr.ur.x, node->mbr.ur.x);
+                rtree->nodes[i].mbr.ur.y = fmax(rtree->nodes[i].mbr.ur.y, node->mbr.ur.y);
+
+                --num_children_left_to_process;
+            }
+
+            rtree->nodes[i].child_type = ELK_RTREE_GROUP;
+            rtree->nodes[i].num_children = num_to_fill;
+        }
+
+        num_filled_so_far += level_nodes;
+    }
+
+    return rtree;
 }
 
 Elk2DRTreeView *
 elk_2d_rtree_view_free(Elk2DRTreeView *tv)
 {
-    // TODO implement
-    assert(false);
-    return 0;
+    if (tv) {
+        elk_list_free(tv->leaves);
+        free(tv);
+    }
+
+    return NULL;
+}
+
+static void
+fprint_spaces(FILE *f, unsigned int num)
+{
+    for (unsigned int i = 0; i < num; ++i)
+        fputc(' ', f);
+
+    return;
+}
+
+static void
+elk_2d_rtree_view_print_leaf(struct ElkRTreeLeaf *leaf, unsigned int level)
+{
+    assert(leaf);
+
+    fprint_spaces(stderr, level * 2);
+    fprintf(stderr, "Hilbert Num: %7" PRIu64 " LL = (%lf, %lf) UR= (%lf, %lf)\n", leaf->hilbert_num,
+            leaf->mbr.ll.x, leaf->mbr.ll.y, leaf->mbr.ur.x, leaf->mbr.ur.y);
+    return;
+}
+
+static void
+elk_2d_rtree_view_inner_print(struct RTreeNode *node, unsigned int level)
+{
+    assert(node);
+
+    fprint_spaces(stderr, level * 2);
+    char *child_type = 0;
+    if (node->child_type == ELK_RTREE_GROUP)
+        child_type = "GROUP";
+    else if (node->child_type == ELK_RTREE_LEAF_NODE)
+        child_type = "LEAF";
+    else
+        Panic("unreachable");
+
+    fprintf(stderr, "Num Children: %2u Child Type: %5s LL=(%lf, %lf) UR=(%lf, %lf)\n",
+            node->num_children, child_type, node->mbr.ll.x, node->mbr.ll.y, node->mbr.ur.x,
+            node->mbr.ur.y);
+
+    if (node->child_type == ELK_RTREE_GROUP) {
+        for (unsigned int i = 0; i < node->num_children; ++i) {
+            elk_2d_rtree_view_inner_print(node->child[i], level + 1);
+        }
+    } else {
+        for (unsigned int i = 0; i < node->num_children; ++i) {
+            elk_2d_rtree_view_print_leaf(node->item[i], level + 1);
+        }
+    }
+
+    return;
+}
+
+void
+elk_2d_rtree_view_print(Elk2DRTreeView *rtree)
+{
+    assert(rtree);
+
+    struct RTreeNode *root = &rtree->nodes[0];
+    elk_2d_rtree_view_inner_print(root, 0);
+
+    return;
+}
+
+static bool
+elk_2d_rtree_view_node_foreach(struct RTreeNode *node, Elk2DRect region, IterFunc update,
+                               void *user_data)
+{
+    if (elk_rect_overlaps(&node->mbr, &region)) {
+        unsigned int num_children = node->num_children;
+
+        if (node->child_type == ELK_RTREE_GROUP) {
+            // Recurse
+            for (unsigned int i = 0; i < num_children; ++i) {
+                struct RTreeNode *next_node = node->child[i];
+                assert(next_node != node);
+                bool keep_going =
+                    elk_2d_rtree_view_node_foreach(next_node, region, update, user_data);
+                if (!keep_going) {
+                    return false;
+                }
+            }
+        } else if (node->child_type == ELK_RTREE_LEAF_NODE) {
+            // Apply to all leaves
+            for (unsigned int i = 0; i < num_children; ++i) {
+                struct ElkRTreeLeaf *leaf = node->item[i];
+
+                if (elk_rect_overlaps(&leaf->mbr, &region)) {
+                    bool keep_going = update(leaf->item, user_data);
+                    if (!keep_going) {
+                        return false;
+                    }
+                }
+            }
+        } else {
+            Panic("Invalid child_type - impossible enum value.");
+        }
+    }
+
+    return true;
 }
 
 void
 elk_2d_rtree_view_foreach(Elk2DRTreeView *tv, Elk2DRect region, IterFunc update, void *user_data)
 {
-    // TODO implement
-    assert(false);
+    assert(tv);
+
+    struct RTreeNode *root = &tv->nodes[0];
+    elk_2d_rtree_view_node_foreach(root, region, update, user_data);
+
     return;
 }
+
+#undef ELK_RTREE_CHILDREN_PER_NODE
