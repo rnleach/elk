@@ -26,7 +26,7 @@ TEST_TARGET = $(BUILDDIR)/$(TEST)
 # Compiler and compiler options
 CC = clang
 
-# Show commands make uses
+# Show commands that make uses
 VERBOSE = TRUE
 
 # Add this list to the VPATH, the place make will look for the source files

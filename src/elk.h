@@ -1,11 +1,11 @@
 #pragma once
 /**
  * \file elk.h
- * \brief A source library of useful things.
+ * \brief A source library of useful code.
  *
  * I like elk. They're really interesting, majestic animals. And did you know they have ivory?! So
  * I decided to name my general purpose C library after them. Maybe I'll make a testing library at
- * some point and call it wolf, but I haven't made plans yet.
+ * some point and call it wolf, but I haven't made any plans yet.
  *
  * Goals and non-Goals:
  *  1. I only implement the things I need. If it's in here, I needed it at some point.
@@ -36,12 +36,12 @@
 #endif
 /// \endcond HIDDEN
 
-/** Clean error handling not removed in release builds.
+/** Clean error handling not removed in release builds, always prints a message to \c stderr.
  *
  * Unlike \c assert, this macro isn't compiled out if \c NDEBUG is defined. Error checking that is
- * always on. This macro will do an error action, which could be a \c goto, \c continue, or
- * \c break, or any code snippet you put in there. But it will always print a message to \c stderr
- * when it is triggered.
+ * always on. This macro will do an error action, which could be a \c goto, \c continue, \c return
+ * or \c break, or any code snippet you put in there. But it will always print a message to
+ * \c stderr when it is triggered.
  */
 #define Stopif(assertion, error_action, ...)                                                       \
     {                                                                                              \
@@ -55,13 +55,26 @@
         }                                                                                          \
     }
 
+/** Clean and quiet error handling not removed in release builds.
+ *
+ * Unlike \c assert, this macro isn't compiled out if \c NDEBUG is defined. Error checking that is
+ * always on. This macro will do an error action, which could be a \c goto, \c return, \c continue,
+ * or \c break, or any code snippet you put in there. It's called quiet because nothing is printed.
+ */
+#define QuietStopif(assertion, error_action)                                                       \
+    {                                                                                              \
+        if (assertion) {                                                                           \
+            error_action;                                                                          \
+        }                                                                                          \
+    }
+
 /** If the assertion fails, cleanly abort the program with an error message.
  *
- * Unlike \c assert, this macro isn't compiled out if \c NDEBUG is defined. Useful for checking
- * errors that should never happen, like running out of memory.
+ * Unlike \c assert, this macro isn't compiled out if \c NDEBUG is defined. This is useful for
+ * checking errors that should never happen, like running out of memory.
  *
  * If \c ELK_PANIC_CRASH is defined, then this will print to \c NULL and cause a crash that any
- * good debugger should catch so you can investigate the cause of the crash.
+ * good debugger should catch so you can investigate the stack trace and the cause of the crash.
  */
 #define Panicif(assertion, ...)                                                                    \
     {                                                                                              \
@@ -79,7 +92,7 @@
  * unreachable code like the default statement in a \c switch statement.
  *
  * If \c ELK_PANIC_CRASH is defined, then this will print to \c NULL and cause a crash that any
- * good debugger should catch so you can investigate the cause of the crash.
+ * good debugger should catch so you can investigate the stack trace and the cause of the crash.
  */
 #define Panic(...)                                                                                 \
     {                                                                                              \
@@ -149,7 +162,7 @@ typedef bool (*FilterFunc)(void const *item, void *user_data);
 /** An array backed list that dynamically grows in size as needed.
  *
  * All the operations on this type assume the system will never run out of memory, so if it does
- * they will abort the program. The list is backed by an array so it should be cache friendly.
+ * they will abort the program. The list is backed by an array, so it should be cache friendly.
  *
  * This list assumes (and so it is only good for) storing types of constant size that do not require
  * any copy or delete functions. This list stores plain old data types (PODs). Of course you could
@@ -255,7 +268,7 @@ size_t elk_list_count(ElkList const *const list);
 /** Create a copy of this list.
  *
  * Since this list is assumed to hold plain old data (e.g. no pointers), there is no attempt at a
- * deep copy. So if the items in the list do contain pointers, this create an alias for each of
+ * deep copy. So if the items in the list do contain pointers, this will create an alias for each of
  * those items.
  *
  * \param list is the list to create a copy of. This must not be \c NULL.
@@ -342,7 +355,6 @@ struct HilbertCoord {
     uint32_t x;
     uint32_t y;
 };
-
 /** Create a new Hilbert Curve description.
  *
  * \param iterations is a number between 1 and 31 inclusive. If the number is outside that range,
