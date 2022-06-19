@@ -12,7 +12,44 @@ static const char *err_out_of_mem = "out of memory";
 /*-------------------------------------------------------------------------------------------------
  *                                        Date and Time Handling
  *-----------------------------------------------------------------------------------------------*/
-static time_t tz_offset()
+#if defined _DEFAULT_SOURCE && defined __unix__
+// We have POSIX functionality
+time_t
+elk_time_from_ymd(int year, int month, int day)
+{
+    assert(month >= 1 && month <= 12);
+    assert(day >= 1 && day <= 31);
+
+    struct tm time = {0};
+    time.tm_year = year - 1900;
+    time.tm_mon = month - 1;
+    time.tm_mday = day;
+
+    return timegm(&time);
+}
+
+time_t
+elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, int seconds)
+{
+    assert(month >= 1 && month <= 12);
+    assert(day >= 1 && day <= 31);
+    assert(hour >= 0 && hour <= 23);
+    assert(minutes >= 0 && minutes <= 59);
+    assert(seconds >= 0 && seconds <= 60); // 60 not 59 for leap seconds? Time is sooo hard.
+
+    struct tm time = {0};
+    time.tm_year = year - 1900;
+    time.tm_mon = month - 1;
+    time.tm_mday = day;
+    time.tm_hour = hour;
+    time.tm_min = minutes;
+    time.tm_sec = seconds;
+
+    return timegm(&time);
+}
+#else
+static time_t
+tz_offset()
 {
     struct tm time = {0};
     time.tm_year = 1970 - 1900;
@@ -58,6 +95,7 @@ elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, i
 
     return mktime(&time) - tz_offset();
 }
+#endif
 
 /*-------------------------------------------------------------------------------------------------
  *                                           List
