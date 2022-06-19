@@ -36,3 +36,8 @@
 
   Know your time and what you need from it! THE TIME FUNCTIONALITY IN THIS LIBRARY IS NOT WIDELY 
   APPLICABLE. I don't even know if something like that exists.
+
+## Releases
+
+### Version 1.0.0
+  - (2022-06-19) Initial release.
