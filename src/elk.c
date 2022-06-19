@@ -32,7 +32,7 @@ elk_list_new_with_capacity(size_t capacity, size_t element_size)
     size_t allocation_size = sizeof(struct ElkList) + element_size * capacity;
 
     struct ElkList *new = malloc(allocation_size);
-    Panicif(!new, "%s", err_out_of_mem);
+    PanicIf(!new, "%s", err_out_of_mem);
 
     new->element_size = element_size;
     new->len = 0;
@@ -74,7 +74,7 @@ elk_list_expand(struct ElkList *list, size_t min_capacity)
     size_t allocation_size = sizeof(struct ElkList) + list->element_size * new_capacity;
 
     struct ElkList *new = realloc(list, allocation_size);
-    Panicif(!new, "%s", err_out_of_mem);
+    PanicIf(!new, "%s", err_out_of_mem);
 
     new->capacity = new_capacity;
 
@@ -259,14 +259,14 @@ elk_hilbert_max_dim(unsigned int iterations)
 static struct ElkHilbertCurve
 elk_hilbert_curve_initialize(unsigned int iterations, Elk2DRect domain)
 {
-    Panicif(iterations < 1, "Require at least 1 iteration for Hilbert curve.");
-    Panicif(iterations > 31, "Maximum 31 iterations for Hilbert curve.");
+    PanicIf(iterations < 1, "Require at least 1 iteration for Hilbert curve.");
+    PanicIf(iterations > 31, "Maximum 31 iterations for Hilbert curve.");
 
     uint32_t max_dim = elk_hilbert_max_dim(iterations);
     double width = domain.ur.x - domain.ll.x;
     double height = domain.ur.y - domain.ll.y;
 
-    Panicif(width <= 0.0 || height <= 0.0, "Invalid rectangle, negative width or height.");
+    PanicIf(width <= 0.0 || height <= 0.0, "Invalid rectangle, negative width or height.");
 
     return (struct ElkHilbertCurve){.iterations = iterations,
                                     .domain = domain,
@@ -279,7 +279,7 @@ struct ElkHilbertCurve *
 elk_hilbert_curve_new(unsigned int iterations, Elk2DRect domain)
 {
     struct ElkHilbertCurve *new = malloc(sizeof(struct ElkHilbertCurve));
-    Panicif(!new, "%s", err_out_of_mem);
+    PanicIf(!new, "%s", err_out_of_mem);
 
     *new = elk_hilbert_curve_initialize(iterations, domain);
 
@@ -597,7 +597,7 @@ elk_2d_rtree_view_new(ElkList *const list, Elk2DCoord (*centroid)(void *),
     // nodes with it.
     struct Elk2DRTreeView *rtree =
         malloc(sizeof(Elk2DRTreeView) + sizeof(struct RTreeNode) * num_nodes);
-    Panicif(!rtree, "%s", err_out_of_mem);
+    PanicIf(!rtree, "%s", err_out_of_mem);
     rtree->leaves = q_data;
 
     //

@@ -10,8 +10,8 @@
  * Goals and non-Goals:
  *  1. I only implement the things I need. If it's in here, I needed it at some point.
  *  2. Single header + single source file. Keeps it simple.
- *  3. NOT threadsafe. Access to any objects will be need to be protected by the user of those
- *     objects with a mutex or other means to prevent data races.
+ *  3. NOT threadsafe. Access to any objects will need to be protected by the user of those objects
+ *     with a mutex or other means to prevent data races.
  *  4. NO global state. All state related to any objects created by this library is stored in that
  *     object. This makes it simple to protect variables in multi-threaded scenarios.
  *  5. As a result of number 4, all functions must be re-entrant so as long as the input parameters
@@ -43,7 +43,7 @@
  * or \c break, or any code snippet you put in there. But it will always print a message to
  * \c stderr when it is triggered.
  */
-#define Stopif(assertion, error_action, ...)                                                       \
+#define StopIf(assertion, error_action, ...)                                                       \
     {                                                                                              \
         if (assertion) {                                                                           \
             fprintf(stderr, "[%s %d]: ", __FILE__, __LINE__);                                      \
@@ -61,7 +61,7 @@
  * always on. This macro will do an error action, which could be a \c goto, \c return, \c continue,
  * or \c break, or any code snippet you put in there. It's called quiet because nothing is printed.
  */
-#define QuietStopif(assertion, error_action)                                                       \
+#define QuietStopIf(assertion, error_action)                                                       \
     {                                                                                              \
         if (assertion) {                                                                           \
             error_action;                                                                          \
@@ -76,7 +76,7 @@
  * If \c ELK_PANIC_CRASH is defined, then this will print to \c NULL and cause a crash that any
  * good debugger should catch so you can investigate the stack trace and the cause of the crash.
  */
-#define Panicif(assertion, ...)                                                                    \
+#define PanicIf(assertion, ...)                                                                    \
     {                                                                                              \
         if (assertion) {                                                                           \
             fprintf(stderr, "[%s %d]: ", __FILE__, __LINE__);                                      \
