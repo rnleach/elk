@@ -93,13 +93,6 @@
  *-----------------------------------------------------------------------------------------------*/
 /** Create a \c time_t object given the date information.
  *
- * NOTE: The C-runtime will default to the locale defined by your OS. The timezone handling in C is
- * non-existant, it depends on the timezone set on your computer's OS to convert to local time. 
- * Lucky for me, the only thing I usually (almost always) care about is UTC.
- *
- * So you should always call setlocale(LC_ALL, ""); in main to set the locale to UTC before using
- * any of the time related functions in this library.
- *
  * WARNING: This function is NOT thread safe or reentrant due to static-global state in \c <time.h>.
  *
  * \param year is the 4 digit year.
@@ -112,15 +105,6 @@
 time_t elk_time_from_ymd(int year, int month, int day);
 
 /** Create a \c time_t object given the date and time information.
- *
- * NOTE: The C-runtime will default to the locale defined by your OS. The timezone handling in C is
- * non-existant, it depends on the timezone set on your computer's OS to convert to local time. 
- * Lucky for me, the only thing I usually (almost always) care about is UTC.
- *
- * So you should always call setlocale(LC_ALL, ""); in main to set the locale to UTC before using
- * any of the time related functions in this library.
- *
- * WARNING: This function is NOT thread safe or reentrant due to static-global state in \c <time.h>.
  *
  * \param year is the 4 digit year.
  * \param month is the month number [1,12].

@@ -22,11 +22,17 @@
 
 ### Time
   The time related functions in this library do NOT account for local time or timezones. I almost 
-  always only need to work in the UTC timezone, so I don't worry about it. However, it is critical
-  that early in main you call `setlocale(LC_ALL, "");` and always assume you're working in UTC.
+  always only need to work in the UTC timezone, so I don't worry about it. 
 
-  Time is a very complicated subject, and robust libraries are rarely robust for all uses. There's
-  government time (statutory), daylight savings, time zones, solar time, different calendar systems,
-  and it goes on and on. I mostly (always?) work with scientific data that makes good sense in the 
-  UTC timezone. Know your time and what you need from it! THIS IS NOT A WIDELY APPLICABLE TIME 
-  LIBRARY. I don't even know if something like that exists.
+  In this library I also assume I'm working on a system that uses seconds since the unix epoch for
+  the values it stores in time_t objects. This is checked in the tests, and if you run the tests on
+  another system where that is not the case, they should fail.
+
+  Time is a very complicated subject, and robust libraries are rarely (if ever) robust for all uses.
+  There's government time (statutory), daylight savings, time zones, solar time, different calendar 
+  systems, leap seconds, and it goes on and on. I mostly (always?) work with scientific data that 
+  makes good sense in the UTC timezone, and I have yet to knowingly run into an issue with leap 
+  seconds. 
+
+  Know your time and what you need from it! THE TIME FUNCTIONALITY IN THIS LIBRARY IS NOT WIDELY 
+  APPLICABLE. I don't even know if something like that exists.

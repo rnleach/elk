@@ -12,6 +12,19 @@ static const char *err_out_of_mem = "out of memory";
 /*-------------------------------------------------------------------------------------------------
  *                                        Date and Time Handling
  *-----------------------------------------------------------------------------------------------*/
+static time_t tz_offset()
+{
+    struct tm time = {0};
+    time.tm_year = 1970 - 1900;
+    time.tm_mon = 1 - 1;
+    time.tm_mday = 1;
+    time.tm_hour = 0;
+    time.tm_min = 0;
+    time.tm_sec = 0;
+
+    return mktime(&time);
+}
+
 time_t
 elk_time_from_ymd(int year, int month, int day)
 {
@@ -23,7 +36,7 @@ elk_time_from_ymd(int year, int month, int day)
     time.tm_mon = month - 1;
     time.tm_mday = day;
 
-    return mktime(&time);
+    return mktime(&time) - tz_offset();
 }
 
 time_t
@@ -43,7 +56,7 @@ elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, i
     time.tm_min = minutes;
     time.tm_sec = seconds;
 
-    return mktime(&time);
+    return mktime(&time) - tz_offset();
 }
 
 /*-------------------------------------------------------------------------------------------------
