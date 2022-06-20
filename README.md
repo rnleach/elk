@@ -34,6 +34,11 @@
   makes good sense in the UTC timezone, and I have yet to knowingly run into an issue with leap 
   seconds. 
 
+  I mentioned leap seconds above. I tested on both OSX and Ubuntu and found that the system time
+  functions from `<time.h>` don't take leap seconds into account. So if you're only interested in
+  calendar days, you can do math on `time_t` assuming 60 seconds per minute, 60 minutes per hour,
+  and 24 hours per day.
+
   Know your time and what you need from it! THE TIME FUNCTIONALITY IN THIS LIBRARY IS NOT WIDELY 
   APPLICABLE. I don't even know if something like that exists.
 
@@ -41,3 +46,10 @@
 
 ### Version 1.0.0
   - (2022-06-19) Initial release.
+### Version 1.1.0
+  - (2022-06-19) Adjustments to time functions.
+  - Removed calendar day only time creation, just left behind the one that uses date and time.
+  - Added enum for easier math with times.
+  - Added function for rounding down to a specific hour.
+  - Major bugfix for when I calculate the timezone offset (internally) that affected several
+    time functions.
