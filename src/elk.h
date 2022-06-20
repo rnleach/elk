@@ -123,6 +123,26 @@ time_t elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int min
  * \returns the time truncated, or rounded down, to the most recent hour.
  */
 time_t elk_time_truncate_to_hour(time_t time);
+
+/** Units of time for adding / subtracting time.
+ *
+ * It's not straight forward to add / subtract months or years due to the different days per month
+ * and leap years, so those options aren't available.
+ */
+typedef enum {
+    ElkSecond = 1,
+    ElkMinute = 60,
+    ElkHour = 60 * 60,
+    ElkDay = 60 * 60 * 24,
+    ElkWeek = 60 * 60 * 27 * 7,
+} ElkTimeUnit;
+
+/** Add a change in time.
+ *
+ * The type \ref ElkTimeUnit can be multiplied by an integer to make \p change_in_time more
+ * readable. For subtraction, just use a negative sign on the change_in_time.
+ */
+time_t elk_time_add(time_t time, int change_in_time);
 /*-------------------------------------------------------------------------------------------------
  *                                         Memory and Pointers
  *-----------------------------------------------------------------------------------------------*/
