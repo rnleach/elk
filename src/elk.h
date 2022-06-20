@@ -96,6 +96,8 @@
  * WARNING: The standard C library functions that this function depends on are not reentrant or
  * threadsafe, so neither is this function.
  *
+ * NOTE: All inputs are in UTC.
+ *
  * \param year is the 4 digit year.
  * \param month is the month number [1,12].
  * \param day is the day of the month [1,31].
@@ -114,8 +116,8 @@ time_t elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int min
  * threadsafe, so neither is this function.
  *
  * NOTE: The non-posix version of this function depends on transformations to and from local time.
- * If you're in a timezone without a whole hour offset from UTC, that this won't round you down to
- * a whole hour in UTC. At the time I wrote this comment, their are approximately 10 such time zones
+ * If you're in a timezone without a whole hour offset from UTC, this won't round you down to a
+ * whole hour in UTC. At the time I wrote this comment, their are approximately 10 such time zones
  * world wide that use half hour or 45 minute offsets.
  *
  * \param time is the time you want truncated or rounded down (back) to the most recent hour.
@@ -123,6 +125,26 @@ time_t elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int min
  * \returns the time truncated, or rounded down, to the most recent hour.
  */
 time_t elk_time_truncate_to_hour(time_t time);
+
+/** Round backwards in time until the desired hour is reached.
+ *
+ * WARNING: The standard C library functions that this function depends on are not reentrant or
+ * threadsafe, so neither is this function.
+ *
+ * NOTE: The non-posix version of this function depends on transformations to and from local time.
+ * If you're in a timezone without a whole hour offset from UTC, this won't round you down to a
+ * whole hour in UTC. At the time I wrote this comment, their are approximately 10 such time zones
+ * world wide that use half hour or 45 minute offsets.
+ *
+ * \param time is the time you want truncated or rounded down (backwards) to the requested
+ *            (\p hour).
+ * \param hour is the hour you want to round backwards to. This will go back to the previous day
+ *             if necessary. This always assumes you're working in UTC.
+ *
+ * \returns the time truncated, or rounded down, to the requested hour, even if it has to go back a
+ * day.
+ */
+time_t elk_time_truncate_to_specific_hour(time_t time, int hour);
 
 /** Units of time for adding / subtracting time.
  *

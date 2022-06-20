@@ -35,6 +35,26 @@ elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, i
 }
 
 time_t
+elk_time_truncate_to_specific_hour(time_t time, int hour)
+{
+    assert(hour >= 0 && hour <= 23);
+
+    struct tm tm_time = *gmtime(&time);
+
+    tm_time.tm_hour = hour;
+    tm_time.tm_sec = 0;
+    tm_time.tm_min = 0;
+
+    time_t adjusted = timegm(&tm_time);
+
+    while (adjusted > time) {
+        adjusted -= ElkDay;
+    }
+
+    return adjusted;
+}
+
+time_t
 elk_time_truncate_to_hour(time_t time)
 {
     struct tm tm_time = *gmtime(&time);
@@ -75,6 +95,27 @@ elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, i
     time_t local = mktime(&time);
 
     return local - tz_offset(local);
+}
+
+time_t
+elk_time_truncate_to_specific_hour(time_t time, int hour)
+{
+    assert(hour >= 0 && hour <= 23);
+
+    struct tm tm_time = *gmtime(&time);
+
+    tm_time.tm_hour = hour;
+    tm_time.tm_sec = 0;
+    tm_time.tm_min = 0;
+
+    time_t adjusted = mktime(&tm_time);
+    adjusted -= tz_offset(adjusted);
+
+    while (adjusted > time) {
+        adjusted -= ElkDay;
+    }
+
+    return adjusted;
 }
 
 time_t
