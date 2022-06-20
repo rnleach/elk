@@ -47,7 +47,20 @@ elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, i
 
     return timegm(&time);
 }
+
+time_t
+elk_time_truncate_to_hour(time_t time)
+{
+    struct tm tm_time = *gmtime(&time);
+
+    tm_time.tm_sec = 0;
+    tm_time.tm_min = 0;
+
+    return timegm(&tm_time);
+}
+
 #else
+
 static time_t
 tz_offset()
 {
@@ -95,6 +108,18 @@ elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, i
 
     return mktime(&time) - tz_offset();
 }
+
+time_t
+elk_time_truncate_to_hour(time_t time)
+{
+    struct tm tm_time = *localtime(&time);
+
+    tm_time.tm_sec = 0;
+    tm_time.tm_min = 0;
+
+    return mktime(&tm_time);
+}
+
 #endif
 
 /*-------------------------------------------------------------------------------------------------

@@ -93,18 +93,23 @@
  *-----------------------------------------------------------------------------------------------*/
 /** Create a \c time_t object given the date information.
  *
- * WARNING: This function is NOT thread safe or reentrant due to static-global state in \c <time.h>.
+ * WARNING: The standard C library functions that this function depends on are not reentrant or
+ * threadsafe, so neither is this function.
  *
  * \param year is the 4 digit year.
  * \param month is the month number [1,12].
  * \param day is the day of the month [1,31].
  *
  * \returns The system representation of that time as a \c time_t. This is usually (but not
- * guaranteed to be) the seconds since midnight UTC on January 1st, 1970.
+ * guaranteed to be) the seconds since midnight UTC on January 1st, 1970. This tests for this
+ * library test to make sure it is the seconds since the Unix epoch.
  */
 time_t elk_time_from_ymd(int year, int month, int day);
 
 /** Create a \c time_t object given the date and time information.
+ *
+ * WARNING: The standard C library functions that this function depends on are not reentrant or
+ * threadsafe, so neither is this function.
  *
  * \param year is the 4 digit year.
  * \param month is the month number [1,12].
@@ -113,10 +118,26 @@ time_t elk_time_from_ymd(int year, int month, int day);
  * \param minute is the minute of the day [0, 59].
  *
  * \returns The system representation of that time as a \c time_t. This is usually (but not
- * guaranteed to be) the seconds since midnight UTC on January 1st, 1970.
+ * guaranteed to be) the seconds since midnight UTC on January 1st, 1970. This tests for this
+ * library test to make sure it is the seconds since the Unix epoch.
  */
 time_t elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, int seconds);
 
+/** Truncate the minutes and seconds from the \p time argument.
+ *
+ * WARNING: The standard C library functions that this function depends on are not reentrant or
+ * threadsafe, so neither is this function.
+ *
+ * NOTE: The non-posix version of this function depends on transformations to and from local time.
+ * If you're in a timezone without a whole hour offset from UTC, that this won't round you down to
+ * a whole hour in UTC. At the time I wrote this comment, their are approximately 10 such time zones
+ * world wide that use half hour or 45 minute offsets.
+ *
+ * \param time is the time you want truncated or rounded down (back) to the most recent hour.
+ *
+ * \returns the time truncated, or rounded down, to the most recent hour.
+ */
+time_t elk_time_truncate_to_hour(time_t time);
 /*-------------------------------------------------------------------------------------------------
  *                                         Memory and Pointers
  *-----------------------------------------------------------------------------------------------*/

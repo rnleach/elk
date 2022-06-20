@@ -32,6 +32,15 @@ test_time_time_t_is_seconds(void)
     assert((day1 - epoch) == (60 * 60 * 24));
 }
 
+static void
+test_time_truncate_to_hour()
+{
+    time_t epoch = elk_time_from_ymd_and_hms(1970, 1, 1, 0, 0, 0);
+    time_t t1 = elk_time_from_ymd_and_hms(1970, 1, 1, 0, 14, 39);
+
+    assert(elk_time_truncate_to_hour(t1) == epoch);
+}
+
 /*-------------------------------------------------------------------------------------------------
  *                                      All ElkList tests
  *-----------------------------------------------------------------------------------------------*/
@@ -40,6 +49,7 @@ elk_time_tests(void)
 {
     test_time_unix_epoch();
     test_time_time_t_is_seconds();
+    test_time_truncate_to_hour();
 }
 
 /*------------------------------------------------------------------------------------------------
