@@ -97,9 +97,9 @@
  *
  * \param year is the 4 digit year.
  * \param month is the month number [1,12].
- * \param day is the day of the month [1,31]. 
+ * \param day is the day of the month [1,31].
  *
- * \returns The system representation of that time as a \c time_t. This is usually (but not 
+ * \returns The system representation of that time as a \c time_t. This is usually (but not
  * guaranteed to be) the seconds since midnight UTC on January 1st, 1970.
  */
 time_t elk_time_from_ymd(int year, int month, int day);
@@ -108,11 +108,11 @@ time_t elk_time_from_ymd(int year, int month, int day);
  *
  * \param year is the 4 digit year.
  * \param month is the month number [1,12].
- * \param day is the day of the month [1,31]. 
+ * \param day is the day of the month [1,31].
  * \param hour is the hour of the day [0, 23].
  * \param minute is the minute of the day [0, 59].
  *
- * \returns The system representation of that time as a \c time_t. This is usually (but not 
+ * \returns The system representation of that time as a \c time_t. This is usually (but not
  * guaranteed to be) the seconds since midnight UTC on January 1st, 1970.
  */
 time_t elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, int seconds);

@@ -19,15 +19,15 @@
 static void
 test_time_unix_epoch(void)
 {
-    time_t epoch = elk_time_from_ymd_and_hms(1970, 1, 1, 0,  0, 0);
+    time_t epoch = elk_time_from_ymd_and_hms(1970, 1, 1, 0, 0, 0);
     assert(epoch == 0);
 }
 
 static void
 test_time_time_t_is_seconds(void)
 {
-    time_t epoch = elk_time_from_ymd_and_hms(1970, 1, 1, 0,  0, 0);
-    time_t day1 = elk_time_from_ymd_and_hms(1970, 1, 2, 0,  0, 0);
+    time_t epoch = elk_time_from_ymd_and_hms(1970, 1, 1, 0, 0, 0);
+    time_t day1 = elk_time_from_ymd_and_hms(1970, 1, 2, 0, 0, 0);
 
     assert((day1 - epoch) == (60 * 60 * 24));
 }
