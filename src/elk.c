@@ -62,17 +62,11 @@ elk_time_truncate_to_hour(time_t time)
 #else
 
 static time_t
-tz_offset()
+tz_offset(time_t local)
 {
-    struct tm time = {0};
-    time.tm_year = 1970 - 1900;
-    time.tm_mon = 1 - 1;
-    time.tm_mday = 1;
-    time.tm_hour = 0;
-    time.tm_min = 0;
-    time.tm_sec = 0;
-
-    return mktime(&time);
+    struct tm time = *gmtime(&local);
+    time_t shifted = mktime(&time);
+    return shifted - local;
 }
 
 time_t
@@ -106,7 +100,9 @@ elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, i
     time.tm_min = minutes;
     time.tm_sec = seconds;
 
-    return mktime(&time) - tz_offset();
+    time_t local = mktime(&time);
+
+    return local - tz_offset(local);
 }
 
 time_t
