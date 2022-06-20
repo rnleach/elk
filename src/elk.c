@@ -15,20 +15,6 @@ static const char *err_out_of_mem = "out of memory";
 #if defined _DEFAULT_SOURCE && defined __unix__
 // We have POSIX functionality
 time_t
-elk_time_from_ymd(int year, int month, int day)
-{
-    assert(month >= 1 && month <= 12);
-    assert(day >= 1 && day <= 31);
-
-    struct tm time = {0};
-    time.tm_year = year - 1900;
-    time.tm_mon = month - 1;
-    time.tm_mday = day;
-
-    return timegm(&time);
-}
-
-time_t
 elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, int seconds)
 {
     assert(month >= 1 && month <= 12);
@@ -67,20 +53,6 @@ tz_offset(time_t local)
     struct tm time = *gmtime(&local);
     time_t shifted = mktime(&time);
     return shifted - local;
-}
-
-time_t
-elk_time_from_ymd(int year, int month, int day)
-{
-    assert(month >= 1 && month <= 12);
-    assert(day >= 1 && day <= 31);
-
-    struct tm time = {0};
-    time.tm_year = year - 1900;
-    time.tm_mon = month - 1;
-    time.tm_mday = day;
-
-    return mktime(&time) - tz_offset();
 }
 
 time_t

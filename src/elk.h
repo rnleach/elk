@@ -91,21 +91,6 @@
 /*-------------------------------------------------------------------------------------------------
  *                                        Date and Time Handling
  *-----------------------------------------------------------------------------------------------*/
-/** Create a \c time_t object given the date information.
- *
- * WARNING: The standard C library functions that this function depends on are not reentrant or
- * threadsafe, so neither is this function.
- *
- * \param year is the 4 digit year.
- * \param month is the month number [1,12].
- * \param day is the day of the month [1,31].
- *
- * \returns The system representation of that time as a \c time_t. This is usually (but not
- * guaranteed to be) the seconds since midnight UTC on January 1st, 1970. This tests for this
- * library test to make sure it is the seconds since the Unix epoch.
- */
-time_t elk_time_from_ymd(int year, int month, int day);
-
 /** Create a \c time_t object given the date and time information.
  *
  * WARNING: The standard C library functions that this function depends on are not reentrant or
