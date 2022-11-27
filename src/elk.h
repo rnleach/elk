@@ -105,7 +105,7 @@
  * \param minute is the minute of the day [0, 59].
  *
  * \returns The system representation of that time as a \c time_t. This is usually (but not
- * guaranteed to be) the seconds since midnight UTC on January 1st, 1970. This tests for this
+ * guaranteed to be) the seconds since midnight UTC on January 1st, 1970. The tests for this
  * library test to make sure it is the seconds since the Unix epoch.
  */
 time_t elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, int seconds);
@@ -418,6 +418,7 @@ struct HilbertCoord {
     uint32_t x;
     uint32_t y;
 };
+
 /** Create a new Hilbert Curve description.
  *
  * \param iterations is a number between 1 and 31 inclusive. If the number is outside that range,
