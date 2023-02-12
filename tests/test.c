@@ -1,11 +1,11 @@
+// We must have asserts working for the tests to work.
 #ifdef NDEBUG
 #    undef NDEBUG
 #endif
 
-#define _GNU_SOURCE
-
 #include <assert.h>
 #include <math.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -465,8 +465,15 @@ static struct LabeledRect
 labeled_rect_new(unsigned int min_x, unsigned int min_y)
 {
     // All rects have width & height of 1
-    char *label = 0;
-    asprintf(&label, "%ux%u", min_x, min_y);
+
+    char const *fmt = "%ux%u";
+    int size = snprintf(0, 0, fmt, min_x, min_y);
+
+    char *label = malloc(size + 1);
+    assert(label);
+
+    int actual_size = snprintf(label, size + 1, fmt, min_x, min_y);
+    assert(actual_size == size);
 
     return (struct LabeledRect){.rect =
                                     (Elk2DRect){.ll = (Elk2DCoord){.x = min_x, .y = min_y},
