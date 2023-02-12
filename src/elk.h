@@ -14,6 +14,11 @@
 /*-------------------------------------------------------------------------------------------------
  *                                    Error Handling Macros
  *-----------------------------------------------------------------------------------------------*/
+/** \defgroup errors Macros for clean error handling.
+ *
+ * @{
+ */
+
 /// \cond HIDDEN
 #ifdef ELK_PANIC_CRASH
 #    define HARD_EXIT (fprintf(0, "CRASH"))
@@ -88,9 +93,17 @@
         HARD_EXIT;                                                                                 \
     }
 
+/** @} */ // end of errors group
 /*-------------------------------------------------------------------------------------------------
  *                                        Date and Time Handling
  *-----------------------------------------------------------------------------------------------*/
+/** \defgroup time Time and Dates
+ *
+ * Time and date functions are generally not thread safe due to their reliance on the C standard
+ * library.
+ * @{
+ */
+
 /** Create a \c time_t object given the date and time information.
  *
  * WARNING: The standard C library functions that this function depends on are not reentrant or
@@ -165,9 +178,17 @@ typedef enum {
  * readable. For subtraction, just use a negative sign on the change_in_time.
  */
 time_t elk_time_add(time_t time, int change_in_time);
+
+/** @} */ // end of time group
 /*-------------------------------------------------------------------------------------------------
  *                                         Memory and Pointers
  *-----------------------------------------------------------------------------------------------*/
+/** \defgroup memory Memory management.
+ *
+ * Functions and macros for managing and debugging memory.
+ *
+ * @{
+ */
 
 /** Steal a pointer.
  *
@@ -182,9 +203,17 @@ elk_steal_ptr(void **ptr)
     return item;
 }
 
+/** @} */ // end of memory group
 /*-------------------------------------------------------------------------------------------------
  *                                    Iterator Functions
  *-----------------------------------------------------------------------------------------------*/
+/** \defgroup iterator Iterator interface.
+ *
+ * This section defines the iterator interface for collections defined Elk.
+ *
+ * @{
+ */
+
 /** An iterator function.
  *
  * This is a prototype for the functions you can pass into a collection when you're iterating over
@@ -214,14 +243,23 @@ typedef bool (*IterFunc)(void *item, void *user_data);
  * \param item is the member of the collection that you're iterating over.
  * \param user_data is the same object that will be passed to the function on every call.
  *
- * \returns \c true if the item should be selected or filtered out and \c false if it should be not
- * be selected or filtered out.
+ * \returns \c true or \c false. What exactly that means depends on the context of the function
+ * using the \p FilterFunc, and should be documented in the function that receives the
+ * \p FilterFunc.
  */
 typedef bool (*FilterFunc)(void const *item, void *user_data);
 
+/** @} */ // end of iterator group
 /*-------------------------------------------------------------------------------------------------
  *                                           List
  *-----------------------------------------------------------------------------------------------*/
+/** \defgroup list List
+ *
+ * An array backed list that dynamically grows in size as needed.
+ *
+ * @{
+ */
+
 /** An array backed list that dynamically grows in size as needed.
  *
  * All the operations on this type assume the system will never run out of memory, so if it does
@@ -359,12 +397,12 @@ void *const elk_list_get_alias_at_index(ElkList *const list, size_t index);
 /** Apply \p ifunc to each element of \p list.
  *
  * This method assumes that whatever operation \p ifunc does is infallible. If that is not the case
- * then an error code of some kind should be returned via the \p user_data.
+ * then error information of some kind should be returned via the \p user_data.
  *
  * \param list the list of items to iterate over.
  * \param ifunc is the function to apply to each item. If this function returns \c false, this
  * function will abort further evaluations. This function assumes this operation is infallible,
- * if that is not the case then any error codes should be returned via \p user_data.
+ * if that is not the case then any error information should be returned via \p user_data.
  * \param user_data will be supplied to \p ifunc as the second argument each time it is called.
  */
 void elk_list_foreach(ElkList *const list, IterFunc ifunc, void *user_data);
@@ -383,9 +421,15 @@ void elk_list_foreach(ElkList *const list, IterFunc ifunc, void *user_data);
  */
 ElkList *elk_list_filter_out(ElkList *const src, ElkList *sink, FilterFunc filter, void *user_data);
 
+/** @} */ // end of list group
 /*-------------------------------------------------------------------------------------------------
  *                                    Coordinates and Rectangles
  *-----------------------------------------------------------------------------------------------*/
+/** \defgroup geom Geometry primitives.
+ *
+ * @{
+ */
+
 /** A simple x-y 2 dimensional coordinate. */
 typedef struct Elk2DCoord {
     double x; /**< The x coordinate. */
@@ -398,18 +442,27 @@ typedef struct Elk2DRect {
     Elk2DCoord ur; /**< The upper right corner of a rectangle (maximum x and maximum y) */
 } Elk2DRect;
 
+/** @} */ // end of geom group
 /*-------------------------------------------------------------------------------------------------
  *                                       Hilbert Curves
  *-----------------------------------------------------------------------------------------------*/
-/** A 2D Hilbert Curve.
+/** \defgroup hilbert Hilbert Curves.
+ *
+ * Hilbert curves are a type of space filling curve, and were originally implemented in this
+ * library to support an RTree implementation. This implementation is only for 2-dimensional space.
  *
  * This might seem really weird to have in a "general" library. However, as a result of goal number
- * 1 above, here it is. This didn't really need to be in the public API, but it makes testing
- * easier.
+ * 1 for this library, here it is. This didn't really need to be in the public API, but it makes
+ * testing easier.
  *
  * I ported this code from an implementation in Python at https://github.com/galtay/hilbertcurve,
  * which is itself an implementation based on the 2004 paper "Programming the Hilbert Curve" by
  * John Skilling (http://adsabs.harvard.edu/abs/2004AIPC..707..381S)(DOI: 10.10631/1.1751381).
+ *
+ * @{
+ */
+
+/** A 2D Hilbert Curve.
  */
 typedef struct ElkHilbertCurve ElkHilbertCurve;
 
@@ -421,8 +474,25 @@ struct HilbertCoord {
 
 /** Create a new Hilbert Curve description.
  *
+ * The number of iterations will fill the area covered by the \p domain with and NxN grid of
+ * points where N = sqrt(2^(2 * iterations)). The total number of points along the Hilbert curve
+ * will be 2^(2 * iterations).
+ *
+ * So if iterations = 1, then the grid will be 2x2.
+ *
+ * If iterations = 2 then N = 4, so a 4x4 grid.
+ *
+ * If iterations = 3 then N = 8, so a 8x8 grid.
+ *
+ * If iterations = 8 then N = 256, so a 256 x 256 grid.
+ *
+ * If iterations = 16 then N = 65536, so a 65536 x 65536 grid.
+ *
+ * And if iterations = 31 then N = 2,147,483,648... so a 2,147,483,648 x 2,147,483,648 grid.
+ *
  * \param iterations is a number between 1 and 31 inclusive. If the number is outside that range,
  * the program will exit and print an error message.
+ *
  * \param domain is a rectanglular region to map this Hilbert curve onto.
  */
 struct ElkHilbertCurve *elk_hilbert_curve_new(unsigned int iterations, Elk2DRect domain);
@@ -473,9 +543,18 @@ struct HilbertCoord elk_hilbert_translate_to_curve_coords(struct ElkHilbertCurve
  */
 uint64_t elk_hilbert_translate_to_curve_distance(struct ElkHilbertCurve *hc, Elk2DCoord coord);
 
+/** @} */ // end of hilbert group
 /*-------------------------------------------------------------------------------------------------
  *                                          2D RTreeView
  *-----------------------------------------------------------------------------------------------*/
+/** \defgroup 2drtree A 2D RTree view of an ElkList
+ *
+ * The RTree view does not store any data, but it holds pointers into a list, so that you can use
+ * RTree algorithms to query the data in the list.
+ *
+ * @{
+ */
+
 /** An R-Tree view into a list.
  *
  * Once the view has been created, the list it was created from should not be modified again as
@@ -524,3 +603,5 @@ void elk_2d_rtree_view_print(Elk2DRTreeView *rtree);
  */
 void elk_2d_rtree_view_foreach(Elk2DRTreeView *tv, Elk2DRect region, IterFunc update,
                                void *user_data);
+
+/** @} */ // end of 2drtree group
