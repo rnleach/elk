@@ -12,62 +12,6 @@ static const char *err_out_of_mem = "out of memory";
 /*-------------------------------------------------------------------------------------------------
  *                                        Date and Time Handling
  *-----------------------------------------------------------------------------------------------*/
-#if defined __unix__
-// We have POSIX functionality
-time_t
-elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, int seconds)
-{
-    assert(month >= 1 && month <= 12);
-    assert(day >= 1 && day <= 31);
-    assert(hour >= 0 && hour <= 23);
-    assert(minutes >= 0 && minutes <= 59);
-    assert(seconds >= 0 && seconds <= 60); // 60 not 59 for leap seconds? Time is sooo hard.
-
-    struct tm time = {0};
-    time.tm_year = year - 1900;
-    time.tm_mon = month - 1;
-    time.tm_mday = day;
-    time.tm_hour = hour;
-    time.tm_min = minutes;
-    time.tm_sec = seconds;
-
-    // timegm is MT-safe (locale, env)
-    return timegm(&time);
-}
-
-time_t
-elk_time_truncate_to_specific_hour(time_t time, int hour)
-{
-    assert(hour >= 0 && hour <= 23);
-
-    struct tm tm_time = *gmtime(&time);
-
-    tm_time.tm_hour = hour;
-    tm_time.tm_sec = 0;
-    tm_time.tm_min = 0;
-
-    time_t adjusted = timegm(&tm_time);
-
-    while (adjusted > time) {
-        adjusted -= ElkDay;
-    }
-
-    return adjusted;
-}
-
-time_t
-elk_time_truncate_to_hour(time_t time)
-{
-    struct tm tm_time = *gmtime(&time);
-
-    tm_time.tm_sec = 0;
-    tm_time.tm_min = 0;
-
-    return timegm(&tm_time);
-}
-
-#else
-
 // MT-unsafe
 static time_t
 tz_offset(time_t local)
@@ -135,8 +79,6 @@ elk_time_truncate_to_hour(time_t time)
 
     return mktime(&tm_time);
 }
-
-#endif
 
 time_t
 elk_time_add(time_t time, int change_in_time)
