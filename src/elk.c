@@ -12,7 +12,7 @@ static const char *err_out_of_mem = "out of memory";
 /*-------------------------------------------------------------------------------------------------
  *                                        Date and Time Handling
  *-----------------------------------------------------------------------------------------------*/
-#if defined _DEFAULT_SOURCE && defined __unix__
+#if defined __unix__
 // We have POSIX functionality
 time_t
 elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, int seconds)
@@ -114,7 +114,7 @@ elk_time_truncate_to_specific_hour(time_t time, int hour)
     tm_time.tm_min = 0;
 
     time_t adjusted = mktime(&tm_time);
-    
+
     // tz_offset is MT-unsafe, so this function is MT-unsafe
     adjusted -= tz_offset(adjusted);
 
