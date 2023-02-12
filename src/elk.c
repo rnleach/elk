@@ -1,7 +1,6 @@
 #include "elk.h"
 
 #include <assert.h>
-#include <inttypes.h>
 #include <stddef.h>
 #include <string.h>
 #include <tgmath.h>
