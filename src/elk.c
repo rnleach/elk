@@ -31,6 +31,7 @@ elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, i
     time.tm_min = minutes;
     time.tm_sec = seconds;
 
+    // timegm is MT-safe (locale, env)
     return timegm(&time);
 }
 
@@ -67,9 +68,11 @@ elk_time_truncate_to_hour(time_t time)
 
 #else
 
+// MT-unsafe
 static time_t
 tz_offset(time_t local)
 {
+    // gmtime is not thread safe, so this whole function is not thread safe.
     struct tm time = *gmtime(&local);
     time_t shifted = mktime(&time);
     return shifted - local;
@@ -92,8 +95,10 @@ elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, i
     time.tm_min = minutes;
     time.tm_sec = seconds;
 
+    // mktime is MT-safe (locale, env)
     time_t local = mktime(&time);
 
+    // tz_offset is MT-unsafe, so this function is MT-unsafe
     return local - tz_offset(local);
 }
 
@@ -109,6 +114,8 @@ elk_time_truncate_to_specific_hour(time_t time, int hour)
     tm_time.tm_min = 0;
 
     time_t adjusted = mktime(&tm_time);
+    
+    // tz_offset is MT-unsafe, so this function is MT-unsafe
     adjusted -= tz_offset(adjusted);
 
     while (adjusted > time) {

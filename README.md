@@ -10,7 +10,7 @@
   3. NOT threadsafe. Access to any objects will need to be protected by the user of those objects
      with a mutex or other means to prevent data races.
   4. NO global state. All state related to any objects created by this library is stored in that
-     object. This makes it simple to protect variables in multi-threaded scenarios.
+     object. No global state makes it possible to use it in multithreaded applications.
   5. As a result of number 4, all functions must be re-entrant so as long as the input parameters
      are protected from data races before being passed into the function, the function itself
      will not introduce any data races. (NOTE: Sometimes we depend on the standard C-library, so
@@ -25,8 +25,8 @@
   always only need to work in the UTC timezone, so I don't worry about it. 
 
   In this library I also assume I'm working on a system that uses seconds since the unix epoch for
-  the values it stores in time_t objects. This is checked in the tests, and if you run the tests on
-  another system where that is not the case, they should fail.
+  the values it stores in `time_t` objects. This is checked in the tests, and if you run the tests
+  on another system where that is not the case, they should fail.
 
   Time is a very complicated subject, and robust libraries are rarely (if ever) robust for all uses.
   There's government time (statutory), daylight savings, time zones, solar time, different calendar 
