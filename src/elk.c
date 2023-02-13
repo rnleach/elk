@@ -86,7 +86,85 @@ elk_time_add(time_t time, int change_in_time)
 }
 
 /*-------------------------------------------------------------------------------------------------
- *                                           List
+ *                                      Memory and Pointers
+ *-----------------------------------------------------------------------------------------------*/
+// "Assume" all this code works, and turn off memory debugging inside memory debugging.
+#ifdef ELK_MEMORY_DEBUG
+#    undef ELK_MEMORY_DEBUG
+void
+elk_init_memory_debug()
+{
+    // TODO: implement
+    assert(false);
+}
+
+void
+elk_finalize_memory_debug()
+{
+    // TODO: implement
+    assert(false);
+}
+
+void
+elk_debug_mem()
+{
+    // TODO: implement
+    assert(false);
+}
+
+void *
+elk_malloc(size_t size, char const *fname, unsigned line)
+{
+    // TODO: implement
+    assert(false);
+    return 0;
+}
+
+void *
+elk_realloc(void *ptr, size_t size, char const *fname, unsigned line)
+{
+    // TODO: implement
+    assert(false);
+    return 0;
+}
+
+void *
+elk_calloc(size_t nmemb, size_t size, char const *fname, unsigned line)
+{
+    // TODO: implement
+    assert(false);
+    return 0;
+}
+
+void
+elk_free(void *ptr, char const *fname, unsigned line)
+{
+    // TODO: implement
+    assert(false);
+}
+
+// Turn memory debugging back on.
+#    define ELK_MEMORY_DEBUG
+
+#else
+void
+elk_init_memory_debug()
+{
+}
+
+void
+elk_finalize_memory_debug()
+{
+}
+
+void
+elk_debug_mem()
+{
+}
+#endif
+
+/*-------------------------------------------------------------------------------------------------
+ *                                             List
  *-----------------------------------------------------------------------------------------------*/
 struct ElkList {
     size_t element_size;

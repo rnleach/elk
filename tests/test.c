@@ -1,7 +1,20 @@
+//
+// For testing, ensure we have some debugging tools activated.
+//
+
 // We must have asserts working for the tests to work.
 #ifdef NDEBUG
 #    undef NDEBUG
 #endif
+
+// In the event of a panic, this should cause a crash and let the debugger take over if the test
+// is running under a debugger. Otherwise it will just exit.
+#ifndef ELK_PANIC_CRASH
+#    define ELK_PANIC_CRASH
+#endif
+
+// We could also forcefully turn on ELK_MEMORY_DEBUG, but that could potentially cause some big
+// slowdowns, so don't force it for everything for now.
 
 #include <assert.h>
 #include <math.h>

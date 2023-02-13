@@ -181,11 +181,16 @@ time_t elk_time_add(time_t time, int change_in_time);
 
 /** @} */ // end of time group
 /*-------------------------------------------------------------------------------------------------
- *                                         Memory and Pointers
+ *                                       Memory and Pointers
  *-----------------------------------------------------------------------------------------------*/
 /** \defgroup memory Memory management.
  *
  * Functions and macros for managing and debugging memory.
+ *
+ * The elk_init_memory_debug(), elk_finalize_memory_debug(), and elk_debug_mem() functions are null
+ * functions unless the \c ELK_MEMORY_DEBUG macro is defined. When that macro is defined, malloc(),
+ * realloc(), calloc(), and free() from stdlib.h are usurped by macros that keep track of memory
+ * allocations.
  *
  * @{
  */
@@ -202,6 +207,51 @@ elk_steal_ptr(void **ptr)
     *ptr = NULL;
     return item;
 }
+
+/** Initialize the memory debugging system.
+ *
+ * This function is defined as an empty function unless the macro ELK_MEMORY_DEBUG is defined.
+ */
+void elk_init_memory_debug();
+
+/** Finalize and clean up the memory debugging system.
+ *
+ * This function is defined as an empty function unless the macro ELK_MEMORY_DEBUG is defined.
+ */
+void elk_finalize_memory_debug();
+
+/** Run the debug checks with the current state of the application's memory.
+ *
+ * This function is defined as an empty function unless the macro ELK_MEMORY_DEBUG is defined.
+ *
+ * If a buffer overrun is detected, this function will crash the program immediately. Otherwise, it
+ * will print a list of "active" pointers and the file and line where they were allocated, and some
+ * summary statistics of allocations.
+ */
+void elk_debug_mem();
+
+/// \cond HIDDEN
+
+/** Replacement for malloc when ELK_MEMORY_DEBUG is defined. */
+void *elk_malloc(size_t size, char const *fname, unsigned line);
+
+/** Replacement for realloc when ELK_MEMORY_DEBUG is defined. */
+void *elk_realloc(void *ptr, size_t size, char const *fname, unsigned line);
+
+/** Replacement for calloc when ELK_MEMORY_DEBUG is defined. */
+void *elk_calloc(size_t nmemb, size_t size, char const *fname, unsigned line);
+
+/** Replacement for free when ELK_MEMORY_DEBUG is defined. */
+void elk_free(void *ptr, char const *fname, unsigned line);
+
+#ifdef ELK_MEMORY_DEBUG
+#    define malloc(s) elk_malloc((s), __FILE__, __LINE__)
+#    define realloc(p, s) elk_realloc((p), (s), __FILE__, __LINE__)
+#    define calloc(n, s) elk_calloc((n), (s), __FILE__, __LINE__)
+#    define free(p) elk_free((p), __FILE__, __LINE__)
+#endif
+
+/// \endcond HIDDEN
 
 /** @} */ // end of memory group
 /*-------------------------------------------------------------------------------------------------
