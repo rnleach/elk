@@ -188,8 +188,16 @@ elk_finalize_memory_debug()
 void
 elk_debug_mem()
 {
-    // TODO: implement
-    assert(false);
+    if (elk_mem_debug_len == 0) {
+        printf("No memory leaks detected!\n");
+    } else {
+        printf("Memory leaks detected!\n");
+        printf("%10s | %5s | %s\n", "Pointer", "Line", "File");
+        for (unsigned i = 0; i < elk_mem_debug_len; i++) {
+            Allocation *alloc = &allocations[i];
+            printf("%10p | %5u | %s\n", alloc->ptr, alloc->line, alloc->file);
+        }
+    }
 }
 
 void *
