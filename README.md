@@ -56,6 +56,11 @@
   those that tracks memory allocations. Buffer overruns are detected when memory is reallocated or
   freed and causes the application to crash immediately with a message printed to `stderr`. 
 
+  The `elk_init_memory_debug()` function takes optional mutex parameters that it will use 
+  behind the scenes to prevent data races for the memory debugger. It is the user's responsibility
+  to plug those in when working in a multi-threaded application. If only working single threaded,
+  then just pass `NULL` in and it will work fine.
+
   The functions that initialize, finalize, and report for the memory debugger are no-ops if 
   the ELK_MEMORY_DEBUG macro is not defined.
 

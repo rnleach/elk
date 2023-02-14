@@ -192,6 +192,9 @@ time_t elk_time_add(time_t time, int change_in_time);
  * realloc(), calloc(), and free() from stdlib.h are usurped by macros that keep track of memory
  * allocations.
  *
+ * elk_init_memory_debug() can optionally check a mutex to prevent data races in a multithreaded
+ * application, but it is the user's responsibility to set that up.
+ *
  * @{
  */
 
@@ -211,8 +214,18 @@ elk_steal_ptr(void **ptr)
 /** Initialize the memory debugging system.
  *
  * This function is defined as an empty function unless the macro ELK_MEMORY_DEBUG is defined.
+ *
+ * Since this is only used for debugging, the mutex set up and teardown can be guarded by defines
+ * and you can use functions that panic/abort if any part of the setup / teardown, locking,
+ * unlocking fail on a given platform.
+ *
+ * \param mutex a global mutex for preventing data races in multithreaded applications. \c NULL is
+ *        allowed if no global locking is needed.
+ * \param lock a function to lock the \p mutex. \c NULL is allowed if no global locking is needed.
+ * \param unlock a function to unlock the \p mutex. \c NULL is allowed if no global locking is
+ *        needed.
  */
-void elk_init_memory_debug();
+void elk_init_memory_debug(void *mutex, void (*lock)(void *), void (*unlock)(void *));
 
 /** Finalize and clean up the memory debugging system.
  *

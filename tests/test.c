@@ -672,7 +672,7 @@ main(void)
 {
     printf("\n\n***        Starting Tests.        ***\n\n");
 
-    elk_init_memory_debug();
+    elk_init_memory_debug(NULL, NULL, NULL);
 
     elk_time_tests();
     elk_list_tests();
