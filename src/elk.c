@@ -193,6 +193,7 @@ elk_init_memory_debug(void *mutex, void (*lock)(void *), void (*unlock)(void *))
     fprintf(stderr, "Initializing Elk memory debugger.\n");
 
     if (mutex) {
+        PanicIf(!(lock && unlock), "Mutex supplied but not functions to lock and unlock it.");
         lock(mutex);
         if (!elk_mem_allocations_mutex) {
             elk_mem_allocations_mutex = mutex;
