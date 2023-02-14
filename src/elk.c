@@ -86,7 +86,321 @@ elk_time_add(time_t time, int change_in_time)
 }
 
 /*-------------------------------------------------------------------------------------------------
- *                                           List
+ *                                      Memory and Pointers
+ *-----------------------------------------------------------------------------------------------*/
+// "Assume" all this code works, and turn off memory debugging inside memory debugging. If memory
+// debugging isn't turned off inside memory debugging then calls to malloc() will be replaced with
+// elk_malloc(). So at runtime the function will recursively call itself infinitely!
+#ifdef ELK_MEMORY_DEBUG
+#    undef ELK_MEMORY_DEBUG
+#    undef malloc
+#    undef realloc
+#    undef calloc
+#    undef free
+
+#    define MAGIC_NUM_1 251
+#    define MAGIC_NUM_2 11
+
+typedef struct allocation {
+    void *ptr;
+    unsigned char *magic;
+    char const *file;
+    unsigned line;
+} Allocation;
+
+int
+elk_mem_allocation_ptr_compare(void const *a_void, void const *b_void)
+{
+    Allocation const *a = a_void;
+    Allocation const *b = b_void;
+
+    if (a->ptr == b->ptr)
+        return 0;
+    if (a->ptr < b->ptr)
+        return -1;
+    return 1;
+}
+
+// We could use an ElkList here, but that would then mean the memory debugging functions tracked
+// themselves, which would be confusing when looking at output. So I re-implement an array backed
+// list here.
+static void *elk_mem_allocations_mutex = 0;
+static void (*elk_mem_allocations_lock)(void *) = 0;
+static void (*elk_mem_allocations_unlock)(void *) = 0;
+
+static size_t elk_mem_allocations_capacity = 0;
+static size_t elk_mem_allocations_len = 0;
+static Allocation *elk_mem_allocations = 0;
+
+static void
+elk_mem_allocations_grow()
+{
+    size_t new_capacity = elk_mem_allocations_capacity * 2;
+    Allocation *new_allocations = realloc(elk_mem_allocations, new_capacity * sizeof(Allocation));
+    assert(new_allocations);
+
+    elk_mem_allocations_capacity = new_capacity;
+    elk_mem_allocations = new_allocations;
+}
+
+static Allocation *
+elk_mem_find_allocation_record(void *ptr, char const *fname, unsigned line)
+{
+    qsort(elk_mem_allocations, elk_mem_allocations_len, sizeof *elk_mem_allocations,
+          elk_mem_allocation_ptr_compare);
+
+    Allocation bsearch_key = {.ptr = ptr};
+    Allocation *alloc = bsearch(&bsearch_key, elk_mem_allocations, elk_mem_allocations_len,
+                                sizeof *elk_mem_allocations, elk_mem_allocation_ptr_compare);
+
+    PanicIf(!alloc,
+            "Attempting to find a pointer not orignally allocated by us! (line: %4u - %s)\n", line,
+            fname);
+
+    return alloc;
+}
+
+static void
+elk_mem_allocation_make_magic(unsigned char *magic)
+{
+    magic[0] = MAGIC_NUM_1;
+    magic[1] = MAGIC_NUM_2;
+}
+
+static void
+elk_mem_allocation_check_magic(unsigned char *magic, char const *fname, unsigned line)
+{
+    PanicIf(magic[0] != MAGIC_NUM_1 || magic[1] != MAGIC_NUM_2,
+            "Buffer overrun detected, failed magic number check! (line: %u - %s)\n", line, fname);
+}
+
+static void
+elk_mem_allocations_push(void *ptr, unsigned char *magic, char const *fname, unsigned line)
+{
+    if (elk_mem_allocations_len == elk_mem_allocations_capacity)
+        elk_mem_allocations_grow();
+
+    Allocation *alloc = &elk_mem_allocations[elk_mem_allocations_len++];
+    alloc->ptr = ptr;
+    alloc->magic = magic;
+    alloc->file = fname;
+    alloc->line = line;
+}
+
+void
+elk_init_memory_debug(void *mutex, void (*lock)(void *), void (*unlock)(void *))
+{
+    fprintf(stderr, "Initializing Elk memory debugger.\n");
+
+    if (mutex) {
+        PanicIf(!(lock && unlock), "Mutex supplied but not functions to lock and unlock it.");
+        lock(mutex);
+        if (!elk_mem_allocations_mutex) {
+            elk_mem_allocations_mutex = mutex;
+            elk_mem_allocations_lock = lock;
+            elk_mem_allocations_unlock = unlock;
+        }
+    }
+
+    if (!elk_mem_allocations) {
+        elk_mem_allocations = realloc(elk_mem_allocations, 64 * sizeof(Allocation));
+        assert(elk_mem_allocations);
+
+        elk_mem_allocations_capacity = 64;
+        elk_mem_allocations_len = 0;
+    }
+
+    if (elk_mem_allocations_mutex) {
+        elk_mem_allocations_unlock(elk_mem_allocations_mutex);
+    }
+}
+
+void
+elk_finalize_memory_debug()
+{
+    // Print out the memory data.
+    elk_debug_mem();
+
+    if (elk_mem_allocations_mutex) {
+        elk_mem_allocations_lock(elk_mem_allocations_mutex);
+    }
+
+    // Free resources
+    free(elk_mem_allocations);
+
+    if (elk_mem_allocations_mutex) {
+        elk_mem_allocations_unlock(elk_mem_allocations_mutex);
+    }
+
+    fprintf(stderr, "Finalized Elk memory debugger.\n");
+}
+
+void
+elk_debug_mem()
+{
+    if (elk_mem_allocations_mutex) {
+        elk_mem_allocations_lock(elk_mem_allocations_mutex);
+    }
+
+    if (elk_mem_allocations_len == 0) {
+        fprintf(stderr, "No memory leaks detected!\n");
+    } else {
+
+        fprintf(stderr, "Memory leaks detected!\n");
+        fprintf(stderr, "%15s | %5s | %s\n", "Pointer", "Line", "File");
+        for (unsigned i = 0; i < elk_mem_allocations_len; i++) {
+            Allocation *alloc = &elk_mem_allocations[i];
+            fprintf(stderr, "%15p | %5u | %s\n", alloc->ptr, alloc->line, alloc->file);
+        }
+    }
+
+    if (elk_mem_allocations_mutex) {
+        elk_mem_allocations_unlock(elk_mem_allocations_mutex);
+    }
+}
+
+void *
+elk_malloc(size_t size, char const *fname, unsigned line)
+{
+    if (elk_mem_allocations_mutex) {
+        elk_mem_allocations_lock(elk_mem_allocations_mutex);
+    }
+
+    void *ptr = malloc(size + 2);
+    assert(ptr);
+
+    unsigned char *magic = (unsigned char *)ptr + size;
+    elk_mem_allocation_make_magic(magic);
+
+    elk_mem_allocations_push(ptr, magic, fname, line);
+
+    if (elk_mem_allocations_mutex) {
+        elk_mem_allocations_unlock(elk_mem_allocations_mutex);
+    }
+
+    return ptr;
+}
+
+void *
+elk_realloc(void *ptr, size_t size, char const *fname, unsigned line)
+{
+    if (elk_mem_allocations_mutex) {
+        elk_mem_allocations_lock(elk_mem_allocations_mutex);
+    }
+
+    Allocation *alloc = 0;
+    if (ptr) {
+        alloc = elk_mem_find_allocation_record(ptr, fname, line);
+        elk_mem_allocation_check_magic(alloc->magic, fname, line);
+    }
+
+    void *new_ptr = realloc(ptr, size + 2);
+    assert(new_ptr);
+
+    unsigned char *magic = (unsigned char *)new_ptr + size;
+    elk_mem_allocation_make_magic(magic);
+
+    if (new_ptr == ptr) {
+        // Update the allocation record
+        alloc->file = fname;
+        alloc->line = line;
+        alloc->magic = magic;
+    } else {
+
+        // If replacing an old pointer, remove its allocation record
+        if (ptr) {
+
+            // Swap remove
+            size_t index = alloc - elk_mem_allocations;
+            elk_mem_allocations[index] = elk_mem_allocations[--elk_mem_allocations_len];
+        }
+
+        elk_mem_allocations_push(new_ptr, magic, fname, line);
+    }
+
+    if (elk_mem_allocations_mutex) {
+        elk_mem_allocations_unlock(elk_mem_allocations_mutex);
+    }
+
+    return new_ptr;
+}
+
+void *
+elk_calloc(size_t nmemb, size_t size, char const *fname, unsigned line)
+{
+    if (elk_mem_allocations_mutex) {
+        elk_mem_allocations_lock(elk_mem_allocations_mutex);
+    }
+
+    void *ptr = calloc(nmemb, size + 2);
+    assert(ptr);
+
+    unsigned char *magic = (unsigned char *)ptr + size;
+    elk_mem_allocation_make_magic(magic);
+
+    elk_mem_allocations_push(ptr, magic, fname, line);
+
+    if (elk_mem_allocations_mutex) {
+        elk_mem_allocations_unlock(elk_mem_allocations_mutex);
+    }
+
+    return ptr;
+}
+
+void
+elk_free(void *ptr, char const *fname, unsigned line)
+{
+    if (elk_mem_allocations_mutex) {
+        elk_mem_allocations_lock(elk_mem_allocations_mutex);
+    }
+
+    if (ptr) {
+        Allocation *alloc = elk_mem_find_allocation_record(ptr, fname, line);
+        elk_mem_allocation_check_magic(alloc->magic, fname, line);
+
+        // Swap remove
+        size_t index = alloc - elk_mem_allocations;
+        elk_mem_allocations[index] = elk_mem_allocations[--elk_mem_allocations_len];
+
+        free(ptr);
+    } else {
+        fprintf(stderr, "Attempted to free NULL pointer. (line: %4u - %s)\n", line, fname);
+    }
+
+    if (elk_mem_allocations_mutex) {
+        elk_mem_allocations_unlock(elk_mem_allocations_mutex);
+    }
+}
+
+#    undef MAGIC_NUM_2
+#    undef MAGIC_NUM_1
+
+// Turn memory debugging back on.
+#    define ELK_MEMORY_DEBUG
+#    define malloc(s) elk_malloc((s), __FILE__, __LINE__)
+#    define realloc(p, s) elk_realloc((p), (s), __FILE__, __LINE__)
+#    define calloc(n, s) elk_calloc((n), (s), __FILE__, __LINE__)
+#    define free(p) elk_free((p), __FILE__, __LINE__)
+
+#else
+void
+elk_init_memory_debug(void *mutex, void (*lock)(void *), void (*unlock)(void *))
+{
+}
+
+void
+elk_finalize_memory_debug()
+{
+}
+
+void
+elk_debug_mem()
+{
+}
+#endif
+
+/*-------------------------------------------------------------------------------------------------
+ *                                             List
  *-----------------------------------------------------------------------------------------------*/
 struct ElkList {
     size_t element_size;

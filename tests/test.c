@@ -1,7 +1,19 @@
+//
+// For testing, ensure we have some debugging tools activated.
+//
+
 // We must have asserts working for the tests to work.
 #ifdef NDEBUG
 #    undef NDEBUG
 #endif
+
+// In the event of a panic, this should cause a crash and let the debugger take over if the test
+// is running under a debugger. Otherwise it will just exit.
+#ifndef ELK_PANIC_CRASH
+#    define ELK_PANIC_CRASH
+#endif
+
+// Turn on ELK_MEMORY_DEBUG from the command line to check for memory errors during testing.
 
 #include <assert.h>
 #include <math.h>
@@ -658,12 +670,16 @@ elk_rtree_view_tests(void)
 int
 main(void)
 {
-    printf("Starting Tests.\n");
+    printf("\n\n***        Starting Tests.        ***\n\n");
+
+    elk_init_memory_debug(NULL, NULL, NULL);
 
     elk_time_tests();
     elk_list_tests();
     elk_hilbert_tests();
     elk_rtree_view_tests();
+
+    elk_finalize_memory_debug();
 
     printf("\n\n*** Tests completed successfully. ***\n\n");
     return EXIT_SUCCESS;
