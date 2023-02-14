@@ -6,16 +6,23 @@
  
  Goals and non-Goals:
   1. I only implement the things I need. If it's in here, I needed it at some point.
+
   2. Single header + single source file. Keeps it simple.
+
   3. NOT threadsafe. Access to any objects will need to be protected by the user of those objects
      with a mutex or other means to prevent data races.
-  4. NO global state. All state related to any objects created by this library is stored in that
-     object. No global state makes it possible to use it in multithreaded applications.
-  5. As a result of number 4, all functions must be re-entrant so as long as the input parameters
-     are protected from data races before being passed into the function, the function itself
-     will not introduce any data races. (NOTE: Sometimes we depend on the standard C-library, so
-     this cannot be enforced for some functions, e.g. time related ones. I'll place a warning in the
-     documentation when that is the case.)
+
+  4. Avoid global state. All state related to any objects created by this library should be stored 
+     in that object. No global state makes it possible to use it in multithreaded applications. 
+
+  5. As a result of number 4, most functions are re-entrant so as long as the input parameters are
+     protected from data races before being passed into the function, the function itself will not
+     introduce any data races.
+
+     NOTE: Sometimes I depend on the standard C-library, so this cannot be enforced for some
+     functions, e.g. time related ones. I'll place a warning in the documentation when that is the
+     case.
+
   6. Does not rely on system specific code, only C11 standard library functions and API's.
 
 ## Notes
@@ -42,6 +49,16 @@
   Know your time and what you need from it! THE TIME FUNCTIONALITY IN THIS LIBRARY IS NOT WIDELY 
   APPLICABLE. I don't even know if something like that exists.
 
+### Memory
+  The memory debugging functions can be activated by specifying ELK_MEMORY_DEBUG as a macro on the
+  compiler command line. E.g. "-DELK_MEMORY_DEBUG" will turn it on, and then anywhere `malloc()`, 
+  `realloc()`, 'calloc()`, or `free()` is called it will be replaced with an internal version of
+  those that tracks memory allocations. Buffer overruns are detected when memory is reallocated or
+  freed and causes the application to crash immediately with a message printed to `stderr`. 
+
+  The functions that initialize, finalize, and report for the memory debugger are no-ops if 
+  the ELK_MEMORY_DEBUG macro is not defined.
+
 ## Releases
 
 ### Version 1.0.0
@@ -53,3 +70,11 @@
   - Added function for rounding down to a specific hour.
   - Major bugfix for when I calculate the timezone offset (internally) that affected several
     time functions.
+
+### Version 1.2.0
+  - (2023-02-14) Multiple upgrades.
+  - Removed dependency on some feature test macros.
+  - Updated a lot of documentation and organized it into "modules" (per Doxygen)
+  - Added the memory debugging functionality.
+
+

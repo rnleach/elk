@@ -13,8 +13,7 @@
 #    define ELK_PANIC_CRASH
 #endif
 
-// We could also forcefully turn on ELK_MEMORY_DEBUG, but that could potentially cause some big
-// slowdowns, so don't force it for everything for now.
+// Turn on ELK_MEMORY_DEBUG from the command line to check for memory errors during testing.
 
 #include <assert.h>
 #include <math.h>
@@ -671,7 +670,7 @@ elk_rtree_view_tests(void)
 int
 main(void)
 {
-    printf("Starting Tests.\n");
+    printf("\n\n***        Starting Tests.        ***\n\n");
 
     elk_init_memory_debug();
 
