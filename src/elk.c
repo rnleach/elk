@@ -88,21 +88,101 @@ elk_time_add(time_t time, int change_in_time)
 /*-------------------------------------------------------------------------------------------------
  *                                      Memory and Pointers
  *-----------------------------------------------------------------------------------------------*/
-// "Assume" all this code works, and turn off memory debugging inside memory debugging.
+// "Assume" all this code works, and turn off memory debugging inside memory debugging. If memory
+// debugging isn't turned off inside memory debugging then calls to malloc() will be replaced with
+// elk_malloc(). So at runtime the function will recursively call itself infinitely!
 #ifdef ELK_MEMORY_DEBUG
 #    undef ELK_MEMORY_DEBUG
+#    undef malloc
+#    undef realloc
+#    undef calloc
+#    undef free
+
+typedef struct allocation {
+    void *ptr;
+    char const *file;
+    unsigned line;
+} Allocation;
+
+int
+allocation_compare(void const *a_void, void const *b_void)
+{
+    Allocation const *a = a_void;
+    Allocation const *b = b_void;
+
+    if (a->ptr == b->ptr)
+        return 0;
+    if (a->ptr < b->ptr)
+        return -1;
+    return 1;
+}
+
+// We could use an ElkList here, but that would then mean the memory debugging functions tracked
+// themselves, which would be confusing when looking at output. So I re-implement an array backed
+// list here.
+static size_t elk_mem_debug_capacity = 0;
+static size_t elk_mem_debug_len = 0;
+static Allocation *allocations = 0;
+
+static void
+elk_mem_allocations_grow()
+{
+    size_t new_capacity = elk_mem_debug_capacity * 2;
+    Allocation *new_allocations = realloc(allocations, new_capacity * sizeof(Allocation));
+    assert(new_allocations);
+
+    elk_mem_debug_capacity = new_capacity;
+    allocations = new_allocations;
+}
+
+static Allocation *
+elk_mem_find_allocation_record(void *ptr, char const *fname, unsigned line)
+{
+    qsort(allocations, elk_mem_debug_len, sizeof *allocations, allocation_compare);
+
+    Allocation bsearch_key = {.ptr = ptr};
+    Allocation *alloc = bsearch(&bsearch_key, allocations, elk_mem_debug_len, sizeof *allocations,
+                                allocation_compare);
+
+    PanicIf(!alloc,
+            "Attempting to find a pointer not orignally allocated by us! (line: %4u - %s)\n", line,
+            fname);
+
+    return alloc;
+}
+
+static void
+elk_mem_allocations_push(void *ptr, char const *fname, unsigned line)
+{
+    if (elk_mem_debug_len == elk_mem_debug_capacity)
+        elk_mem_allocations_grow();
+
+    Allocation *alloc = &allocations[elk_mem_debug_len++];
+    alloc->ptr = ptr;
+    alloc->file = fname;
+    alloc->line = line;
+}
+
 void
 elk_init_memory_debug()
 {
-    // TODO: implement
-    assert(false);
+    printf("Initializing Elk memory debugger.\n");
+    allocations = realloc(allocations, 64 * sizeof(Allocation));
+    assert(allocations);
+
+    elk_mem_debug_capacity = 64;
+    elk_mem_debug_len = 0;
 }
 
 void
 elk_finalize_memory_debug()
 {
-    // TODO: implement
-    assert(false);
+    // Print out the memory data.
+    elk_debug_mem();
+
+    // Free resources
+    free(allocations);
+    printf("Finalized Elk memory debugger.\n");
 }
 
 void
@@ -115,36 +195,78 @@ elk_debug_mem()
 void *
 elk_malloc(size_t size, char const *fname, unsigned line)
 {
-    // TODO: implement
-    assert(false);
-    return 0;
+    void *ptr = malloc(size);
+    assert(ptr);
+
+    elk_mem_allocations_push(ptr, fname, line);
+
+    return ptr;
 }
 
 void *
 elk_realloc(void *ptr, size_t size, char const *fname, unsigned line)
 {
-    // TODO: implement
-    assert(false);
-    return 0;
+    Allocation *alloc = 0;
+    if (ptr) {
+        alloc = elk_mem_find_allocation_record(ptr, fname, line);
+    }
+
+    void *new_ptr = realloc(ptr, size);
+    assert(new_ptr);
+
+    if (new_ptr == ptr) {
+        // Update the allocation record
+        alloc->file = fname;
+        alloc->line = line;
+    } else {
+
+        // If replacing an old pointer, remove its allocation record
+        if (ptr) {
+
+            // Swap remove
+            size_t index = alloc - allocations;
+            allocations[index] = allocations[--elk_mem_debug_len];
+        }
+
+        elk_mem_allocations_push(new_ptr, fname, line);
+    }
+
+    return new_ptr;
 }
 
 void *
 elk_calloc(size_t nmemb, size_t size, char const *fname, unsigned line)
 {
-    // TODO: implement
-    assert(false);
-    return 0;
+    void *ptr = calloc(nmemb, size);
+    assert(ptr);
+
+    elk_mem_allocations_push(ptr, fname, line);
+
+    return ptr;
 }
 
 void
 elk_free(void *ptr, char const *fname, unsigned line)
 {
-    // TODO: implement
-    assert(false);
+    if (ptr) {
+        Allocation *alloc = elk_mem_find_allocation_record(ptr, fname, line);
+
+        // Swap remove
+        size_t index = alloc - allocations;
+        allocations[index] = allocations[--elk_mem_debug_len];
+
+        free(ptr);
+    } else {
+        printf("Attempted to free NULL pointer. (line: %4u - %s)\n", line, fname);
+    }
 }
 
 // Turn memory debugging back on.
 #    define ELK_MEMORY_DEBUG
+#    define malloc(s) elk_malloc((s), __FILE__, __LINE__)
+#    define realloc(p, s) elk_realloc((p), (s), __FILE__, __LINE__)
+#    define calloc(n, s) elk_calloc((n), (s), __FILE__, __LINE__)
+#    define free(p) elk_free((p), __FILE__, __LINE__)
 
 #else
 void
