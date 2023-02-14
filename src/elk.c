@@ -120,29 +120,30 @@ allocation_compare(void const *a_void, void const *b_void)
 // We could use an ElkList here, but that would then mean the memory debugging functions tracked
 // themselves, which would be confusing when looking at output. So I re-implement an array backed
 // list here.
-static size_t elk_mem_debug_capacity = 0;
-static size_t elk_mem_debug_len = 0;
-static Allocation *allocations = 0;
+static size_t elk_mem_allocations_capacity = 0;
+static size_t elk_mem_allocations_len = 0;
+static Allocation *elk_mem_allocations = 0;
 
 static void
 elk_mem_allocations_grow()
 {
-    size_t new_capacity = elk_mem_debug_capacity * 2;
-    Allocation *new_allocations = realloc(allocations, new_capacity * sizeof(Allocation));
+    size_t new_capacity = elk_mem_allocations_capacity * 2;
+    Allocation *new_allocations = realloc(elk_mem_allocations, new_capacity * sizeof(Allocation));
     assert(new_allocations);
 
-    elk_mem_debug_capacity = new_capacity;
-    allocations = new_allocations;
+    elk_mem_allocations_capacity = new_capacity;
+    elk_mem_allocations = new_allocations;
 }
 
 static Allocation *
 elk_mem_find_allocation_record(void *ptr, char const *fname, unsigned line)
 {
-    qsort(allocations, elk_mem_debug_len, sizeof *allocations, allocation_compare);
+    qsort(elk_mem_allocations, elk_mem_allocations_len, sizeof *elk_mem_allocations,
+          allocation_compare);
 
     Allocation bsearch_key = {.ptr = ptr};
-    Allocation *alloc = bsearch(&bsearch_key, allocations, elk_mem_debug_len, sizeof *allocations,
-                                allocation_compare);
+    Allocation *alloc = bsearch(&bsearch_key, elk_mem_allocations, elk_mem_allocations_len,
+                                sizeof *elk_mem_allocations, allocation_compare);
 
     PanicIf(!alloc,
             "Attempting to find a pointer not orignally allocated by us! (line: %4u - %s)\n", line,
@@ -154,10 +155,10 @@ elk_mem_find_allocation_record(void *ptr, char const *fname, unsigned line)
 static void
 elk_mem_allocations_push(void *ptr, char const *fname, unsigned line)
 {
-    if (elk_mem_debug_len == elk_mem_debug_capacity)
+    if (elk_mem_allocations_len == elk_mem_allocations_capacity)
         elk_mem_allocations_grow();
 
-    Allocation *alloc = &allocations[elk_mem_debug_len++];
+    Allocation *alloc = &elk_mem_allocations[elk_mem_allocations_len++];
     alloc->ptr = ptr;
     alloc->file = fname;
     alloc->line = line;
@@ -167,11 +168,11 @@ void
 elk_init_memory_debug()
 {
     printf("Initializing Elk memory debugger.\n");
-    allocations = realloc(allocations, 64 * sizeof(Allocation));
-    assert(allocations);
+    elk_mem_allocations = realloc(elk_mem_allocations, 64 * sizeof(Allocation));
+    assert(elk_mem_allocations);
 
-    elk_mem_debug_capacity = 64;
-    elk_mem_debug_len = 0;
+    elk_mem_allocations_capacity = 64;
+    elk_mem_allocations_len = 0;
 }
 
 void
@@ -181,22 +182,23 @@ elk_finalize_memory_debug()
     elk_debug_mem();
 
     // Free resources
-    free(allocations);
+    free(elk_mem_allocations);
     printf("Finalized Elk memory debugger.\n");
 }
 
 void
 elk_debug_mem()
 {
-    if (elk_mem_debug_len == 0) {
+    if (elk_mem_allocations_len == 0) {
         printf("No memory leaks detected!\n");
-    } else {
-        printf("Memory leaks detected!\n");
-        printf("%10s | %5s | %s\n", "Pointer", "Line", "File");
-        for (unsigned i = 0; i < elk_mem_debug_len; i++) {
-            Allocation *alloc = &allocations[i];
-            printf("%10p | %5u | %s\n", alloc->ptr, alloc->line, alloc->file);
-        }
+        return;
+    }
+
+    printf("Memory leaks detected!\n");
+    printf("%15s | %5s | %s\n", "Pointer", "Line", "File");
+    for (unsigned i = 0; i < elk_mem_allocations_len; i++) {
+        Allocation *alloc = &elk_mem_allocations[i];
+        printf("%15p | %5u | %s\n", alloc->ptr, alloc->line, alloc->file);
     }
 }
 
@@ -232,8 +234,8 @@ elk_realloc(void *ptr, size_t size, char const *fname, unsigned line)
         if (ptr) {
 
             // Swap remove
-            size_t index = alloc - allocations;
-            allocations[index] = allocations[--elk_mem_debug_len];
+            size_t index = alloc - elk_mem_allocations;
+            elk_mem_allocations[index] = elk_mem_allocations[--elk_mem_allocations_len];
         }
 
         elk_mem_allocations_push(new_ptr, fname, line);
@@ -260,8 +262,8 @@ elk_free(void *ptr, char const *fname, unsigned line)
         Allocation *alloc = elk_mem_find_allocation_record(ptr, fname, line);
 
         // Swap remove
-        size_t index = alloc - allocations;
-        allocations[index] = allocations[--elk_mem_debug_len];
+        size_t index = alloc - elk_mem_allocations;
+        elk_mem_allocations[index] = elk_mem_allocations[--elk_mem_allocations_len];
 
         free(ptr);
     } else {
