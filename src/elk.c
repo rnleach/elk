@@ -186,7 +186,7 @@ elk_mem_allocations_push(void *ptr, unsigned char *magic, char const *fname, uns
 void
 elk_init_memory_debug()
 {
-    printf("Initializing Elk memory debugger.\n");
+    fprintf(stderr, "Initializing Elk memory debugger.\n");
     elk_mem_allocations = realloc(elk_mem_allocations, 64 * sizeof(Allocation));
     assert(elk_mem_allocations);
 
@@ -202,22 +202,22 @@ elk_finalize_memory_debug()
 
     // Free resources
     free(elk_mem_allocations);
-    printf("Finalized Elk memory debugger.\n");
+    fprintf(stderr, "Finalized Elk memory debugger.\n");
 }
 
 void
 elk_debug_mem()
 {
     if (elk_mem_allocations_len == 0) {
-        printf("No memory leaks detected!\n");
+        fprintf(stderr, "No memory leaks detected!\n");
         return;
     }
 
-    printf("Memory leaks detected!\n");
-    printf("%15s | %5s | %s\n", "Pointer", "Line", "File");
+    fprintf(stderr, "Memory leaks detected!\n");
+    fprintf(stderr, "%15s | %5s | %s\n", "Pointer", "Line", "File");
     for (unsigned i = 0; i < elk_mem_allocations_len; i++) {
         Allocation *alloc = &elk_mem_allocations[i];
-        printf("%15p | %5u | %s\n", alloc->ptr, alloc->line, alloc->file);
+        fprintf(stderr, "%15p | %5u | %s\n", alloc->ptr, alloc->line, alloc->file);
     }
 }
 
@@ -298,7 +298,7 @@ elk_free(void *ptr, char const *fname, unsigned line)
 
         free(ptr);
     } else {
-        printf("Attempted to free NULL pointer. (line: %4u - %s)\n", line, fname);
+        fprintf(stderr, "Attempted to free NULL pointer. (line: %4u - %s)\n", line, fname);
     }
 }
 
