@@ -98,8 +98,12 @@ elk_time_add(time_t time, int change_in_time)
 #    undef calloc
 #    undef free
 
+#    define MAGIC_NUM_1 251
+#    define MAGIC_NUM_2 11
+
 typedef struct allocation {
     void *ptr;
+    unsigned char *magic;
     char const *file;
     unsigned line;
 } Allocation;
@@ -153,13 +157,28 @@ elk_mem_find_allocation_record(void *ptr, char const *fname, unsigned line)
 }
 
 static void
-elk_mem_allocations_push(void *ptr, char const *fname, unsigned line)
+elk_mem_allocation_make_magic(unsigned char *magic)
+{
+    magic[0] = MAGIC_NUM_1;
+    magic[1] = MAGIC_NUM_2;
+}
+
+static void
+elk_mem_allocation_check_magic(unsigned char *magic, char const *fname, unsigned line)
+{
+    PanicIf(magic[0] != MAGIC_NUM_1 || magic[1] != MAGIC_NUM_2,
+            "Buffer overrun detected, failed magic number check! (line: %u - %s)\n", line, fname);
+}
+
+static void
+elk_mem_allocations_push(void *ptr, unsigned char *magic, char const *fname, unsigned line)
 {
     if (elk_mem_allocations_len == elk_mem_allocations_capacity)
         elk_mem_allocations_grow();
 
     Allocation *alloc = &elk_mem_allocations[elk_mem_allocations_len++];
     alloc->ptr = ptr;
+    alloc->magic = magic;
     alloc->file = fname;
     alloc->line = line;
 }
@@ -205,10 +224,13 @@ elk_debug_mem()
 void *
 elk_malloc(size_t size, char const *fname, unsigned line)
 {
-    void *ptr = malloc(size);
+    void *ptr = malloc(size + 2);
     assert(ptr);
 
-    elk_mem_allocations_push(ptr, fname, line);
+    unsigned char *magic = (unsigned char *)ptr + size;
+    elk_mem_allocation_make_magic(magic);
+
+    elk_mem_allocations_push(ptr, magic, fname, line);
 
     return ptr;
 }
@@ -219,15 +241,20 @@ elk_realloc(void *ptr, size_t size, char const *fname, unsigned line)
     Allocation *alloc = 0;
     if (ptr) {
         alloc = elk_mem_find_allocation_record(ptr, fname, line);
+        elk_mem_allocation_check_magic(alloc->magic, fname, line);
     }
 
-    void *new_ptr = realloc(ptr, size);
+    void *new_ptr = realloc(ptr, size + 2);
     assert(new_ptr);
+
+    unsigned char *magic = (unsigned char *)new_ptr + size;
+    elk_mem_allocation_make_magic(magic);
 
     if (new_ptr == ptr) {
         // Update the allocation record
         alloc->file = fname;
         alloc->line = line;
+        alloc->magic = magic;
     } else {
 
         // If replacing an old pointer, remove its allocation record
@@ -238,7 +265,7 @@ elk_realloc(void *ptr, size_t size, char const *fname, unsigned line)
             elk_mem_allocations[index] = elk_mem_allocations[--elk_mem_allocations_len];
         }
 
-        elk_mem_allocations_push(new_ptr, fname, line);
+        elk_mem_allocations_push(new_ptr, magic, fname, line);
     }
 
     return new_ptr;
@@ -247,10 +274,13 @@ elk_realloc(void *ptr, size_t size, char const *fname, unsigned line)
 void *
 elk_calloc(size_t nmemb, size_t size, char const *fname, unsigned line)
 {
-    void *ptr = calloc(nmemb, size);
+    void *ptr = calloc(nmemb, size + 2);
     assert(ptr);
 
-    elk_mem_allocations_push(ptr, fname, line);
+    unsigned char *magic = (unsigned char *)ptr + size;
+    elk_mem_allocation_make_magic(magic);
+
+    elk_mem_allocations_push(ptr, magic, fname, line);
 
     return ptr;
 }
@@ -260,6 +290,7 @@ elk_free(void *ptr, char const *fname, unsigned line)
 {
     if (ptr) {
         Allocation *alloc = elk_mem_find_allocation_record(ptr, fname, line);
+        elk_mem_allocation_check_magic(alloc->magic, fname, line);
 
         // Swap remove
         size_t index = alloc - elk_mem_allocations;
@@ -270,6 +301,9 @@ elk_free(void *ptr, char const *fname, unsigned line)
         printf("Attempted to free NULL pointer. (line: %4u - %s)\n", line, fname);
     }
 }
+
+#    undef MAGIC_NUM_2
+#    undef MAGIC_NUM_1
 
 // Turn memory debugging back on.
 #    define ELK_MEMORY_DEBUG
