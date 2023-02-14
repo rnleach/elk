@@ -105,7 +105,7 @@ typedef struct allocation {
 } Allocation;
 
 int
-allocation_compare(void const *a_void, void const *b_void)
+elk_mem_allocation_ptr_compare(void const *a_void, void const *b_void)
 {
     Allocation const *a = a_void;
     Allocation const *b = b_void;
@@ -139,11 +139,11 @@ static Allocation *
 elk_mem_find_allocation_record(void *ptr, char const *fname, unsigned line)
 {
     qsort(elk_mem_allocations, elk_mem_allocations_len, sizeof *elk_mem_allocations,
-          allocation_compare);
+          elk_mem_allocation_ptr_compare);
 
     Allocation bsearch_key = {.ptr = ptr};
     Allocation *alloc = bsearch(&bsearch_key, elk_mem_allocations, elk_mem_allocations_len,
-                                sizeof *elk_mem_allocations, allocation_compare);
+                                sizeof *elk_mem_allocations, elk_mem_allocation_ptr_compare);
 
     PanicIf(!alloc,
             "Attempting to find a pointer not orignally allocated by us! (line: %4u - %s)\n", line,
