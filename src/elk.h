@@ -272,7 +272,7 @@ void elk_free(void *ptr, char const *fname, unsigned line);
  *-----------------------------------------------------------------------------------------------*/
 /** \defgroup iterator Iterator interface.
  *
- * This section defines the iterator interface for collections defined Elk.
+ * This section defines the iterator interface for collections defined in Elk.
  *
  * @{
  */
@@ -486,6 +486,98 @@ ElkList *elk_list_filter_out(ElkList *const src, ElkList *sink, FilterFunc filte
 
 /** @} */ // end of list group
 /*-------------------------------------------------------------------------------------------------
+ *                                            Queue
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup queue A simple bounded queue.
+ *
+ * @{
+ */
+
+/** An array backed bounded queue.
+ *
+ * This queue stores POD types, and doesn't free any pointers internal to its data members. That
+ * can be done by calling a function to free items if necessary through the elk_queue_foreach()
+ * function.
+ */
+typedef struct ElkQueue ElkQueue;
+
+/** Create a new queue.
+ *
+ * \param element_size is the size of each item in bytes.
+ * \param capacity is the maximum capacity of the queue.
+ *
+ * \returns a pointer to the new queue.
+ */
+ElkQueue *elk_queue_new(size_t element_size, size_t capacity);
+
+/** Free the memory used by this queue.
+ *
+ * This method does not free any memory pointed to by items in the queue. To do that create an
+ * \ref IterFunc and use the elk_queue_foreach() function to free memory pointed to by members.
+ *
+ * \returns a \c NULL pointer that should be assigned to the orignal \p queue argument.
+ */
+ElkQueue *elk_queue_free(ElkQueue *queue);
+
+/** Detect if the queue is full.
+ *
+ * \returns \c true if the \p queue is full and can't take anymore input.
+ */
+bool elk_queue_full(ElkQueue *queue);
+
+/** Detect if the queue is empty.
+ *
+ * \returns \c true if the \p queue is empty and has nothing more to give.
+ */
+bool elk_queue_empty(ElkQueue *queue);
+
+/** Add an item to the end of the queue.
+ *
+ * \param queue the queue to add something too. Cannot be \c NULL.
+ * \param item the item to add to the queue which will be copied into the queue with \c memcpy
+ *
+ * \returns \c true if the operation was successful.
+ */
+bool elk_queue_enqueue(ElkQueue *queue, void *item);
+
+/** Take an item from the front of the queue.
+ *
+ * \param queue the queue to take something from. Cannot be \c NULL.
+ * \param output is a location to hold the returned item. The item is moved there with \c memcpy.
+ *
+ * \returns \c true if the operation succeeds. If the operation fails, then the contents of
+ * \p output are undefined.
+ */
+bool elk_queue_dequeue(ElkQueue *queue, void *output);
+
+/** Peek at the next item in the queue without removing it.
+ *
+ * \param queue the queue to peek at.
+ *
+ * \returns a pointer to the element at the front of the queue.
+ */
+void const *elk_queue_peek_alias(ElkQueue *queue);
+
+/** Get the number of items remaining in the queue.
+ *
+ * \param queue the queue to get the number of remaining items in. Cannot be \c NULL.
+ *
+ * \returns the number of items in the \p queue.
+ */
+size_t elk_queue_count(ElkQueue *queue);
+
+/** Apply a function to every item in the queue while dequeueing them.
+ *
+ * After this call, the \p queue will be empty.
+ *
+ * \param queue to empty while applying \p ifunc to each item.
+ * \param ifunc the function to apply to each item in the queue.
+ * \param user_data is data that is passed to each call of \p ifunc.
+ */
+void elk_queue_foreach(ElkQueue *queue, IterFunc ifunc, void *user_data);
+
+/** @} */ // end of queue group
+/*-------------------------------------------------------------------------------------------------
  *                                    Coordinates and Rectangles
  *-----------------------------------------------------------------------------------------------*/
 /** \defgroup geom Geometry primitives.
@@ -512,7 +604,7 @@ typedef struct Elk2DRect {
 /** \defgroup hilbert Hilbert Curves.
  *
  * Hilbert curves are a type of space filling curve, and were originally implemented in this
- * library to support an RTree implementation. This implementation is only for 2-dimensional space.
+ * library to support an 2-dimensional RTree implementation.
  *
  * This might seem really weird to have in a "general" library. However, as a result of goal number
  * 1 for this library, here it is. This didn't really need to be in the public API, but it makes

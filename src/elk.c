@@ -168,10 +168,13 @@ elk_mem_allocation_make_magic(unsigned char *magic)
 }
 
 static void
-elk_mem_allocation_check_magic(unsigned char *magic, char const *fname, unsigned line)
+elk_mem_allocation_check_magic(Allocation *alloc, char const *fname, unsigned line)
 {
+    unsigned char *magic = alloc->magic;
     PanicIf(magic[0] != MAGIC_NUM_1 || magic[1] != MAGIC_NUM_2,
-            "Buffer overrun detected, failed magic number check! (line: %u - %s)\n", line, fname);
+            "Buffer overrun detected, failed magic number check! (line: %u - %s)\n"
+            "  Original allocation (address: %p, line: %u - %s\n",
+            line, fname, alloc->ptr, alloc->line, alloc->file);
 }
 
 static void
@@ -291,7 +294,7 @@ elk_realloc(void *ptr, size_t size, char const *fname, unsigned line)
     Allocation *alloc = 0;
     if (ptr) {
         alloc = elk_mem_find_allocation_record(ptr, fname, line);
-        elk_mem_allocation_check_magic(alloc->magic, fname, line);
+        elk_mem_allocation_check_magic(alloc, fname, line);
     }
 
     void *new_ptr = realloc(ptr, size + 2);
@@ -332,10 +335,11 @@ elk_calloc(size_t nmemb, size_t size, char const *fname, unsigned line)
         elk_mem_allocations_lock(elk_mem_allocations_mutex);
     }
 
-    void *ptr = calloc(nmemb, size + 2);
+    void *ptr = malloc(nmemb * size + 2);
     assert(ptr);
+    memset(ptr, 0, nmemb * size + 2);
 
-    unsigned char *magic = (unsigned char *)ptr + size;
+    unsigned char *magic = (unsigned char *)ptr + size * nmemb;
     elk_mem_allocation_make_magic(magic);
 
     elk_mem_allocations_push(ptr, magic, fname, line);
@@ -356,7 +360,7 @@ elk_free(void *ptr, char const *fname, unsigned line)
 
     if (ptr) {
         Allocation *alloc = elk_mem_find_allocation_record(ptr, fname, line);
-        elk_mem_allocation_check_magic(alloc->magic, fname, line);
+        elk_mem_allocation_check_magic(alloc, fname, line);
 
         // Swap remove
         size_t index = alloc - elk_mem_allocations;
@@ -590,6 +594,125 @@ elk_list_filter_out(ElkList *const src, ElkList *sink, FilterFunc filter, void *
     }
 
     return sink;
+}
+
+/*-------------------------------------------------------------------------------------------------
+ *                                            Queue
+ *-----------------------------------------------------------------------------------------------*/
+struct ElkQueue {
+    size_t element_size;
+    size_t capacity;
+    size_t length;
+    size_t head;
+    size_t tail;
+    unsigned char data[];
+};
+
+struct ElkQueue *
+elk_queue_new(size_t element_size, size_t capacity)
+{
+    assert(capacity > 0);
+
+    size_t size = capacity * element_size + sizeof(struct ElkQueue);
+    struct ElkQueue *queue = malloc(size);
+    assert(queue);
+
+    queue->element_size = element_size;
+    queue->capacity = capacity;
+    queue->length = 0;
+    queue->head = 0;
+    queue->tail = 0;
+    memset(queue->data, 0, capacity * element_size);
+
+    return queue;
+}
+
+struct ElkQueue *
+elk_queue_free(struct ElkQueue *queue)
+{
+    free(queue);
+    return 0;
+}
+
+bool
+elk_queue_full(struct ElkQueue *queue)
+{
+    assert(queue);
+    return queue->length >= queue->capacity;
+}
+
+bool
+elk_queue_empty(ElkQueue *queue)
+{
+    assert(queue);
+    return queue->length == 0;
+}
+
+bool
+elk_queue_enqueue(struct ElkQueue *queue, void *item)
+{
+    assert(queue);
+    if (elk_queue_full(queue)) {
+        return false;
+    }
+
+    size_t byte_idx = queue->tail * queue->element_size;
+    memcpy(&queue->data[byte_idx], item, queue->element_size);
+
+    queue->length++;
+    queue->tail = (queue->tail + 1) % queue->capacity;
+
+    return true;
+}
+
+bool
+elk_queue_dequeue(struct ElkQueue *queue, void *output)
+{
+    assert(queue);
+    if (elk_queue_empty(queue)) {
+        return false;
+    }
+
+    size_t byte_idx = queue->head * queue->element_size;
+    memcpy(output, &queue->data[byte_idx], queue->element_size);
+
+    queue->length--;
+    queue->head = (queue->head + 1) % queue->capacity;
+
+    return true;
+}
+
+void const *
+elk_queue_peek_alias(struct ElkQueue *queue)
+{
+    assert(queue);
+    if (elk_queue_empty(queue)) {
+        return 0;
+    }
+
+    size_t byte_idx = queue->head * queue->element_size;
+    return &queue->data[byte_idx];
+}
+
+size_t
+elk_queue_count(struct ElkQueue *queue)
+{
+    assert(queue);
+    return queue->length;
+}
+
+void
+elk_queue_foreach(struct ElkQueue *queue, IterFunc ifunc, void *user_data)
+{
+    assert(queue);
+    unsigned char *item = malloc(sizeof(queue->element_size));
+    assert(item);
+
+    while (elk_queue_dequeue(queue, item)) {
+        ifunc(item, user_data);
+    }
+
+    free(item);
 }
 
 /*-------------------------------------------------------------------------------------------------
