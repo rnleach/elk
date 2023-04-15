@@ -1,3 +1,4 @@
+#pragma once
 //
 // For testing, ensure we have some debugging tools activated.
 //

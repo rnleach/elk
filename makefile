@@ -1,3 +1,6 @@
+# Show commands that make uses
+VERBOSE = TRUE
+
 # Directory layout.
 PROJDIR := $(realpath $(CURDIR)/)
 SOURCEDIR := $(PROJDIR)/src
@@ -7,7 +10,7 @@ DOCDIR := $(PROJDIR)/doc
 RELEASEDIR := $(PROJDIR)/release
 DEBUGDIR := $(PROJDIR)/debug
 
-CFLAGS = -Wall -Werror -std=c11 -I$(SOURCEDIR)
+CFLAGS = -Wall -Werror -std=c11 -I$(SOURCEDIR) -I$(TESTDIR)
 LDLIBS = -lm
 ifeq ($(DEBUG),1)
 	CFLAGS += -g -DELK_PANIC_CRASH -DELK_MEMORY_DEBUG
@@ -21,28 +24,40 @@ endif
 
 # Target executable
 TEST  = test
-TEST_TARGET = $(TESTDIR)/$(TEST)
+TEST_TARGET = $(BUILDDIR)/$(TEST)
 
 # Compiler and compiler options
 CC = clang
 
-# Show commands that make uses
-VERBOSE = TRUE
-
 # Add this list to the VPATH, the place make will look for the source files
-VPATH = $(SOURCEDIR):$(TESTDIR)
+VPATH = $(TESTDIR):$(SOURCEDIR)
 
 # Create a list of *.c files in DIRS
-SOURCES = $(wildcard $(SOURCEDIR)/*.c)
-TEST_SOURCES = $(wildcard $(TESTDIR)/*.c)
-HEADERS = $(wildcard $(SOURCEDIR)/*.h)
-TEST_HEADERS = $(wildcard $(TESTDIR)/*.h)
+SOURCES = $(wildcard $(TESTDIR)/*.c) $(wildcard $(SOURCEDIR)/*.c)
+HEADERS = $(wildcard $(TESTDIR)/*.h) $(wildcard $(SOURCEDIR)/*.h)
 
 # Define object files for all sources, and dependencies for all objects
-OBJS := $(subst $(SOURCEDIR), $(BUILDDIR), $(SOURCES:.c=.o))
-TEST_OBJS := $(TEST_SOURCES:.c=.o)
-DEPS = $(OBJS:.o=.d)
-TEST_DEPS = $(TEST_OBJS:.o=.d)
+OBJS:=$(subst $(SOURCEDIR), $(BUILDDIR), $(SOURCES:.c=.o))
+OBJS:=$(subst $(TESTDIR), $(BUILDDIR), $(OBJS))
+
+DEPS := $(OBJS:.o=.d)
+
+# Print a bunch of info to help debugging make.
+ifeq ($(VERBOSE),TRUE)
+    $(info ---------- variables ---------- )
+    $(info                                 )
+    $(info $$(VPATH) $(VPATH)              )
+    $(info                                 )
+    $(info $$(SOURCES) $(SOURCES)          )
+    $(info                                 )
+    $(info $$(HEADERS) $(HEADERS)          )
+    $(info                                 )
+    $(info $$(OBJS) $(OBJS)                )
+    $(info                                 )
+    $(info $$(DEPS) $(DEPS)                )
+    $(info                                 )
+    $(info ------------------------------- )
+endif
 
 # Hide or not the calls depending on VERBOSE
 ifeq ($(VERBOSE),TRUE)
@@ -55,35 +70,37 @@ endif
 
 all: makefile directories $(TEST_TARGET)
 
-$(TEST_TARGET): directories makefile $(TEST_OBJS) $(OBJS)
+$(TEST_TARGET): directories makefile  $(OBJS)
+	@echo
 	@echo Linking $@
-	$(HIDE)$(CC) $(TEST_OBJS) $(OBJS) $(LDLIBS) -o $@
+	$(HIDE)$(CC) $(OBJS) $(LDLIBS) -o $@
 
 -include $(DEPS)
--include $(TEST_DEPS)
 
 # Generate rules
-$(BUILDDIR)/%.o: $(SOURCEDIR)/%.c makefile
-	@echo Building $@
-	$(HIDE)$(CC) -c $(CFLAGS) -o $@ $< -MMD
-
-$(TESTDIR)/%.o: $(TESTDIR)/%.c makefile
+$(BUILDDIR)/%.o: %.c makefile
+	@echo
 	@echo Building $@
 	$(HIDE)$(CC) -c $(CFLAGS) -o $@ $< -MMD
 
 directories:
-	@echo Creating directory $<
+	@echo
+	@echo "Creating directory $(BUILDDIR)"
 	$(HIDE)mkdir -p $(BUILDDIR) 2>/dev/null
 
 test: directories makefile $(TEST_OBJS) $(OBJS)
+	@echo
 	@echo Linking $@
 	$(HIDE)$(CC)  $(TEST_OBJS) $(OBJS) $(LDLIBS) -o $(TEST_TARGET)
 	$(HIDE) $(TEST_TARGET)
 
 doc: Doxyfile makefile $(SOURCES) $(HEADERS)
+	@echo
+	@echo Building documentation.
 	$(HIDE) doxygen 2>/dev/null
 
 clean:
-	-$(HIDE)rm -rf $(DEBUGDIR) $(RELEASEDIR) $(DOCDIR) $(TESTDIR)/*.o $(TESTDIR)/*.d $(TEST_TARGET) 2>/dev/null
+	-$(HIDE)rm -rf $(DEBUGDIR) $(RELEASEDIR) $(DOCDIR) 2>/dev/null
+	@echo
 	@echo Cleaning done!
 
