@@ -5,7 +5,9 @@
   some point and call it wolf, but I haven't made any plans yet.
  
  Goals and non-Goals:
-  1. I only implement the things I need. If it's in here, I needed it at some point.
+  1. I only implement the things I need. If it's in here, I needed it at some point. Or I thought it
+     would be fun to implement and test, and I might use it some day. But if I didn't need it or
+     just want to make it, it isn't in there. Nothing was built speculatively.
 
   2. Single header + single source file. Keeps it simple.
 
@@ -66,8 +68,12 @@
 
 ## Releases
 
-### Version 1.0.0
-  - (2022-06-19) Initial release.
+### Version 1.2.0
+  - (2023-02-14) Multiple upgrades.
+  - Removed dependency on some feature test macros.
+  - Updated a lot of documentation and organized it into "modules" (per Doxygen)
+  - Added the memory debugging functionality.
+
 ### Version 1.1.0
   - (2022-06-19) Adjustments to time functions.
   - Removed calendar day only time creation, just left behind the one that uses date and time.
@@ -76,10 +82,6 @@
   - Major bugfix for when I calculate the timezone offset (internally) that affected several
     time functions.
 
-### Version 1.2.0
-  - (2023-02-14) Multiple upgrades.
-  - Removed dependency on some feature test macros.
-  - Updated a lot of documentation and organized it into "modules" (per Doxygen)
-  - Added the memory debugging functionality.
-
+### Version 1.0.0
+  - (2022-06-19) Initial release.
 
