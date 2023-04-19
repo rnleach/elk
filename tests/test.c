@@ -14,6 +14,7 @@ main(void)
     elk_time_tests();
     elk_list_tests();
     elk_queue_tests();
+    elk_heap_tests();
     elk_hilbert_tests();
     elk_rtree_view_tests();
 

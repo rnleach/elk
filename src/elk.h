@@ -12,7 +12,7 @@
 #include <time.h>
 
 /*-------------------------------------------------------------------------------------------------
- *                                    Error Handling Macros
+ *                                      Error Handling
  *-----------------------------------------------------------------------------------------------*/
 /** \defgroup errors Macros for clean error handling.
  *
@@ -94,6 +94,29 @@
     }
 
 /** @} */ // end of errors group
+
+/** \defgroup errorcodes Error codes returned by some Elk functions.
+ *
+ * @{
+ */
+typedef int ElkCode;
+
+/** Test to see if a code indicates an error. */
+static inline bool
+elk_is_error(ElkCode code) {
+    return code < 0;
+}
+
+/** No error, the operation was successful. */
+#define ELK_CODE_SUCCESS 0
+
+/** The collection is full and can't take anymore. */
+#define ELK_CODE_FULL -1
+
+/** The collection is empty and has nothing to give! */
+#define ELK_CODE_EMPTY -2
+
+/** @} */ // end of errorcodes group
 /*-------------------------------------------------------------------------------------------------
  *                                        Date and Time Handling
  *-----------------------------------------------------------------------------------------------*/
@@ -577,6 +600,118 @@ size_t elk_queue_count(ElkQueue *queue);
 void elk_queue_foreach(ElkQueue *queue, IterFunc ifunc, void *user_data);
 
 /** @} */ // end of queue group
+/*-------------------------------------------------------------------------------------------------
+ *                                    Heap or Priority Queue
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup heap A heap or priority queue.
+ *
+ * @{
+ */
+
+/** Function prototype for determining priority in a heap/priority queue.
+ *
+ * This implementation assumes a maximum-heap, so larger return values indicate higher priority and
+ * will result in an item being place nearer the top of the queue. If you need a minimum-heap just
+ * flip the sign before returning from this function.
+ *
+ * The use of integers as the return type is intentional to avoid the pitfalls of comparing floating
+ * point values with things like NaN or infinity.
+ */
+typedef int (*Priority)(void *item);
+
+/** A maximum-heap.
+ *
+ * All the operations on this type assume the system will never run out of memory, so if it does
+ * they will abort the program. The heap is backed by an array, so it should be cache friendly.
+ *
+ * This heap assumes (and so it is only good for) storing types of constant size that do not require
+ * any copy or delete functions. This heap stores plain old data types (PODs). Of course you could
+ * store pointers or something that contains pointers in the heap, but you would be responsible
+ * for managing the memory (including any dangling aliases that may be out there after adding it
+ * to the list).
+ **/
+typedef struct ElkHeap ElkHeap;
+
+/** Create a new unbounded heap.
+ *
+ * This heap will grow as needed to store new elements. Watchout though, this means it can use all
+ * of the machine's memory!
+ *
+ * \param element_size the size of elements stored in the heap.
+ * \param pri the function to use to calculate an element's priority in the queue or value in the
+ *        heap.
+ * \param arity the number of elements per node. Usually this is just 2 for a binary heap, but this
+ *        is a "d-ary" heap implementation. Good default values are in the range of 3-5.
+ *
+ * \returns A newly allocated heap! Upon failure it just aborts the program. If you're that 
+ * desperate for memory, just give up.
+ */
+ElkHeap *elk_heap_new(size_t element_size, Priority pri, size_t arity);
+
+/** Create a new bounded heap.
+ *
+ * All of the necessary memory will be allocated up front.
+ *
+ * \param element_size the size of elements stored in the heap.
+ * \param capacity is the maximum number of values you can store in this heap.
+ * \param pri the function to use to calculate an element's priority in the queue or value in the
+ *        heap.
+ * \param arity the number of elements per node. Usually this is just 2 for a binary heap, but this
+ *        is a "d-ary" heap implementation. Good default values are in the range of 3-5.
+ *
+ * \returns A newly allocated heap! Upon failure it just aborts the program. If you're that 
+ * desperate for memory, just give up.
+ */
+ElkHeap *elk_bounded_heap_new(size_t element_size, size_t capacity, Priority pri, size_t arity);
+
+/** Free a heap.
+ *
+ * \returns \c NULL, which should be assigned to the original \p heap.
+ */
+ElkHeap *elk_heap_free(ElkHeap *heap);
+
+/** Insert an element onto the heap.
+ *
+ * \param heap the heap to insert into.
+ * \param item the object to be stored on the heap. It will be moved via \c memcpy, so the memory
+ *        location is copied. User beware if the type uses pointers internally as this could cause
+ *        aliasing.
+ * \param result returns an \ref ElkCode to indicate success or failure. For unbounded heaps, this
+ *        will always be \ref ELK_CODE_SUCCESS, but for bounded heaps it may return 
+ *        \ref ELK_CODE_FULL. Sending in \c NULL is acceptable but not advised.
+ *
+ * \returns a pointer to the ElkHeap. This SHOULD be reassigned to the original \p heap, especially
+ * for unbounded heaps. If the heap is grown via realloc, then the pointer may change!
+ */
+ElkHeap *elk_heap_insert(ElkHeap *heap, void *item, ElkCode *result);
+
+/** Remove an item from the heap.
+ *
+ * \param heap the heap to remove the next item from.
+ * \param item A location to store the removed item into via \c memcpy. If the \p heap is empty,
+ *             the memory at this location should be zeroed out.
+ * \param result returns an \ref ElkCode to indicate success or failure. This will be
+ *        \ref ELK_CODE_SUCCESS if an item is returned, but if the heap is empty it will be 
+ *        \ref ELK_CODE_EMPTY.
+ *
+ * \returns a pointer to the ElkHeap. This SHOULD be reassigned to the original \p heap for 
+ * consistency with other functions that modify heaps.
+ */
+ElkHeap *elk_heap_top(ElkHeap *heap, void *item, ElkCode *result);
+
+/** Get the number of items on the heap. */
+size_t elk_heap_count(ElkHeap const *const heap);
+
+/** Peek at the next item on the top of the heap.
+ *
+ * \param heap the heap to peek!
+ *
+ * \returns an aliased pointer to the top element on the heap. This value should not be modified!
+ * If the heap is empty it returns \c NULL.
+ */
+void const *elk_heap_peek(ElkHeap const * const heap);
+
+/** @} */ // end of heap group
 /*-------------------------------------------------------------------------------------------------
  *                                    Coordinates and Rectangles
  *-----------------------------------------------------------------------------------------------*/

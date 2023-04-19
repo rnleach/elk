@@ -24,5 +24,6 @@
 void elk_time_tests(void);
 void elk_list_tests(void);
 void elk_queue_tests(void);
+void elk_heap_tests(void);
 void elk_hilbert_tests(void);
 void elk_rtree_view_tests(void);
