@@ -103,7 +103,8 @@ typedef int ElkCode;
 
 /** Test to see if a code indicates an error. */
 static inline bool
-elk_is_error(ElkCode code) {
+elk_is_error(ElkCode code)
+{
     return code < 0;
 }
 
@@ -643,7 +644,7 @@ typedef struct ElkHeap ElkHeap;
  * \param arity the number of elements per node. Usually this is just 2 for a binary heap, but this
  *        is a "d-ary" heap implementation. Good default values are in the range of 3-5.
  *
- * \returns A newly allocated heap! Upon failure it just aborts the program. If you're that 
+ * \returns A newly allocated heap! Upon failure it just aborts the program. If you're that
  * desperate for memory, just give up.
  */
 ElkHeap *elk_heap_new(size_t element_size, Priority pri, size_t arity);
@@ -659,7 +660,7 @@ ElkHeap *elk_heap_new(size_t element_size, Priority pri, size_t arity);
  * \param arity the number of elements per node. Usually this is just 2 for a binary heap, but this
  *        is a "d-ary" heap implementation. Good default values are in the range of 3-5.
  *
- * \returns A newly allocated heap! Upon failure it just aborts the program. If you're that 
+ * \returns A newly allocated heap! Upon failure it just aborts the program. If you're that
  * desperate for memory, just give up.
  */
 ElkHeap *elk_bounded_heap_new(size_t element_size, size_t capacity, Priority pri, size_t arity);
@@ -677,7 +678,7 @@ ElkHeap *elk_heap_free(ElkHeap *heap);
  *        location is copied. User beware if the type uses pointers internally as this could cause
  *        aliasing.
  * \param result returns an \ref ElkCode to indicate success or failure. For unbounded heaps, this
- *        will always be \ref ELK_CODE_SUCCESS, but for bounded heaps it may return 
+ *        will always be \ref ELK_CODE_SUCCESS, but for bounded heaps it may return
  *        \ref ELK_CODE_FULL. Sending in \c NULL is acceptable but not advised.
  *
  * \returns a pointer to the ElkHeap. This SHOULD be reassigned to the original \p heap, especially
@@ -691,10 +692,10 @@ ElkHeap *elk_heap_insert(ElkHeap *heap, void *item, ElkCode *result);
  * \param item A location to store the removed item into via \c memcpy. If the \p heap is empty,
  *             the memory at this location should be zeroed out.
  * \param result returns an \ref ElkCode to indicate success or failure. This will be
- *        \ref ELK_CODE_SUCCESS if an item is returned, but if the heap is empty it will be 
+ *        \ref ELK_CODE_SUCCESS if an item is returned, but if the heap is empty it will be
  *        \ref ELK_CODE_EMPTY.
  *
- * \returns a pointer to the ElkHeap. This SHOULD be reassigned to the original \p heap for 
+ * \returns a pointer to the ElkHeap. This SHOULD be reassigned to the original \p heap for
  * consistency with other functions that modify heaps.
  */
 ElkHeap *elk_heap_top(ElkHeap *heap, void *item, ElkCode *result);
@@ -709,7 +710,7 @@ size_t elk_heap_count(ElkHeap const *const heap);
  * \returns an aliased pointer to the top element on the heap. This value should not be modified!
  * If the heap is empty it returns \c NULL.
  */
-void const *elk_heap_peek(ElkHeap const * const heap);
+void const *elk_heap_peek(ElkHeap const *const heap);
 
 /** @} */ // end of heap group
 /*-------------------------------------------------------------------------------------------------
