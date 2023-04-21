@@ -612,7 +612,7 @@ void elk_queue_foreach(ElkQueue *queue, IterFunc ifunc, void *user_data);
 /** Function prototype for determining priority in a heap/priority queue.
  *
  * This implementation assumes a maximum-heap, so larger return values indicate higher priority and
- * will result in an item being place nearer the top of the queue. If you need a minimum-heap just
+ * will result in an item being placed nearer the top of the queue. If you need a minimum-heap just
  * flip the sign before returning from this function.
  *
  * The use of integers as the return type is intentional to avoid the pitfalls of comparing floating

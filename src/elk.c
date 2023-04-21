@@ -782,13 +782,6 @@ elk_heap_parent_index(size_t index, size_t arity)
     return (index - 1) / arity;
 }
 
-static size_t
-elk_heap_first_child_index(size_t index, size_t arity)
-{
-    assert(arity > 0);
-    return arity * index + 1;
-}
-
 static void
 elk_heap_bubble_up(struct ElkHeap *heap, size_t item_index, ElkHeapTuple *current)
 {
@@ -815,7 +808,7 @@ elk_heap_bubble_up(struct ElkHeap *heap, size_t item_index, ElkHeapTuple *curren
         }
     }
 
-    // No need to check if item == NULL because of first return statement above.
+    // Make the final copy.
     elk_heap_copy_tuple(item, current, heap->element_size);
 
     return;
@@ -831,6 +824,13 @@ elk_heap_first_leaf_index(size_t heap_count, size_t arity)
     }
 
     return (heap_count - 2) / arity + 1;
+}
+
+static size_t
+elk_heap_first_child_index(size_t index, size_t arity)
+{
+    assert(arity > 0);
+    return arity * index + 1;
 }
 
 static void
@@ -926,6 +926,30 @@ elk_heap_free(struct ElkHeap *heap)
     return 0;
 }
 
+static ElkCode
+elk_heap_check_resize(struct ElkHeap **heap)
+{
+    assert(heap && *heap);
+
+    struct ElkHeap *h = *heap;
+    assert(h->length <= h->capacity);
+
+    if (h->length == h->capacity) {
+        if (h->bounded) {
+            return ELK_CODE_FULL;
+        } else {
+            size_t new_capacity = (h->capacity * 2);
+
+            struct ElkHeap *new = realloc(h, elk_heap_size_bytes(h->element_size, new_capacity));
+            new->capacity = new_capacity;
+            PanicIf(!new, "%s", err_out_of_mem);
+            *heap = new;
+        }
+    }
+
+    return ELK_CODE_SUCCESS;
+}
+
 struct ElkHeap *
 elk_heap_insert(struct ElkHeap *heap, void *item, ElkCode *result)
 {
@@ -933,19 +957,12 @@ elk_heap_insert(struct ElkHeap *heap, void *item, ElkCode *result)
     assert(item);
 
     struct ElkHeap *new_heap = heap;
-    if (heap->length >= heap->capacity) {
-        if (heap->bounded) {
-            if (result) {
-                *result = ELK_CODE_FULL;
-            }
-            return heap;
-        } else {
-            size_t new_capacity = (heap->capacity * 2);
-
-            new_heap = realloc(heap, elk_heap_size_bytes(heap->element_size, new_capacity));
-            new_heap->capacity = new_capacity;
-            PanicIf(!new_heap, "%s", err_out_of_mem);
+    ElkCode resize_result = elk_heap_check_resize(&new_heap);
+    if (resize_result == ELK_CODE_FULL) {
+        if (result) {
+            *result = ELK_CODE_FULL;
         }
+        return new_heap;
     }
 
     int value = new_heap->priority(item);
