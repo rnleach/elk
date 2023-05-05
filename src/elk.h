@@ -6,6 +6,7 @@
  * See the main page for an overall description and the list of goals/non-goals: \ref index
  */
 #include <inttypes.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -99,23 +100,18 @@
  *
  * @{
  */
-typedef int ElkCode;
+typedef enum ElkCode {
+    ELK_CODE_FULL,        /** The collection is full and can't accept anymore items. */
+    ELK_CODE_EMPTY,       /** The collection is empty and can't return anymore items. */
+    ELK_CODE_SUCCESS,     /** There was no error, only success! */
+} ElkCode;
 
 /** Test to see if a code indicates an error. */
 static inline bool
 elk_is_error(ElkCode code)
 {
-    return code < 0;
+    return code < ELK_CODE_SUCCESS;
 }
-
-/** No error, the operation was successful. */
-#define ELK_CODE_SUCCESS 0
-
-/** The collection is full and can't take anymore. */
-#define ELK_CODE_FULL -1
-
-/** The collection is empty and has nothing to give! */
-#define ELK_CODE_EMPTY -2
 
 /** @} */ // end of errorcodes group
 /*-------------------------------------------------------------------------------------------------
