@@ -29,19 +29,21 @@ labeled_rect_new(unsigned int min_x, unsigned int min_y)
                                 .label = label};
 }
 
-static ElkList *
+static ElkArray
 create_rectangles_for_rtree_view_test(void)
 {
-    ElkList *list = elk_list_new_with_capacity(40, sizeof(struct LabeledRect));
+    ElkArray arr = elk_array_new_with_capacity(40, sizeof(struct LabeledRect));
+    ElkCode ret = ELK_CODE_SUCCESS;
 
     for (unsigned int i = 1; i <= 15; i += 2) {
         for (unsigned int j = 1; j <= 9; j += 2) {
             struct LabeledRect r = labeled_rect_new(i, j);
-            list = elk_list_push_back(list, &r);
+            ret = elk_array_push_back(&arr, &r);
+            assert(ret == ELK_CODE_SUCCESS);
         }
     }
 
-    return list;
+    return arr;
 }
 
 static bool
@@ -54,11 +56,12 @@ labeled_rect_cleanup(void *item, void *user_data)
     return true;
 }
 
-static ElkList *
-clean_up_rectangles_for_rtree_view_test(ElkList *list)
+static void
+clean_up_rectangles_for_rtree_view_test(ElkArray *arr)
 {
-    elk_list_foreach(list, labeled_rect_cleanup, NULL);
-    return elk_list_free(list);
+    elk_array_foreach(arr, labeled_rect_cleanup, NULL);
+    elk_array_clear(arr);
+    return;
 }
 
 static Elk2DCoord
@@ -84,16 +87,15 @@ labeled_rect_mbr(void *item)
 static void
 elk_rtree_view_test_create_destroy(void)
 {
-    ElkList *list = create_rectangles_for_rtree_view_test();
+    ElkArray arr = create_rectangles_for_rtree_view_test();
 
     Elk2DRTreeView *rtree =
-        elk_2d_rtree_view_new(list, labeled_rect_centroid, labeled_rect_mbr, NULL);
+        elk_2d_rtree_view_new(&arr, labeled_rect_centroid, labeled_rect_mbr, NULL);
 
     rtree = elk_2d_rtree_view_free(rtree);
     assert(!rtree);
 
-    list = clean_up_rectangles_for_rtree_view_test(list);
-    assert(!list);
+    clean_up_rectangles_for_rtree_view_test(&arr);
 }
 
 /*-------------------------------------------------------------------------------------------------
@@ -119,10 +121,10 @@ struct RTreeTestQueryPair {
 static void
 elk_rtree_view_test_query(void)
 {
-    ElkList *list = create_rectangles_for_rtree_view_test();
+    ElkArray arr = create_rectangles_for_rtree_view_test();
 
     Elk2DRTreeView *rtree =
-        elk_2d_rtree_view_new(list, labeled_rect_centroid, labeled_rect_mbr, NULL);
+        elk_2d_rtree_view_new(&arr, labeled_rect_centroid, labeled_rect_mbr, NULL);
 
     // Check whole domain returns all the rectangles.
     struct RTreeTestQueryPair whole_domain = {.qrect =
@@ -130,7 +132,7 @@ elk_rtree_view_test_query(void)
                                                       .ll = (Elk2DCoord){.x = 0.0, .y = 0.0},
                                                       .ur = (Elk2DCoord){.x = 20.0, .y = 20.0},
                                                   },
-                                              .num_should_hit = elk_list_count(list)};
+                                              .num_should_hit = elk_array_length(&arr)};
 
     unsigned int count = 0;
     elk_2d_rtree_view_foreach(rtree, whole_domain.qrect, count_labeled_rects, &count);
@@ -187,8 +189,7 @@ elk_rtree_view_test_query(void)
     rtree = elk_2d_rtree_view_free(rtree);
     assert(!rtree);
 
-    list = clean_up_rectangles_for_rtree_view_test(list);
-    assert(!list);
+    clean_up_rectangles_for_rtree_view_test(&arr);
 }
 
 /*-------------------------------------------------------------------------------------------------

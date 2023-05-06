@@ -5,6 +5,7 @@
  *
  * See the main page for an overall description and the list of goals/non-goals: \ref index
  */
+#include <assert.h>
 #include <inttypes.h>
 #include <limits.h>
 #include <stdbool.h>
@@ -101,9 +102,11 @@
  * @{
  */
 typedef enum ElkCode {
-    ELK_CODE_FULL,        /** The collection is full and can't accept anymore items. */
-    ELK_CODE_EMPTY,       /** The collection is empty and can't return anymore items. */
-    ELK_CODE_SUCCESS,     /** There was no error, only success! */
+    ELK_CODE_FULL,          /**< The collection is full and can't accept anymore items. */
+    ELK_CODE_EMPTY,         /**< The collection is empty and can't return anymore items. */
+    ELK_CODE_INVALID_INDEX, /**< An index provided was invalid and potentially out of bounds. */
+    ELK_CODE_EARLY_TERM,    /**< An algorithm terminated early for some reason. */
+    ELK_CODE_SUCCESS,       /**< There was no error, only success! */
 } ElkCode;
 
 /** Test to see if a code indicates an error. */
@@ -334,140 +337,142 @@ typedef bool (*FilterFunc)(void const *item, void *user_data);
 
 /** @} */ // end of iterator group
 /*-------------------------------------------------------------------------------------------------
- *                                           List
+ *                                           ElkArray
  *-----------------------------------------------------------------------------------------------*/
-/** \defgroup list List
+/** \defgroup array Array
  *
- * An array backed list that dynamically grows in size as needed.
+ * An array that dynamically grows in size as needed.
  *
  * @{
  */
 
-/** An array backed list that dynamically grows in size as needed.
+/** An array that dynamically grows in size as needed.
  *
  * All the operations on this type assume the system will never run out of memory, so if it does
- * they will abort the program. The list is backed by an array, so it should be cache friendly.
+ * they will abort the program.
  *
- * This list assumes (and so it is only good for) storing types of constant size that do not require
- * any copy or delete functions. This list stores plain old data types (PODs). Of course you could
- * store pointers or something that contains pointers in the list, but you would be responsible
- * for managing the memory (including any dangling aliases that may be out there after adding it
- * to the list).
+ * This array assumes (and so it is only good for) storing types of constant size that do not
+ * require any copy or delete functions. This list stores plain old data types (PODs). Of course
+ * you could store pointers or something that contains pointers in the array, but you would be
+ * responsible for managing the memory (including any dangling aliases that may be out there after
+ * adding it to the array).
+ *
+ * The members of this struct SHOULD NOT be modified by user code. The length and data members are
+ * here for convenience so you can easily read them and use them in a for loop.
  */
-typedef struct ElkList ElkList;
+typedef struct ElkArray {
+    /** The number of items stored in the array. Users SHOULD NOT CHANGE THIS VALUE. */
+    size_t length;
 
-/** Create a new list.
+    /** An "untyped" pointer to the objects in memory. */
+    unsigned char *data;
+
+    /** The size of each element in the array. */
+    size_t element_size;
+
+    /** The number of items, each of \ref element_size, that the array has space to store. */
+    size_t capacity;
+} ElkArray;
+
+/** Create a new array.
  *
  * \param element_size is the size of each item in bytes.
  *
- * \returns a pointer to the new list. This cannot practically fail unless the system runs out of
- * memory. The out of memory error is checked, and if the system is out of memory this function will
- * exit the process with an error message in both release and debug builds.
+ * \returns a new array. This cannot practically fail unless the system runs out of memory. The out
+ * of memory error is checked, and if the system is out of memory this function will exit the
+ * process with an error message in both release and debug builds.
  */
-ElkList *elk_list_new(size_t element_size);
+ElkArray elk_array_new(size_t element_size);
 
-/** Create a new list with an already known capacity.
+/** Create a new array with an already known capacity.
  *
- * \param capacity is the minimum capacity the list should have when created.
+ * \param capacity is the minimum capacity the array should have when created.
  * \param element_size is the size of each item in bytes.
  *
- * \returns a pointer to the new list. This cannot practically fail unless the system runs out of
- * memory. The out of memory error is checked, and if the system is out of memory this function will
- * exit the process with an error message in both release and debug builds.
+ * \returns a new array. This cannot practically fail unless the system runs out of memory. The out
+ * of memory error is checked, and if the system is out of memory this function will exit the
+ * process with an error message in both release and debug builds.
  */
-ElkList *elk_list_new_with_capacity(size_t capacity, size_t element_size);
+ElkArray elk_array_new_with_capacity(size_t capacity, size_t element_size);
 
-/** Free all memory associated with a list.
+/** Free all heap memory used by the array.
  *
- * \param list is the list to free. A \c NULL pointer is acceptable and is ignored.
+ * \param arr is the array to clear. A \c NULL pointer is NOT acceptable.
  *
- * \returns \c NULL, which should be assigned to the original list.
+ * \returns \ref ELK_CODE_SUCCESS or crashes the program upon failure.
  */
-ElkList *elk_list_free(ElkList *list);
+ElkCode elk_array_clear(ElkArray *arr);
 
-/** Clear out the contents of the list but keep the memory intact for reuse.
+/** Clear out the contents of the array but keep the memory intact for reuse.
  *
- * The length of the list is set to zero without freeing any memory so the list is ready to use
+ * The length of the array is set to zero without freeing any memory so the array is ready to use
  * again.
  *
- * \param list is the list to clear out. The list must not be \c NULL.
+ * \param arr is the array to clear out. The array must not be \c NULL.
  *
- * \returns a pointer to \p list. Assigning \p list the return value is not strictly necessary,
- * since shrinking an array is not cause for a reallocation, however, the return value is set up
- * this way to maintain consistency with other functions that operate on \ref ElkList items.
+ * \returns ELK_CODE_SUCCESS
  */
-ElkList *elk_list_clear(ElkList *list);
+ElkCode elk_array_reset(ElkArray *arr);
 
-/** Append \p item to the end of the list.
+/** Append \p item to the end of the array.
  *
- * \param list is the list to add the \p item too. It must not be \c NULL.
+ * \param arr is the array to add the \p item too. It must not be \c NULL.
  * \param item is the item to add! The item is copied into place with \c memcpy(). \p item must not
  * be \c NULL.
  *
- * \returns a (possibly different) pointer to \p list. This may be different if a reallocation was
- * needed. As a result, this value should be reassigned to \p list.
+ * \returns ELK_CODE_SUCCESS or aborts the program if it runs out of memory.
  */
-ElkList *elk_list_push_back(ElkList *list, void *item);
+ElkCode elk_array_push_back(ElkArray *arr, void *item);
 
-/** Remove an item from the back of the list.
+/** Remove an item from the back of the array.
  *
- * \param list is the list to remove an item from. This must NOT be \c NULL.
- * \param item is a memory location to move the last item in the list into. If this is \c NULL, then
- * the element is just removed from the list and not copied anywhere. If the list is empty, then
- * this will fill the location pointed to by \p item to all zeroes, so it is the user's
- * responsibility to ensure the list still has values in it before calling this function.
+ * \param arr is the array to remove an item from. This must NOT be \c NULL.
+ * \param item is a memory location to move the last item in the array into. If this is \c NULL,
+ * then the element is just removed from the array and not copied anywhere. If the array is empty,
+ * then this object will not be altered at all.
  *
- * \returns a pointer to \p list. Assigning \p list the return value is not strictly necessary,
- * since shrinking an array is not cause for a reallocation, however, the return value is set up
- * this way to maintain consistency with other functions that operate on \ref ElkList items.
+ * \returns \ref ELK_CODE_SUCCESS on success or \ref ELK_CODE_EMPTY if there was nothing to return.
  */
-ElkList *elk_list_pop_back(ElkList *list, void *item);
+ElkCode elk_array_pop_back(ElkArray *arr, void *item);
 
-/** Remove an item from the list without preserving order.
+/** Remove an item from the array without preserving order.
  *
  * This will remove an item at the \p index by swapping its position with the element at the end of
- * the list and then decrementing the length of the list.
+ * the array and then decrementing the length of the array.
  *
- * \param list is the list to remove the item from. \p list must NOT be \c NULL.
- * \param index is the position in the list to remove. There is no check to make sure this is in
- * bounds for the list, so the user must be sure the index isn't out of bounds (e.g. by using
- * elk_list_count()).
+ * \param arr is the array to remove the item from. \p arr must NOT be \c NULL.
+ * \param index is the position in the array to remove.
  * \param item is a memory location that can hold the removed data. It will be copied here if
  * \p item isn't \c NULL.
  *
- * \returns a pointer to \p list. Assigning \p list the return value is not strictly necessary,
- * since shrinking an array is not cause for a reallocation, however, the return value is set up
- * this way to maintain consistency with other functions that operate on \ref ElkList items.
+ * \returns \ref ELK_CODE_SUCCESS unless the array is empty, then it returns \ref ELK_CODE_EMPTY. If
+ * the \p index is beyond the array length, the \ref ELK_CODE_INVALID_INDEX is returned.
  */
-ElkList *elk_list_swap_remove(ElkList *const list, size_t index, void *item);
+ElkCode elk_array_swap_remove(ElkArray *const arr, size_t index, void *item);
 
-/** The number of items currently in the list.
+/** The number of items currently in the array.
  *
- * \param list must NOT be \c NULL.
+ * The same information can be retrieved directly on the array by accessing the length member of the
+ * array. E.g \c arr->length or \c arr.length. This is a function instead of a macro because that
+ * has the advantage of being type-safe.
  *
- * \returns the number of items in the \p list.
+ * \param arr must NOT be \c NULL.
+ *
+ * \returns the number of items in the \p arr.
  */
-size_t elk_list_count(ElkList const *const list);
+static inline size_t
+elk_array_length(ElkArray const *const arr)
+{
+    assert(arr);
+    return arr->length;
+}
 
-/** Create a copy of this list.
- *
- * Since this list is assumed to hold plain old data (e.g. no pointers), there is no attempt at a
- * deep copy. So if the items in the list do contain pointers, this will create an alias for each of
- * those items.
- *
- * \param list is the list to create a copy of. This must not be \c NULL.
- *
- * \returns a new list that is a copy of \p list. This cannot fail unless the system runs out of
- * memory, and if that happens this function will exit the process.
- */
-ElkList *elk_list_copy(ElkList const *const list);
-
-/** Get an item from the list.
+/** Get an alias (pointer) to an item in the array.
  *
  * This is not bounds checked, so make sure you know your index exists in the array by checking
- * elk_list_count() first.
+ * elk_array_length() first.
  *
- * \param list the list is not modified in any way. That is nothing is added or removed, however
+ * \param arr the list is not modified in any way. That is, nothing is added or removed, however
  * the returned element may be modified. Must not be \c NULL.
  * \param index is the index of the item you want to get. If the index is out of range, it will
  * invoke undefined behavior, and if you're lucky cause a segmentation fault.
@@ -475,36 +480,38 @@ ElkList *elk_list_copy(ElkList const *const list);
  * \returns a pointer to the item at the given index. You may use this pointer to modify the
  * value at that index, but DO NOT try to free it. You don't own it.
  */
-void *const elk_list_get_alias_at_index(ElkList *const list, size_t index);
+void *const elk_array_alias_index(ElkArray *const arr, size_t index);
 
-/** Apply \p ifunc to each element of \p list.
+/** Apply \p ifunc to each element of \p arr.
  *
  * This method assumes that whatever operation \p ifunc does is infallible. If that is not the case
  * then error information of some kind should be returned via the \p user_data.
  *
- * \param list the list of items to iterate over.
+ * \param arr the array of items to iterate over.
  * \param ifunc is the function to apply to each item. If this function returns \c false, this
  * function will abort further evaluations. This function assumes this operation is infallible,
  * if that is not the case then any error information should be returned via \p user_data.
  * \param user_data will be supplied to \p ifunc as the second argument each time it is called.
+ *
+ * \returns \ref ELK_CODE_SUCCESS if it made it all the way through the list or
+ * \ref ELK_CODE_EARLY_TERM if it stopped early.
  */
-void elk_list_foreach(ElkList *const list, IterFunc ifunc, void *user_data);
+ElkCode elk_array_foreach(ElkArray *const arr, IterFunc ifunc, void *user_data);
 
 /** Filter elements out of \p src and put them into \p sink.
  *
- * \param src is the list to potentially remove items from. This list will never be reallocated so
- * the pointer will never move. It must not be \c NULL.
- * \param sink is the list to drop the filtered items into. If this is \c NULL then the items
- * selected to be filtered out will be removed from the list.
+ * \param src is the array to potentially remove items from. It must not be \c NULL.
+ * \param sink is the array to drop the filtered items into. If this is \c NULL then the items
+ * selected to be filtered out will be removed from the \p src array.
  * \param filter, if this returns \c true, the element will be removed from the \p src list.
  * \param user_data is passed through to \p filter on each call.
  *
- * \returns a (potentially new and different) pointer to \p sink since it may have been reallocated.
- * If the passed in \p sink was \c NULL, then \c NULL is returned.
+ * \returns \ref ELK_CODE_SUCCESS
  */
-ElkList *elk_list_filter_out(ElkList *const src, ElkList *sink, FilterFunc filter, void *user_data);
+ElkCode elk_array_filter_out(ElkArray *const src, ElkArray *sink, FilterFunc filter,
+                             void *user_data);
 
-/** @} */ // end of list group
+/** @} */ // end of array group
 /*-------------------------------------------------------------------------------------------------
  *                                            Queue
  *-----------------------------------------------------------------------------------------------*/
@@ -834,7 +841,7 @@ uint64_t elk_hilbert_translate_to_curve_distance(struct ElkHilbertCurve *hc, Elk
 /*-------------------------------------------------------------------------------------------------
  *                                          2D RTreeView
  *-----------------------------------------------------------------------------------------------*/
-/** \defgroup 2drtree A 2D RTree view of an ElkList
+/** \defgroup 2drtree A 2D RTree view of an ElkArray
  *
  * The RTree view does not store any data, but it holds pointers into a list, so that you can use
  * RTree algorithms to query the data in the list.
@@ -863,7 +870,7 @@ typedef struct Elk2DRTreeView Elk2DRTreeView;
  *
  * \returns A view of the list.
  */
-Elk2DRTreeView *elk_2d_rtree_view_new(ElkList *const list, Elk2DCoord (*centroid)(void *),
+Elk2DRTreeView *elk_2d_rtree_view_new(ElkArray *const list, Elk2DCoord (*centroid)(void *),
                                       Elk2DRect (*rect)(void *), Elk2DRect *domain);
 
 /** Free an R-Tree view of the list.

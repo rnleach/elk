@@ -7,9 +7,11 @@
  Goals and non-Goals:
   1. I only implement the things I need. If it's in here, I needed it at some point. Or I thought it
      would be fun to implement and test, and I might use it some day. But if I didn't need it or
-     just want to make it, it isn't in there. Nothing was built speculatively.
+     just want to make it, it isn't in there. As a result, some of the designs will be tuned to my
+     use cases.
 
-  2. Single header + single source file. Keeps it simple.
+  2. Single header + single source file. Keeps it simple, just drop 2 files into your source tree
+     and make sure they're configured in your build system.
 
   3. NOT threadsafe. Access to any objects will need to be protected by the user of those objects
      with a mutex or other means to prevent data races.
@@ -17,7 +19,7 @@
   4. Avoid global state. All state related to any objects created by this library should be stored 
      in that object. No global state makes it possible to use it in multithreaded applications. 
 
-  5. As a result of number 4, most functions are re-entrant so as long as the input parameters are
+  5. As a result of number 4, most functions are thread safe so as long as the input parameters are
      protected from data races before being passed into the function, the function itself will not
      introduce any data races.
 
@@ -67,6 +69,12 @@
   the ELK_MEMORY_DEBUG macro is not defined.
 
 ## Releases
+
+### Version 2.0.0 - IN PROGRESS
+  - Removed some less widely applicable types.
+  - More consistent error handling.
+  - Changed some types around, for instance ElkList becomes ElkArray and a list type is added.
+  - Make more use of pointers for a cleaner API.
 
 ### Version 1.2.0
   - (2023-02-14) Multiple upgrades.

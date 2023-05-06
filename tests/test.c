@@ -12,7 +12,7 @@ main(void)
     elk_init_memory_debug(NULL, NULL, NULL);
 
     elk_time_tests();
-    elk_list_tests();
+    elk_array_tests();
     elk_queue_tests();
     elk_heap_tests();
     elk_hilbert_tests();

@@ -122,7 +122,7 @@ elk_mem_allocation_ptr_compare(void const *a_void, void const *b_void)
     return 1;
 }
 
-// We could use an ElkList here, but that would then mean the memory debugging functions tracked
+// We could use an ElkArray here, but that would then mean the memory debugging functions tracked
 // themselves, which would be confusing when looking at output. So I re-implement an array backed
 // list here.
 static void *elk_mem_allocations_mutex = 0;
@@ -405,196 +405,192 @@ elk_debug_mem()
 #endif
 
 /*-------------------------------------------------------------------------------------------------
- *                                             List
+ *                                           ElkArray
  *-----------------------------------------------------------------------------------------------*/
-struct ElkList {
-    size_t element_size;
-    size_t len;
-    size_t capacity;
-    _Alignas(max_align_t) unsigned char data[];
-};
-
-ElkList *
-elk_list_new(size_t element_size)
+ElkArray
+elk_array_new(size_t element_size)
 {
-    size_t const initial_num_elements = 4;
-    return elk_list_new_with_capacity(initial_num_elements, element_size);
+    size_t const initial_num_elements = 0;
+    return elk_array_new_with_capacity(initial_num_elements, element_size);
 }
 
-ElkList *
-elk_list_new_with_capacity(size_t capacity, size_t element_size)
+ElkArray
+elk_array_new_with_capacity(size_t capacity, size_t element_size)
 {
-    size_t allocation_size = sizeof(struct ElkList) + element_size * capacity;
-
-    struct ElkList *new = malloc(allocation_size);
-    PanicIf(!new, "%s", err_out_of_mem);
-
-    new->element_size = element_size;
-    new->len = 0;
-    new->capacity = capacity;
-
-    return new;
-}
-
-ElkList *
-elk_list_free(ElkList *list)
-{
-    if (list) {
-        free(list);
+    unsigned char *data = NULL;
+    if (capacity > 0) {
+        data = calloc(capacity, element_size);
+        PanicIf(!data, "%s", err_out_of_mem);
     }
 
-    return NULL;
+    return (ElkArray){
+        .element_size = element_size, .length = 0, .capacity = capacity, .data = data};
 }
 
-ElkList *
-elk_list_clear(ElkList *list)
+ElkCode
+elk_array_clear(ElkArray *arr)
 {
-    assert(list);
-    list->len = 0;
-    return list;
-}
-
-static struct ElkList *
-elk_list_expand(struct ElkList *list, size_t min_capacity)
-{
-    assert(list);
-
-    if (min_capacity <= list->capacity) {
-        return list;
+    assert(arr);
+    if (arr->data) {
+        assert(arr->capacity > 0);
+        free(arr->data);
+        arr->data = NULL;
+        arr->capacity = 0;
+        arr->length = 0;
+    } else {
+        assert(arr->capacity == 0);
+        assert(arr->length == 0);
     }
 
-    size_t new_capacity = list->capacity * 3 / 2;
+    return ELK_CODE_SUCCESS;
+}
+
+ElkCode
+elk_array_reset(ElkArray *arr)
+{
+    assert(arr);
+    arr->length = 0;
+    return ELK_CODE_SUCCESS;
+}
+
+static void
+elk_array_expand(struct ElkArray *arr, size_t min_capacity)
+{
+    assert(arr);
+
+    /* This function is only ever used in elk_array_push_back and this is checked for there.
+    if (min_capacity <= arr->capacity) {
+        return ;
+    }
+    */
+
+    size_t new_capacity = arr->capacity * 3 / 2;
     new_capacity = new_capacity < 4 ? 4 : new_capacity;
 
-    size_t allocation_size = sizeof(struct ElkList) + list->element_size * new_capacity;
+    size_t allocation_size = arr->element_size * new_capacity;
 
-    struct ElkList *new = realloc(list, allocation_size);
+    unsigned char *new = realloc(arr->data, allocation_size);
     PanicIf(!new, "%s", err_out_of_mem);
 
-    new->capacity = new_capacity;
-
-    return new;
-}
-
-ElkList *
-elk_list_push_back(ElkList *list, void *item)
-{
-    assert(list);
-    assert(item);
-
-    if (list->capacity == list->len) {
-        list = elk_list_expand(list, list->len + 1);
-    }
-
-    void *next = list->data + list->element_size * list->len;
-    memcpy(next, item, list->element_size);
-    list->len++;
-
-    return list;
-}
-
-ElkList *
-elk_list_pop_back(ElkList *list, void *item)
-{
-    assert(list);
-
-    if (item) {
-        memcpy(item, list->data + list->element_size * (list->len - 1), list->element_size);
-    }
-
-    list->len--;
-
-    return list;
-}
-
-ElkList *
-elk_list_swap_remove(ElkList *const list, size_t index, void *item)
-{
-    assert(list);
-
-    void *index_ptr = list->data + list->element_size * index;
-    void *last_ptr = list->data + list->element_size * (list->len - 1);
-
-    if (item) {
-        memcpy(item, index_ptr, list->element_size);
-    }
-
-    memcpy(index_ptr, last_ptr, list->element_size);
-    list->len--;
-
-    return list;
-}
-
-size_t
-elk_list_count(ElkList const *const list)
-{
-    assert(list);
-    return list->len;
-}
-
-ElkList *
-elk_list_copy(ElkList const *const list)
-{
-    assert(list);
-
-    struct ElkList *copy = elk_list_new_with_capacity(list->len, list->element_size);
-
-    assert(copy->capacity <= list->capacity);
-
-    size_t copy_size = sizeof(struct ElkList) + copy->element_size * copy->capacity;
-    memcpy(copy, list, copy_size);
-    copy->capacity = copy->len;
-
-    return copy;
-}
-
-void *const
-elk_list_get_alias_at_index(ElkList *const list, size_t index)
-{
-    assert(list);
-    return list->data + index * list->element_size;
-}
-
-void
-elk_list_foreach(ElkList *const list, IterFunc ifunc, void *user_data)
-{
-    assert(list);
-
-    void *first = list->data;
-    void *last = list->data + list->element_size * (list->len - 1);
-    for (void *item = first; item <= last; item += list->element_size) {
-        bool keep_going = ifunc(item, user_data);
-        if (!keep_going) {
-            return;
-        }
-    }
+    arr->capacity = new_capacity;
+    arr->data = new;
 
     return;
 }
 
-ElkList *
-elk_list_filter_out(ElkList *const src, ElkList *sink, FilterFunc filter, void *user_data)
+ElkCode
+elk_array_push_back(ElkArray *arr, void *item)
+{
+    assert(arr);
+    assert(item);
+
+    if (arr->capacity == arr->length) {
+        elk_array_expand(arr, arr->length + 1);
+    }
+
+    void *next = arr->data + arr->element_size * arr->length;
+    memcpy(next, item, arr->element_size);
+    arr->length++;
+
+    return ELK_CODE_SUCCESS;
+}
+
+ElkCode
+elk_array_pop_back(ElkArray *arr, void *item)
+{
+    assert(arr);
+
+    if (arr->length == 0) {
+        return ELK_CODE_EMPTY;
+    }
+
+    if (item) {
+        memcpy(item, arr->data + arr->element_size * (arr->length - 1), arr->element_size);
+    }
+
+    arr->length--;
+
+    return ELK_CODE_SUCCESS;
+}
+
+static void
+elk_array_swap_remove_fast(ElkArray *const arr, size_t index, void *item)
+{
+    // A version for internal use with no range checks.
+    void *index_ptr = arr->data + arr->element_size * index;
+    void *last_ptr = arr->data + arr->element_size * (arr->length - 1);
+
+    if (item) {
+        memcpy(item, index_ptr, arr->element_size);
+    }
+
+    memcpy(index_ptr, last_ptr, arr->element_size);
+    arr->length--;
+}
+
+ElkCode
+elk_array_swap_remove(ElkArray *const arr, size_t index, void *item)
+{
+    assert(arr);
+
+    if (arr->length == 0) {
+        return ELK_CODE_EMPTY;
+    } else if (index >= arr->length) {
+        return ELK_CODE_INVALID_INDEX;
+    }
+
+    elk_array_swap_remove_fast(arr, index, item);
+
+    return ELK_CODE_SUCCESS;
+}
+
+void *const
+elk_array_alias_index(ElkArray *const arr, size_t index)
+{
+    assert(arr);
+    return arr->data + index * arr->element_size;
+}
+
+ElkCode
+elk_array_foreach(ElkArray *const arr, IterFunc ifunc, void *user_data)
+{
+    assert(arr);
+
+    void *first = arr->data;
+    void *last = arr->data + arr->element_size * (arr->length - 1);
+    for (void *item = first; item <= last; item += arr->element_size) {
+        bool keep_going = ifunc(item, user_data);
+        if (!keep_going) {
+            return ELK_CODE_EARLY_TERM;
+        }
+    }
+
+    return ELK_CODE_SUCCESS;
+}
+
+ElkCode
+elk_array_filter_out(ElkArray *const src, ElkArray *sink, FilterFunc filter, void *user_data)
 {
     assert(src);
     if (sink) {
         assert(src->element_size == sink->element_size);
     }
 
-    for (size_t i = 0; i < src->len; ++i) {
-        void *item = elk_list_get_alias_at_index(src, i);
+    for (size_t i = 0; i < src->length; ++i) {
+        void *item = elk_array_alias_index(src, i);
         bool to_remove = filter(item, user_data);
 
         if (to_remove) {
             if (sink) {
-                sink = elk_list_push_back(sink, item);
+                elk_array_push_back(sink, item);
             }
 
-            elk_list_swap_remove(src, i, NULL);
+            elk_array_swap_remove_fast(src, i, NULL);
             --i;
         }
     }
 
-    return sink;
+    return ELK_CODE_SUCCESS;
 }
 
 /*-------------------------------------------------------------------------------------------------
@@ -1324,14 +1320,14 @@ struct RTreeNode {
 };
 
 struct Elk2DRTreeView {
-    ElkList *leaves;
+    ElkArray *leaves;
     struct RTreeNode nodes[];
 };
 
 struct BuildQSortDataArgs {
     Elk2DRect (*rect)(void *);
     Elk2DCoord (*centroid)(void *);
-    ElkList *qsort_data;
+    ElkArray *qsort_data;
     ElkHilbertCurve *hc;
 };
 
@@ -1346,7 +1342,7 @@ build_qsort_data(void *item, void *user_data)
 
     struct ElkRTreeLeaf element = {.item = item, .hilbert_num = hilbert_num, .mbr = bbox};
 
-    args->qsort_data = elk_list_push_back(args->qsort_data, &element);
+    elk_array_push_back(args->qsort_data, &element);
 
     return true;
 }
@@ -1386,7 +1382,7 @@ build_bounding_rectangle(void *item, void *user_data)
 }
 
 static Elk2DRect
-build_rtree_domain(ElkList *const list, Elk2DRect (*rect)(void *), Elk2DRect *pre_computed_domain)
+build_rtree_domain(ElkArray *const list, Elk2DRect (*rect)(void *), Elk2DRect *pre_computed_domain)
 {
     if (pre_computed_domain) {
         return *pre_computed_domain;
@@ -1398,38 +1394,40 @@ build_rtree_domain(ElkList *const list, Elk2DRect (*rect)(void *), Elk2DRect *pr
                                .ur = (Elk2DCoord){.x = -HUGE_VAL, .y = -HUGE_VAL}},
         };
 
-        elk_list_foreach(list, build_bounding_rectangle, &args);
+        elk_array_foreach(list, build_bounding_rectangle, &args);
 
         return args.mbr;
     }
 }
 
 Elk2DRTreeView *
-elk_2d_rtree_view_new(ElkList *const list, Elk2DCoord (*centroid)(void *),
+elk_2d_rtree_view_new(ElkArray *const arr, Elk2DCoord (*centroid)(void *),
                       Elk2DRect (*rect)(void *), Elk2DRect *pre_computed_domain)
 {
-    assert(list);
+    assert(arr);
     assert(centroid);
     assert(rect);
 
     // Calculate the domain if a pre-computed domain was not supplied and use that to set up the
     // Hilbert curve.
-    Elk2DRect data_domain = build_rtree_domain(list, rect, pre_computed_domain);
+    Elk2DRect data_domain = build_rtree_domain(arr, rect, pre_computed_domain);
     ElkHilbertCurve hc = elk_hilbert_curve_initialize(16, data_domain);
 
-    // Create the leaf nodes as a list of ElkRTreeLeaf, then process the data from our list to fill
-    // those nodes.
-    ElkList *q_data = elk_list_new_with_capacity(elk_list_count(list), sizeof(struct ElkRTreeLeaf));
+    // Create the leaf nodes as a array of ElkRTreeLeaf, then process the data from our array to
+    // fill those nodes.
+    ElkArray *q_data = malloc(sizeof(ElkArray));
+    *q_data = elk_array_new_with_capacity(elk_array_length(arr), sizeof(struct ElkRTreeLeaf));
     struct BuildQSortDataArgs args = {
         .rect = rect, .centroid = centroid, .qsort_data = q_data, .hc = &hc};
-    elk_list_foreach(list, build_qsort_data, &args);
+    elk_array_foreach(arr, build_qsort_data, &args);
 
     // Sort the leaf nodes by Hilbert number. This is how we get locality for the parent nodes.
-    qsort(q_data->data, q_data->len, q_data->element_size, compare_hilbert_nums);
+    qsort(q_data->data, q_data->length, q_data->element_size, compare_hilbert_nums);
 
     // Calculate the memory for the groups.
-    size_t num_nodes_with_leaf_children = q_data->len / ELK_RTREE_CHILDREN_PER_NODE +
-                                          (q_data->len % ELK_RTREE_CHILDREN_PER_NODE > 0 ? 1 : 0);
+    size_t num_nodes_with_leaf_children =
+        q_data->length / ELK_RTREE_CHILDREN_PER_NODE +
+        (q_data->length % ELK_RTREE_CHILDREN_PER_NODE > 0 ? 1 : 0);
     size_t num_nodes = num_nodes_with_leaf_children;
     size_t level_nodes = num_nodes;
     while (level_nodes > 1) {
@@ -1453,7 +1451,7 @@ elk_2d_rtree_view_new(ElkList *const list, Elk2DCoord (*centroid)(void *),
     // Fill in the nodes whose children are leaves, call these level 1 nodes.
     // (Leaf nodes are level 0 nodes.)
     size_t first_level_1_node_index = num_nodes - num_nodes_with_leaf_children;
-    size_t num_leaves_left_to_process = q_data->len;
+    size_t num_leaves_left_to_process = q_data->length;
     size_t next_leaf = 0;
     for (unsigned int i = first_level_1_node_index; i < num_nodes; ++i) {
 
@@ -1469,7 +1467,7 @@ elk_2d_rtree_view_new(ElkList *const list, Elk2DCoord (*centroid)(void *),
 
         for (unsigned j = 0; j < num_leaves_to_process; ++j) {
             struct ElkRTreeLeaf *leaf =
-                (struct ElkRTreeLeaf *)elk_list_get_alias_at_index(rtree->leaves, next_leaf);
+                (struct ElkRTreeLeaf *)elk_array_alias_index(rtree->leaves, next_leaf);
             rtree->nodes[i].item[j] = leaf;
 
             // Update the mbr for the parent node
@@ -1542,7 +1540,8 @@ Elk2DRTreeView *
 elk_2d_rtree_view_free(Elk2DRTreeView *tv)
 {
     if (tv) {
-        elk_list_free(tv->leaves);
+        elk_array_clear(tv->leaves);
+        free(tv->leaves);
         free(tv);
     }
 
