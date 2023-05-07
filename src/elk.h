@@ -269,22 +269,22 @@ void elk_debug_mem();
 /// \cond HIDDEN
 
 /** Replacement for malloc when ELK_MEMORY_DEBUG is defined. */
-void *elk_malloc(size_t size, char const *fname, unsigned line);
+void *elk_malloc(size_t size, char const *fname, char const *func, unsigned line);
 
 /** Replacement for realloc when ELK_MEMORY_DEBUG is defined. */
-void *elk_realloc(void *ptr, size_t size, char const *fname, unsigned line);
+void *elk_realloc(void *ptr, size_t size, char const *fname, char const *func, unsigned line);
 
 /** Replacement for calloc when ELK_MEMORY_DEBUG is defined. */
-void *elk_calloc(size_t nmemb, size_t size, char const *fname, unsigned line);
+void *elk_calloc(size_t nmemb, size_t size, char const *fname, char const *func, unsigned line);
 
 /** Replacement for free when ELK_MEMORY_DEBUG is defined. */
-void elk_free(void *ptr, char const *fname, unsigned line);
+void elk_free(void *ptr, char const *fname, char const *func, unsigned line);
 
 #ifdef ELK_MEMORY_DEBUG
-#    define malloc(s) elk_malloc((s), __FILE__, __LINE__)
-#    define realloc(p, s) elk_realloc((p), (s), __FILE__, __LINE__)
-#    define calloc(n, s) elk_calloc((n), (s), __FILE__, __LINE__)
-#    define free(p) elk_free((p), __FILE__, __LINE__)
+#    define malloc(s) elk_malloc((s), __FILE__, __func__, __LINE__)
+#    define realloc(p, s) elk_realloc((p), (s), __FILE__, __func__, __LINE__)
+#    define calloc(n, s) elk_calloc((n), (s), __FILE__, __func__, __LINE__)
+#    define free(p) elk_free((p), __FILE__, __func__, __LINE__)
 #endif
 
 /// \endcond HIDDEN
