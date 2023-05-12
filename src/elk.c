@@ -633,11 +633,11 @@ elk_queue_new(size_t element_size, size_t capacity)
     return queue;
 }
 
-struct ElkQueue *
+void
 elk_queue_free(struct ElkQueue *queue)
 {
     free(queue);
-    return 0;
+    return;
 }
 
 bool
@@ -654,12 +654,12 @@ elk_queue_empty(ElkQueue *queue)
     return queue->length == 0;
 }
 
-bool
+ElkCode
 elk_queue_enqueue(struct ElkQueue *queue, void *item)
 {
     assert(queue);
     if (elk_queue_full(queue)) {
-        return false;
+        return ELK_CODE_FULL;
     }
 
     size_t byte_idx = queue->tail * queue->element_size;
@@ -668,15 +668,15 @@ elk_queue_enqueue(struct ElkQueue *queue, void *item)
     queue->length++;
     queue->tail = (queue->tail + 1) % queue->capacity;
 
-    return true;
+    return ELK_CODE_SUCCESS;
 }
 
-bool
+ElkCode
 elk_queue_dequeue(struct ElkQueue *queue, void *output)
 {
     assert(queue);
     if (elk_queue_empty(queue)) {
-        return false;
+        return ELK_CODE_EMPTY;
     }
 
     size_t byte_idx = queue->head * queue->element_size;
@@ -685,7 +685,7 @@ elk_queue_dequeue(struct ElkQueue *queue, void *output)
     queue->length--;
     queue->head = (queue->head + 1) % queue->capacity;
 
-    return true;
+    return ELK_CODE_SUCCESS;
 }
 
 void const *
@@ -693,7 +693,7 @@ elk_queue_peek_alias(struct ElkQueue *queue)
 {
     assert(queue);
     if (elk_queue_empty(queue)) {
-        return 0;
+        return NULL;
     }
 
     size_t byte_idx = queue->head * queue->element_size;

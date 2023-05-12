@@ -541,10 +541,8 @@ ElkQueue *elk_queue_new(size_t element_size, size_t capacity);
  *
  * This method does not free any memory pointed to by items in the queue. To do that create an
  * \ref IterFunc and use the elk_queue_foreach() function to free memory pointed to by members.
- *
- * \returns a \c NULL pointer that should be assigned to the orignal \p queue argument.
  */
-ElkQueue *elk_queue_free(ElkQueue *queue);
+void elk_queue_free(ElkQueue *queue);
 
 /** Detect if the queue is full.
  *
@@ -563,25 +561,27 @@ bool elk_queue_empty(ElkQueue *queue);
  * \param queue the queue to add something too. Cannot be \c NULL.
  * \param item the item to add to the queue which will be copied into the queue with \c memcpy
  *
- * \returns \c true if the operation was successful.
+ * \returns \ref ELK_CODE_SUCCESS if the operation succeeds, or \ref ELK_CODE_FULL if the queue is
+ * full.
  */
-bool elk_queue_enqueue(ElkQueue *queue, void *item);
+ElkCode elk_queue_enqueue(ElkQueue *queue, void *item);
 
 /** Take an item from the front of the queue.
  *
  * \param queue the queue to take something from. Cannot be \c NULL.
  * \param output is a location to hold the returned item. The item is moved there with \c memcpy.
  *
- * \returns \c true if the operation succeeds. If the operation fails, then the contents of
- * \p output are undefined.
+ * \returns \ref ELK_CODE_SUCCESS if the operation succeeds or \ref ELK_CODE_EMPTY if the queue was
+ * empty.
  */
-bool elk_queue_dequeue(ElkQueue *queue, void *output);
+ElkCode elk_queue_dequeue(ElkQueue *queue, void *output);
 
 /** Peek at the next item in the queue without removing it.
  *
  * \param queue the queue to peek at.
  *
- * \returns a pointer to the element at the front of the queue.
+ * \returns a pointer to the element at the front of the queue. If the queue is empty, then return
+ * \c NULL.
  */
 void const *elk_queue_peek_alias(ElkQueue *queue);
 
