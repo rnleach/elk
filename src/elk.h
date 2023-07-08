@@ -6,7 +6,6 @@
  * See the main page for an overall description and the list of goals/non-goals: \ref index
  */
 #include <assert.h>
-#include <inttypes.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -208,15 +207,7 @@ time_t elk_time_add(time_t time, int change_in_time);
  *-----------------------------------------------------------------------------------------------*/
 /** \defgroup memory Memory management.
  *
- * Functions and macros for managing and debugging memory.
- *
- * The elk_init_memory_debug(), elk_finalize_memory_debug(), and elk_debug_mem() functions are null
- * functions unless the \c ELK_MEMORY_DEBUG macro is defined. When that macro is defined, malloc(),
- * realloc(), calloc(), and free() from stdlib.h are usurped by macros that keep track of memory
- * allocations.
- *
- * elk_init_memory_debug() can optionally check a mutex to prevent data races in a multithreaded
- * application, but it is the user's responsibility to set that up.
+ * Functions related pointers and memory.
  *
  * @{
  */
@@ -233,61 +224,6 @@ elk_steal_ptr(void **ptr)
     *ptr = NULL;
     return item;
 }
-
-/** Initialize the memory debugging system.
- *
- * This function is defined as an empty function unless the macro ELK_MEMORY_DEBUG is defined.
- *
- * Since this is only used for debugging, the mutex set up and teardown can be guarded by defines
- * and you can use functions that panic/abort if any part of the setup / teardown, locking,
- * unlocking fail on a given platform.
- *
- * \param mutex a global mutex for preventing data races in multithreaded applications. \c NULL is
- *        allowed if no global locking is needed.
- * \param lock a function to lock the \p mutex. \c NULL is allowed if no global locking is needed.
- * \param unlock a function to unlock the \p mutex. \c NULL is allowed if no global locking is
- *        needed.
- */
-void elk_init_memory_debug(void *mutex, void (*lock)(void *), void (*unlock)(void *));
-
-/** Finalize and clean up the memory debugging system.
- *
- * This function is defined as an empty function unless the macro ELK_MEMORY_DEBUG is defined.
- */
-void elk_finalize_memory_debug();
-
-/** Run the debug checks with the current state of the application's memory.
- *
- * This function is defined as an empty function unless the macro ELK_MEMORY_DEBUG is defined.
- *
- * If a buffer overrun is detected, this function will crash the program immediately. Otherwise, it
- * will print a list of "active" pointers and the file and line where they were allocated, and some
- * summary statistics of allocations.
- */
-void elk_debug_mem();
-
-/// \cond HIDDEN
-
-/** Replacement for malloc when ELK_MEMORY_DEBUG is defined. */
-void *elk_malloc(size_t size, char const *fname, char const *func, unsigned line);
-
-/** Replacement for realloc when ELK_MEMORY_DEBUG is defined. */
-void *elk_realloc(void *ptr, size_t size, char const *fname, char const *func, unsigned line);
-
-/** Replacement for calloc when ELK_MEMORY_DEBUG is defined. */
-void *elk_calloc(size_t nmemb, size_t size, char const *fname, char const *func, unsigned line);
-
-/** Replacement for free when ELK_MEMORY_DEBUG is defined. */
-void elk_free(void *ptr, char const *fname, char const *func, unsigned line);
-
-#ifdef ELK_MEMORY_DEBUG
-#    define malloc(s) elk_malloc((s), __FILE__, __func__, __LINE__)
-#    define realloc(p, s) elk_realloc((p), (s), __FILE__, __func__, __LINE__)
-#    define calloc(n, s) elk_calloc((n), (s), __FILE__, __func__, __LINE__)
-#    define free(p) elk_free((p), __FILE__, __func__, __LINE__)
-#endif
-
-/// \endcond HIDDEN
 
 /** @} */ // end of memory group
 /*-------------------------------------------------------------------------------------------------
@@ -636,22 +572,6 @@ typedef int (*Priority)(void *item);
  **/
 typedef struct ElkHeap ElkHeap;
 
-/** Create a new unbounded heap.
- *
- * This heap will grow as needed to store new elements. Watchout though, this means it can use all
- * of the machine's memory!
- *
- * \param element_size the size of elements stored in the heap.
- * \param pri the function to use to calculate an element's priority in the queue or value in the
- *        heap.
- * \param arity the number of elements per node. Usually this is just 2 for a binary heap, but this
- *        is a "d-ary" heap implementation. Good default values are in the range of 3-5.
- *
- * \returns A newly allocated heap! Upon failure it just aborts the program. If you're that
- * desperate for memory, just give up.
- */
-ElkHeap *elk_heap_new(size_t element_size, Priority pri, size_t arity);
-
 /** Create a new bounded heap.
  *
  * All of the necessary memory will be allocated up front.
@@ -716,186 +636,3 @@ size_t elk_heap_count(ElkHeap const *const heap);
 void const *elk_heap_peek(ElkHeap const *const heap);
 
 /** @} */ // end of heap group
-/*-------------------------------------------------------------------------------------------------
- *                                    Coordinates and Rectangles
- *-----------------------------------------------------------------------------------------------*/
-/** \defgroup geom Geometry primitives.
- *
- * @{
- */
-
-/** A simple x-y 2 dimensional coordinate. */
-typedef struct Elk2DCoord {
-    double x; /**< The x coordinate. */
-    double y; /**< The y cooridnate. */
-} Elk2DCoord;
-
-/** A simple x-y 2 dimensional rectangle. */
-typedef struct Elk2DRect {
-    Elk2DCoord ll; /**< The lower left corner of a rectangle (minimum x and minimum y) */
-    Elk2DCoord ur; /**< The upper right corner of a rectangle (maximum x and maximum y) */
-} Elk2DRect;
-
-/** @} */ // end of geom group
-/*-------------------------------------------------------------------------------------------------
- *                                       Hilbert Curves
- *-----------------------------------------------------------------------------------------------*/
-/** \defgroup hilbert Hilbert Curves.
- *
- * Hilbert curves are a type of space filling curve, and were originally implemented in this
- * library to support an 2-dimensional RTree implementation.
- *
- * This might seem really weird to have in a "general" library. However, as a result of goal number
- * 1 for this library, here it is. This didn't really need to be in the public API, but it makes
- * testing easier.
- *
- * I ported this code from an implementation in Python at https://github.com/galtay/hilbertcurve,
- * which is itself an implementation based on the 2004 paper "Programming the Hilbert Curve" by
- * John Skilling (http://adsabs.harvard.edu/abs/2004AIPC..707..381S)(DOI: 10.10631/1.1751381).
- *
- * @{
- */
-
-/** A 2D Hilbert Curve.
- */
-typedef struct ElkHilbertCurve ElkHilbertCurve;
-
-/** A point in the Hilbert space. */
-struct HilbertCoord {
-    uint32_t x;
-    uint32_t y;
-};
-
-/** Create a new Hilbert Curve description.
- *
- * The number of iterations will fill the area covered by the \p domain with and NxN grid of
- * points where N = sqrt(2^(2 * iterations)). The total number of points along the Hilbert curve
- * will be 2^(2 * iterations).
- *
- * So if iterations = 1, then the grid will be 2x2.
- *
- * If iterations = 2 then N = 4, so a 4x4 grid.
- *
- * If iterations = 3 then N = 8, so a 8x8 grid.
- *
- * If iterations = 8 then N = 256, so a 256 x 256 grid.
- *
- * If iterations = 16 then N = 65536, so a 65536 x 65536 grid.
- *
- * And if iterations = 31 then N = 2,147,483,648... so a 2,147,483,648 x 2,147,483,648 grid.
- *
- * \param iterations is a number between 1 and 31 inclusive. If the number is outside that range,
- * the program will exit and print an error message.
- *
- * \param domain is a rectanglular region to map this Hilbert curve onto.
- */
-struct ElkHilbertCurve *elk_hilbert_curve_new(unsigned int iterations, Elk2DRect domain);
-
-/** Free all memory associated with a ElkHilbertCurve
- *
- * \param hc is the object to free. A \c NULL pointer is acceptable and is ignored.
- *
- * \returns \c NULL, which should be assigned to the original object, \p hc.
- */
-struct ElkHilbertCurve *elk_hilbert_curve_free(struct ElkHilbertCurve *hc);
-
-/** Convert the distance along the curve to coordinates in the X-Y plane.
- *
- * In debug mode (no \c NDEBUG macro defined), assertions will check to make sure the distance
- * is within the allowable range for this curve.
- */
-struct HilbertCoord elk_hilbert_integer_to_coords(struct ElkHilbertCurve const *hc, uint64_t hi);
-
-/** Convert the coordinates into a distance along the Hilbert curve.
- *
- * In debug mode (compiled without \c NDEBUG macro defined), assertions will check to make sure
- * the \p coords are the allowable range for this curve.
- */
-uint64_t elk_hilbert_coords_to_integer(struct ElkHilbertCurve const *hc,
-                                       struct HilbertCoord coords);
-
-/** Translate a point into the nearest set of coordinates for this Hilbert curve \p hc.
- *
- * \param hc the Hilbert curve. Must NOT be \c NULL.
- * \param coord the coordinate to translate.
- *
- * \returns the nearest coordinate in the coordinates of the Hilbert curve.
- */
-struct HilbertCoord elk_hilbert_translate_to_curve_coords(struct ElkHilbertCurve *hc,
-                                                          Elk2DCoord coord);
-
-/** Translate a point to the distance along the curve to the nearest set of coordinates for this
- * Hilbert curve \p hc.
- *
- * This is basically a convenience method for calling elk_hilbert_translate_to_curve_coords() and
- * then calling elk_hilbert_coords_to_integer().
- *
- * \param hc the Hilbert curve. Must NOT be \c NULL.
- * \param coord the coordinate to translate.
- *
- * \returns the nearest coordinate in the coordinates of the Hilbert curve.
- */
-uint64_t elk_hilbert_translate_to_curve_distance(struct ElkHilbertCurve *hc, Elk2DCoord coord);
-
-/** @} */ // end of hilbert group
-/*-------------------------------------------------------------------------------------------------
- *                                          2D RTreeView
- *-----------------------------------------------------------------------------------------------*/
-/** \defgroup 2drtree A 2D RTree view of an ElkArray
- *
- * The RTree view does not store any data, but it holds pointers into a list, so that you can use
- * RTree algorithms to query the data in the list.
- *
- * @{
- */
-
-/** An R-Tree view into a list.
- *
- * Once the view has been created, the list it was created from should not be modified again as
- * that will invalidate the tree view.
- */
-typedef struct Elk2DRTreeView Elk2DRTreeView;
-
-/** Create a new R-Tree View of the list.
- *
- * The list will not be grown, or shrunk, but it may be reordered.
- *
- * \param list is the list to create a view from.
- * \param centroid is a function that takes an item from the \p list and calculates a centroid for
- * it.
- * \param rect is a function that takes an item from the \p list and calculates a bounding rectangle
- * for it.
- * \param domain is the boundaries of data in the list. If this is \c NULL, then this constructor
- * will do an initial pass over the list and calculate it.
- *
- * \returns A view of the list.
- */
-Elk2DRTreeView *elk_2d_rtree_view_new(ElkArray *const list, Elk2DCoord (*centroid)(void *),
-                                      Elk2DRect (*rect)(void *), Elk2DRect *domain);
-
-/** Free an R-Tree view of the list.
- *
- * \returns \c NULL, which should be assigned to the \p tv so there isn't a dangling pointer.
- */
-Elk2DRTreeView *elk_2d_rtree_view_free(Elk2DRTreeView *tv);
-
-/** Print a tree, which is useful for debugging. */
-void elk_2d_rtree_view_print(Elk2DRTreeView *rtree);
-
-/** Search an R-Tree and apply the function to each item that overlaps the provided rectangle.
- *
- * Iterates over any elements in the root list of \p tv that have rectangles that overlap with the
- * provided \p region and applies the function \p update to those items. If \p update returns
- * \c false, then further items will not be processed. This function assumes that \p update is
- * infallible, so if you need to return an error code of some kind you'll have to pass it through
- * the \p user_data argument.
- *
- * \param tv is the tree to search.
- * \param region is the region to search.
- * \param update is a function that will potentially update items in the view and parent list.
- * \param user_data is just passed to each invocation of \p update.
- */
-void elk_2d_rtree_view_foreach(Elk2DRTreeView *tv, Elk2DRect region, IterFunc update,
-                               void *user_data);
-
-/** @} */ // end of 2drtree group
