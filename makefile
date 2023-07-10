@@ -13,7 +13,7 @@ DEBUGDIR := $(PROJDIR)/debug
 CFLAGS = -Wall -Werror -std=c11 -I$(SOURCEDIR) -I$(TESTDIR)
 LDLIBS = -lm
 ifeq ($(DEBUG),1)
-	CFLAGS += -g -DELK_PANIC_CRASH
+	CFLAGS += -g3 -DELK_PANIC_CRASH
 	LDLIBS +=
 	BUILDDIR := $(DEBUGDIR)
 else

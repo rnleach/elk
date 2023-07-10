@@ -279,11 +279,6 @@ typedef bool (*FilterFunc)(void const *item, void *user_data);
  *
  * An array that dynamically grows in size as needed.
  *
- * @{
- */
-
-/** An array that dynamically grows in size as needed.
- *
  * All the operations on this type assume the system will never run out of memory, so if it does
  * they will abort the program.
  *
@@ -293,6 +288,11 @@ typedef bool (*FilterFunc)(void const *item, void *user_data);
  * responsible for managing the memory (including any dangling aliases that may be out there after
  * adding it to the array).
  *
+ * @{
+ */
+
+/** An array that dynamically grows in size as needed.
+ *
  * The members of this struct SHOULD NOT be modified by user code. The length and data members are
  * here for convenience so you can easily read them and use them in a for loop.
  */
@@ -300,7 +300,11 @@ typedef struct ElkArray {
     /** The number of items stored in the array. Users SHOULD NOT CHANGE THIS VALUE. */
     size_t length;
 
-    /** An "untyped" pointer to the objects in memory. */
+    /** An "untyped" pointer to the objects in memory. 
+     *
+     * Alignment is not an issue here since this field is always created via \c malloc and friends.
+     * These functions always return an object of suitable alignment for any type.
+     */
     unsigned char *data;
 
     /** The size of each element in the array. */
@@ -424,7 +428,7 @@ void *const elk_array_alias_index(ElkArray *const arr, size_t index);
  * then error information of some kind should be returned via the \p user_data.
  *
  * \param arr the array of items to iterate over.
- * \param ifunc is the function to apply to each item. If this function returns \c false, this
+ * \param ifunc is the function to apply to each item. If \p ifunc returns \c false, this
  * function will abort further evaluations. This function assumes this operation is infallible,
  * if that is not the case then any error information should be returned via \p user_data.
  * \param user_data will be supplied to \p ifunc as the second argument each time it is called.
@@ -451,17 +455,24 @@ ElkCode elk_array_filter_out(ElkArray *const src, ElkArray *sink, FilterFunc fil
 /*-------------------------------------------------------------------------------------------------
  *                                            Queue
  *-----------------------------------------------------------------------------------------------*/
-/** \defgroup queue A simple bounded queue.
+/** \defgroup queue Queue
+ *
+ * An array backed bounded queue.
+ *
+ * All the operations on this type assume the system will never run out of memory, so if it does
+ * they will abort the program.
+ *
+ * This queue assumes storing types of constant size that do not require any copy or delete
+ * functions. It stores plain old data types (PODs). Of course you could store pointers or 
+ * something that contains pointers in the array, but you would be responsible for managing the
+ * memory (including any dangling aliases that may be out there after adding it to the queue). That
+ * can be done by calling a function to free items if necessary through the \ref elk_queue_foreach()
+ * function.
  *
  * @{
  */
 
-/** An array backed bounded queue.
- *
- * This queue stores POD types, and doesn't free any pointers internal to its data members. That
- * can be done by calling a function to free items if necessary through the elk_queue_foreach()
- * function.
- */
+/** An array backed bounded queue. */
 typedef struct ElkQueue ElkQueue;
 
 /** Create a new queue.
@@ -531,15 +542,152 @@ size_t elk_queue_count(ElkQueue *queue);
 
 /** Apply a function to every item in the queue while dequeueing them.
  *
- * After this call, the \p queue will be empty.
+ * After this call, the \p queue will be empty, unless \p ifunc returns false at any point. Then all
+ * the unevaluated inputs (but not the one that triggered the \c false return value from \p ifunc)
+ * will be left in the \p queue.
  *
  * \param queue to empty while applying \p ifunc to each item.
- * \param ifunc the function to apply to each item in the queue.
+ * \param ifunc is the function to apply to each item. If \p ifunc returns \c false, this
+ * function will abort further evaluations. This function assumes this operation is infallible,
+ * if that is not the case then any error information should be returned via \p user_data.
  * \param user_data is data that is passed to each call of \p ifunc.
  */
 void elk_queue_foreach(ElkQueue *queue, IterFunc ifunc, void *user_data);
 
 /** @} */ // end of queue group
+/*-------------------------------------------------------------------------------------------------
+ *                                             Dequeue
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup deque A double ended queue.
+ *
+ * A double ended, bounded queue implementation.
+ *
+ * All the operations on this type assume the system will never run out of memory, so if it does
+ * they will abort the program.
+ *
+ * This dequeue assumes storing types of constant size that do not require any copy or delete
+ * functions. It stores plain old data types (PODs). Of course you could store pointers or 
+ * something that contains pointers in the array, but you would be responsible for managing the
+ * memory (including any dangling aliases that may be out there after adding it to the deque). That
+ * can be done by calling a function to free items if necessary through the
+ * \ref elk_dequeue_foreach() function.
+ *
+ * @{
+ */
+
+/** An array backed bounded dequeue. */
+typedef struct ElkDequeue ElkDequeue;
+
+/** Create a new dequeue.
+ *
+ * \param element_size is the size of each item in bytes.
+ * \param capacity is the maximum capacity of the dequeue.
+ *
+ * \returns a pointer to the new dequeue.
+ */
+ElkDequeue *elk_dequeue_new(size_t element_size, size_t capacity);
+
+/** Free the memory used by this dequeue.
+ *
+ * This method does not free any memory pointed to by items in the queue. To do that create an
+ * \ref IterFunc and use the \ref elk_dequeue_foreach() function to free memory pointed to by 
+ * members.
+ */
+void elk_dequeue_free(ElkDequeue *dequeue);
+
+/** Detect if the dequeue is full.
+ *
+ * \returns \c true if the \p dequeue is full and can't take anymore input.
+ */
+bool elk_dequeue_full(ElkDequeue *dequeue);
+
+/** Detect if the dequeue is empty.
+ *
+ * \returns \c true if the \p dequeue is empty and has nothing more to give.
+ */
+bool elk_dequeue_empty(ElkDequeue *dequeue);
+
+/** Add an item to the back end of the dequeue.
+ *
+ * \param dequeue the dequeue to add something too. Cannot be \c NULL.
+ * \param item the item to add to the dequeue which will be copied into the dequeue with \c memcpy
+ *
+ * \returns \ref ELK_CODE_SUCCESS if the operation succeeds, or \ref ELK_CODE_FULL if the queue is
+ * full.
+ */
+ElkCode elk_dequeue_enqueue_back(ElkDequeue *dequeue, void *item);
+
+/** Add an item to the front end of the dequeue.
+ *
+ * \param dequeue the dequeue to add something too. Cannot be \c NULL.
+ * \param item the item to add to the dequeue which will be copied into the dequeue with \c memcpy
+ *
+ * \returns \ref ELK_CODE_SUCCESS if the operation succeeds, or \ref ELK_CODE_FULL if the queue is
+ * full.
+ */
+ElkCode elk_dequeue_enqueue_front(ElkDequeue *dequeue, void *item);
+
+/** Take an item from the front of the dequeue.
+ *
+ * \param dequeue the dequeue to take something from. Cannot be \c NULL.
+ * \param output is a location to hold the returned item. The item is moved there with \c memcpy.
+ *
+ * \returns \ref ELK_CODE_SUCCESS if the operation succeeds or \ref ELK_CODE_EMPTY if the dequeue
+ * was empty.
+ */
+ElkCode elk_dequeue_dequeue_front(ElkDequeue *dequeue, void *output);
+
+/** Take an item from the back of the dequeue.
+ *
+ * \param dequeue the dequeue to take something from. Cannot be \c NULL.
+ * \param output is a location to hold the returned item. The item is moved there with \c memcpy.
+ *
+ * \returns \ref ELK_CODE_SUCCESS if the operation succeeds or \ref ELK_CODE_EMPTY if the dequeue
+ * was empty.
+ */
+ElkCode elk_dequeue_dequeue_back(ElkDequeue *dequeue, void *output);
+
+/** Peek at the next item in the dequeue without removing it.
+ *
+ * \param dequeue the queue to peek at.
+ *
+ * \returns a pointer to the element at the front of the dequeue. If the dequeue is empty, then
+ * return \c NULL.
+ */
+void const *elk_dequeue_peek_front_alias(ElkDequeue *dequeue);
+
+/** Peek at the last item in the dequeue without removing it.
+ *
+ * \param dequeue the queue to peek at.
+ *
+ * \returns a pointer to the element at the back of the dequeue. If the dequeue is empty, then
+ * return \c NULL.
+ */
+void const *elk_dequeue_peek_back_alias(ElkDequeue *dequeue);
+
+/** Get the number of items remaining in the dequeue.
+ *
+ * \param dequeue the dequeue to get the number of remaining items in. Cannot be \c NULL.
+ *
+ * \returns the number of items in the \p dequeue.
+ */
+size_t elk_dequeue_count(ElkDequeue *dequeue);
+
+/** Apply a function to every item in the dequeue while dequeueing them from the front.
+ *
+ * After this call, the \p dequeue will be empty, unless \p ifunc returns false at any point. Then
+ * all the unevaluated inputs (but not the one that triggered the \c false return value from
+ * \p ifunc) will be left in the \p dequeue.
+ *
+ * \param dequeue to empty while applying \p ifunc to each item.
+ * \param ifunc is the function to apply to each item. If \p ifunc returns \c false, this
+ * function will abort further evaluations. This function assumes this operation is infallible,
+ * if that is not the case then any error information should be returned via \p user_data.
+ * \param user_data is data that is passed to each call of \p ifunc.
+ */
+void elk_dequeue_foreach(ElkDequeue *dequeue, IterFunc ifunc, void *user_data);
+
+/** @} */ // end of dequeue group
 /*-------------------------------------------------------------------------------------------------
  *                                    Heap or Priority Queue
  *-----------------------------------------------------------------------------------------------*/

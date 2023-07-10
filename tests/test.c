@@ -12,6 +12,7 @@ main(void)
     elk_time_tests();
     elk_array_tests();
     elk_queue_tests();
+    elk_dequeue_tests();
     elk_heap_tests();
 
     printf("\n\n*** Tests completed successfully. ***\n\n");

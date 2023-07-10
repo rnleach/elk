@@ -54,7 +54,7 @@
   - Plan to go more minimalistic - stick to types I'll likely want to use again.
   - Don't try to be too generic. Make complex data structures use pointers.
   - Exception to the 1 above - the ElkArray type.
-  - items to add: string interner
+  - items to add: string interner,
 
 ### Version 1.2.0
   - (2023-02-14) Multiple upgrades.

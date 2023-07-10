@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 #include <tgmath.h>
 
@@ -281,7 +282,6 @@ elk_array_filter_out(ElkArray *const src, ElkArray *sink, FilterFunc filter, voi
 struct ElkQueue {
     size_t element_size;
     size_t capacity;
-    size_t length;
     size_t head;
     size_t tail;
     unsigned char data[];
@@ -295,13 +295,10 @@ elk_queue_new(size_t element_size, size_t capacity)
     size_t size = capacity * element_size + sizeof(struct ElkQueue);
     struct ElkQueue *queue = malloc(size);
     assert(queue);
+    memset(queue, 0, size); // Initialize all fields to zero!
 
     queue->element_size = element_size;
     queue->capacity = capacity;
-    queue->length = 0;
-    queue->head = 0;
-    queue->tail = 0;
-    memset(queue->data, 0, capacity * element_size);
 
     return queue;
 }
@@ -316,30 +313,29 @@ elk_queue_free(struct ElkQueue *queue)
 bool
 elk_queue_full(struct ElkQueue *queue)
 {
-    assert(queue);
-    return queue->length >= queue->capacity;
+    assert(queue && elk_queue_count(queue) <= queue->capacity);
+    return elk_queue_count(queue) == queue->capacity;
 }
 
 bool
 elk_queue_empty(ElkQueue *queue)
 {
-    assert(queue);
-    return queue->length == 0;
+    assert(queue && elk_queue_count(queue) <= queue->capacity);
+    return queue->head == queue->tail;
 }
 
 ElkCode
 elk_queue_enqueue(struct ElkQueue *queue, void *item)
 {
-    assert(queue);
+    assert(queue && elk_queue_count(queue) <= queue->capacity);
     if (elk_queue_full(queue)) {
         return ELK_CODE_FULL;
     }
 
-    size_t byte_idx = queue->tail * queue->element_size;
+    size_t byte_idx = (queue->tail % queue->capacity) * queue->element_size;
     memcpy(&queue->data[byte_idx], item, queue->element_size);
 
-    queue->length++;
-    queue->tail = (queue->tail + 1) % queue->capacity;
+    queue->tail++;
 
     return ELK_CODE_SUCCESS;
 }
@@ -352,11 +348,10 @@ elk_queue_dequeue(struct ElkQueue *queue, void *output)
         return ELK_CODE_EMPTY;
     }
 
-    size_t byte_idx = queue->head * queue->element_size;
+    size_t byte_idx = (queue->head % queue->capacity) * queue->element_size;
     memcpy(output, &queue->data[byte_idx], queue->element_size);
 
-    queue->length--;
-    queue->head = (queue->head + 1) % queue->capacity;
+    queue->head++;
 
     return ELK_CODE_SUCCESS;
 }
@@ -369,7 +364,7 @@ elk_queue_peek_alias(struct ElkQueue *queue)
         return NULL;
     }
 
-    size_t byte_idx = queue->head * queue->element_size;
+    size_t byte_idx = (queue->head % queue->capacity) * queue->element_size;
     return &queue->data[byte_idx];
 }
 
@@ -377,7 +372,7 @@ size_t
 elk_queue_count(struct ElkQueue *queue)
 {
     assert(queue);
-    return queue->length;
+    return queue->tail - queue->head;
 }
 
 void
@@ -387,11 +382,212 @@ elk_queue_foreach(struct ElkQueue *queue, IterFunc ifunc, void *user_data)
     unsigned char *item = malloc(sizeof(queue->element_size));
     assert(item);
 
-    while (elk_queue_dequeue(queue, item)) {
-        ifunc(item, user_data);
+    while (elk_queue_dequeue(queue, item) == ELK_CODE_SUCCESS) {
+        if(!ifunc(item, user_data)) goto END;
     }
 
+END:
     free(item);
+    return;
+}
+
+/*-------------------------------------------------------------------------------------------------
+ *                                             Dequeue
+ *-----------------------------------------------------------------------------------------------*/
+typedef struct ElkDequeue {
+    size_t element_size;
+    size_t capacity;
+    size_t head;
+    size_t length;
+    unsigned char data[];
+} ElkDequeue;
+
+ElkDequeue *
+elk_dequeue_new(size_t element_size, size_t capacity)
+{
+    assert(capacity > 0);
+    assert(element_size > 0);
+
+    size_t size = capacity * element_size + sizeof(struct ElkDequeue);
+    struct ElkDequeue *dequeue = malloc(size);
+    assert(dequeue);
+    memset(dequeue, 0, size); // Initialize all fields to zero!
+
+    dequeue->element_size = element_size;
+    dequeue->capacity = capacity;
+
+    return dequeue;
+}
+
+static size_t
+elk_dequeue_tail(struct ElkDequeue *dequeue)
+{
+    assert(dequeue);
+    return (dequeue->head + dequeue->length) % dequeue->capacity;
+}
+
+static void
+elk_dequeue_increment_head(struct ElkDequeue *dequeue)
+{
+    assert(dequeue);
+    assert(dequeue->length > 0);
+
+    dequeue->head++;
+    dequeue->head %= dequeue->capacity;
+}
+
+static void
+elk_dequeue_decrement_head(struct ElkDequeue *dequeue)
+{
+    assert(dequeue);
+
+    dequeue->head--;
+    dequeue->head += dequeue->capacity;
+    dequeue->head %= dequeue->capacity;
+}
+
+void
+elk_dequeue_free(ElkDequeue *dequeue)
+{
+    free(dequeue);
+}
+
+bool
+elk_dequeue_full(ElkDequeue *dequeue)
+{
+    assert(dequeue && elk_dequeue_count(dequeue) <= dequeue->capacity);
+    return dequeue->length == dequeue->capacity;
+}
+
+bool
+elk_dequeue_empty(ElkDequeue *dequeue)
+{
+    assert(dequeue && elk_dequeue_count(dequeue) <= dequeue->capacity);
+    return dequeue->length == 0;
+}
+
+ElkCode
+elk_dequeue_enqueue_back(ElkDequeue *dequeue, void *item)
+{
+    assert(dequeue && elk_dequeue_count(dequeue) <= dequeue->capacity);
+    if (elk_dequeue_full(dequeue)) {
+        return ELK_CODE_FULL;
+    }
+
+    size_t tail = elk_dequeue_tail(dequeue);
+    size_t byte_idx = tail * dequeue->element_size;
+    memcpy(&dequeue->data[byte_idx], item, dequeue->element_size);
+
+    dequeue->length++;
+
+    return ELK_CODE_SUCCESS;
+}
+
+ElkCode
+elk_dequeue_enqueue_front(ElkDequeue *dequeue, void *item)
+{
+    assert(dequeue && elk_dequeue_count(dequeue) <= dequeue->capacity);
+
+    if (elk_dequeue_full(dequeue)) {
+        return ELK_CODE_FULL;
+    }
+
+    elk_dequeue_decrement_head(dequeue);
+    dequeue->length++;
+    
+    size_t byte_idx = dequeue->head * dequeue->element_size;
+    memcpy(&dequeue->data[byte_idx], item, dequeue->element_size);
+
+    return ELK_CODE_SUCCESS;
+}
+
+ElkCode
+elk_dequeue_dequeue_front(ElkDequeue *dequeue, void *output)
+{
+    assert(dequeue);
+
+    if (elk_dequeue_empty(dequeue)) {
+        return ELK_CODE_EMPTY;
+    }
+
+    size_t byte_idx = dequeue->head * dequeue->element_size;
+    memcpy(output, &dequeue->data[byte_idx], dequeue->element_size);
+
+    elk_dequeue_increment_head(dequeue);
+    dequeue->length--;
+
+    return ELK_CODE_SUCCESS;
+}
+
+ElkCode
+elk_dequeue_dequeue_back(ElkDequeue *dequeue, void *output)
+{
+    assert(dequeue);
+
+    if (elk_dequeue_empty(dequeue)) {
+        return ELK_CODE_EMPTY;
+    }
+
+    dequeue->length--;
+    size_t tail_idx = elk_dequeue_tail(dequeue);
+
+    size_t byte_idx = tail_idx * dequeue->element_size;
+    memcpy(output, &dequeue->data[byte_idx], dequeue->element_size);
+
+    return ELK_CODE_SUCCESS;
+}
+
+void const *
+elk_dequeue_peek_front_alias(ElkDequeue *dequeue)
+{
+    assert(dequeue);
+
+    if (elk_dequeue_empty(dequeue)) {
+        return NULL;
+    }
+
+    size_t byte_idx = dequeue->head * dequeue->element_size;
+    return &dequeue->data[byte_idx];
+}
+
+void const *
+elk_dequeue_peek_back_alias(ElkDequeue *dequeue)
+{
+    assert(dequeue);
+
+    if (elk_dequeue_empty(dequeue)) {
+        return NULL;
+    }
+
+    dequeue->length--;
+    size_t tail_idx = elk_dequeue_tail(dequeue);
+    dequeue->length++;
+
+    size_t byte_idx = tail_idx * dequeue->element_size;
+    return &dequeue->data[byte_idx];
+}
+
+size_t
+elk_dequeue_count(ElkDequeue *dequeue)
+{
+    assert(dequeue);
+    return dequeue->length;
+}
+
+void
+elk_dequeue_foreach(ElkDequeue *dequeue, IterFunc ifunc, void *user_data)
+{
+    assert(dequeue);
+    unsigned char *item = malloc(sizeof(dequeue->element_size));
+    assert(item);
+
+    while (elk_dequeue_dequeue_front(dequeue, item) == ELK_CODE_SUCCESS) {
+        if(!ifunc(item, user_data)) goto END;
+    }
+
+END:
+    free(item);
+    return;
 }
 
 /*-------------------------------------------------------------------------------------------------
@@ -598,7 +794,7 @@ elk_heap_check_resize(struct ElkHeap **heap)
     assert(h->length <= h->capacity);
 
     if (h->length == h->capacity) {
-            return ELK_CODE_FULL;
+        return ELK_CODE_FULL;
     }
 
     return ELK_CODE_SUCCESS;
@@ -700,4 +896,3 @@ elk_heap_peek(struct ElkHeap const *const heap)
     ElkHeapTuple *item = elk_heap_item_by_index(heap, 0);
     return item->payload;
 }
-
