@@ -13,6 +13,11 @@ struct fnv1a_test_pair {
     uint64_t hash;
 };
 
+/** Test some known hashes.
+ *
+ * Test values copied from http://www.isthe.com/chongo/src/fnv/test_fnv.c, which is in the public
+ * domain.
+ */
 struct fnv1a_test_pair pairs[] = {
     { "",                    UINT64_C(0xcbf29ce484222325)},
     { "a",                   UINT64_C(0xaf63dc4c8601ec8c)},
