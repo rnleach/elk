@@ -9,6 +9,7 @@
 #include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <time.h>
 
@@ -784,3 +785,31 @@ size_t elk_heap_count(ElkHeap const *const heap);
 void const *elk_heap_peek(ElkHeap const *const heap);
 
 /** @} */ // end of heap group
+
+/*-------------------------------------------------------------------------------------------------
+ *                                  Hashes and Hash Table
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup hash Hash functions and a Hash Table
+ *
+ * @{
+ */
+
+/** FNV-1a hash function */
+static inline uint64_t 
+elk_fnv1a_hash(size_t n, void *value)
+{
+    uint64_t const fnv_offset_bias = 0xcbf29ce484222325;
+    uint64_t const fnv_prime = 0x00000100000001b3;
+
+    uint8_t *data = value;
+
+    uint64_t hash = fnv_offset_bias;
+    for(size_t i = 0; i < n; ++i) {
+        hash ^= data[i];
+        hash *= fnv_prime;
+    }
+
+    return hash;
+}
+
+/** @} */ // end of hash group

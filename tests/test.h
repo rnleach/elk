@@ -24,3 +24,4 @@ void elk_array_tests(void);
 void elk_queue_tests(void);
 void elk_dequeue_tests(void);
 void elk_heap_tests(void);
+void elk_fnv1a_tests(void);

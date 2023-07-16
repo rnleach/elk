@@ -14,6 +14,7 @@ main(void)
     elk_queue_tests();
     elk_dequeue_tests();
     elk_heap_tests();
+    elk_fnv1a_tests();
 
     printf("\n\n*** Tests completed successfully. ***\n\n");
     return EXIT_SUCCESS;
