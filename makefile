@@ -1,5 +1,5 @@
 # Show commands that make uses
-VERBOSE = TRUE
+VERBOSE = FALSE
 
 # Directory layout.
 PROJDIR := $(realpath $(CURDIR)/)

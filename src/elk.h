@@ -192,7 +192,7 @@ typedef enum {
     ElkMinute = 60,
     ElkHour = 60 * 60,
     ElkDay = 60 * 60 * 24,
-    ElkWeek = 60 * 60 * 27 * 7,
+    ElkWeek = 60 * 60 * 24 * 7,
 } ElkTimeUnit;
 
 /** Add a change in time.
@@ -787,12 +787,21 @@ void const *elk_heap_peek(ElkHeap const *const heap);
 /** @} */ // end of heap group
 
 /*-------------------------------------------------------------------------------------------------
- *                                  Hashes and Hash Table
+ *                                   Hashes, Hash Table
  *-----------------------------------------------------------------------------------------------*/
 /** \defgroup hash Hash functions and a Hash Table
  *
  * @{
  */
+
+/** Function prototype for a hash function.
+ *
+ * \param n is the size of the value in bytes.
+ * \param value is a pointer to the object to hash.
+ *
+ * \returns the hash value as an unsigned, 64 bit integer.
+ */
+uint64_t (*ElkHashFunction)(size_t n, void *value);
 
 /** FNV-1a hash function */
 static inline uint64_t 
@@ -812,4 +821,124 @@ elk_fnv1a_hash(size_t n, void *value)
     return hash;
 }
 
+/** A basic hash table. */
+typedef struct ElkHashTable ElkHashTable;
+
+/** Create a new hash table
+ *
+ * \param size_exp The hash table has a capacity that is a power of 2. The size_exp is that power
+ *                 of two. This value is only used initially, if the table needs to expand, it 
+ *                 will, so it's OK to start with small values here.
+ * \param hasher is the function to use when hashing values (objects). If you plan to use this
+ *        table with a \c struct, make sure the \c struct is tightly packed OR you define a 
+ *        \ref ElkHashFunction specifically for hashing the type while ignoring padding.
+ *
+ * \returns a pointer to a hash table. If allocation fails, it will abort the program.
+ */
+ElkHashTable *elk_hash_table_create(int size_exp, ElkHashFunction hasher);
+
+/** Free memory and clean up. 
+ *
+ * This function does not clean up any memory with the objects/values pointed to by the table. The 
+ * easiest way to do that is use \ref elk_hash_table_foreach() with a function that frees each
+ * value. Using some kind of arena to store items is also a possibility. Bottom line, the user must
+ * manage the memory of the values stored in the table, and they must live until the table is 
+ * destroyed. Keys are not stored with the table.
+ */
+void elk_hash_table_destroy(ElkHashTable *table);
+
+/** Insert a value into the table.
+ *
+ * The table will expand if needed, and if it runs out of memory it aborts the program. The table
+ * now owns the pointer \p value, so do not free it. It would be best if you forgot all about it.
+ * Other than hashing, the table does nothing with the key, so the user may destroy it.
+ *
+ * \param table must not be \c NULL.
+ * \param n the size of the key in bytes.
+ * \param key is the key, obviously.
+ * \param value is the object to store.
+ *
+ * \returns \c true if the value was already in the table and \c false otherwise. The only way this
+ *          can fail is if we run out of memory, and that will cause the program to abort.
+ */
+bool elk_hash_table_insert(ElkHashTable *table, size_t n, void *key, void *value);
+
+/** Fetch a value from the table.
+ *
+ * \param table must not be \c NULL.
+ * \param n the size of the key in bytes.
+ * \param key is the key, obviously.
+ *
+ * \returns \c NULL if the item could not be found, or a pointer to the value.
+ */
+void const *elk_hash_table_retrieve(ElkHashTable *table, size_t n, void *key);
+
+/** Apply a function to every object in the table.
+ *
+ * \param table must not be \c NULL.
+ * \param func is the function to apply to each item. If \p ifunc returns \c false, this
+ * function will abort further evaluations. This function assumes this operation is infallible,
+ * if that is not the case then any error information should be returned via \p user_data.
+ * \param user_data is data that is passed to each call of \p ifunc.
+ */
+void elk_hash_table_foreach(ElkHashTable *table, IterFunc func);
+
 /** @} */ // end of hash group
+/*-------------------------------------------------------------------------------------------------
+ *                                       String Interner
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup intern A string interner.
+ *
+ * @{
+ */
+
+/** Intern strings for more memory efficient storage. */
+typedef struct ElkStringInterner ElkStringInterner;
+
+/** A handle to an interned string. 
+ *
+ *  Values of this type are unique to a particular \ref ElkStringInterner, but if you have multiple
+ *  \ref ElkStringInterner objects, you cannot swap handles back and forth. Each handle is 
+ *  associated with a particular \ref ElkStringInterner object.
+ */
+typedef size_t ElkInternedString;
+
+/** Create a new string interner. 
+ *
+ * \param size_exp The interner is backed by a hash table with a capacity that is a power of 2. The
+ *                 size_exp is that power of two. This value is only used initially, if the table
+ *                 needs to expand, it will, so it's OK to start with small values here.
+ *
+ * \returns a pointer to an interner. If allocation fails, it will abort the program.
+ */
+ElkStringInterner *elk_string_interner_create(int size_exp);
+
+/** Free memory and clean up. */
+void elk_string_interner_destroy(ElkStringInterner *interner);
+
+/** Intern a string.
+ *
+ * \param interner must not be \c NULL.
+ * \param string is the string to intern.
+ *
+ * \returns a handle to the interned string that can be used to retrieve it later. This cannot fail
+ * unless the program runs out of memory, in which case it aborts the probram.
+ */
+ElkInternedString elk_string_interner_intern(ElkStringInterner *interner, char const *string);
+
+/** Feetch an interned string.
+ *
+ * \param interner must not be \c NULL.
+ * \param handle is the handle to the interned string. This value must be a value that came from
+ *        \ref elk_string_interner_intern().
+ *
+ * \returns an alias to the string. The \p interner owns this string, so do not try to free it. If
+ *          you use an invalid handle that didn't come from a previous call to 
+ *          \ref elk_string_interner_intern(), then it may return \c NULL or it may return in the
+ *          middle of a random string. If \c NDEBUG is not defined, then \c assert calls will be 
+ *          used to do some checks which will help if you're debugging.
+ */
+char const *elk_string_interner_retrieve(ElkStringInterner *interner, ElkInternedString handle);
+
+
+/** @} */ // end of intern group
