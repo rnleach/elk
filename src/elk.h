@@ -801,7 +801,7 @@ void const *elk_heap_peek(ElkHeap const *const heap);
  *
  * \returns the hash value as an unsigned, 64 bit integer.
  */
-uint64_t (*ElkHashFunction)(size_t n, void *value);
+typedef uint64_t (*ElkHashFunction)(size_t n, void *value);
 
 /** FNV-1a hash function */
 static inline uint64_t 
