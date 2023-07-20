@@ -383,7 +383,8 @@ elk_queue_foreach(struct ElkQueue *queue, IterFunc ifunc, void *user_data)
     assert(item);
 
     while (elk_queue_dequeue(queue, item) == ELK_CODE_SUCCESS) {
-        if(!ifunc(item, user_data)) goto END;
+        if (!ifunc(item, user_data))
+            goto END;
     }
 
 END:
@@ -494,7 +495,7 @@ elk_dequeue_enqueue_front(ElkDequeue *dequeue, void *item)
 
     elk_dequeue_decrement_head(dequeue);
     dequeue->length++;
-    
+
     size_t byte_idx = dequeue->head * dequeue->element_size;
     memcpy(&dequeue->data[byte_idx], item, dequeue->element_size);
 
@@ -582,7 +583,8 @@ elk_dequeue_foreach(ElkDequeue *dequeue, IterFunc ifunc, void *user_data)
     assert(item);
 
     while (elk_dequeue_dequeue_front(dequeue, item) == ELK_CODE_SUCCESS) {
-        if(!ifunc(item, user_data)) goto END;
+        if (!ifunc(item, user_data))
+            goto END;
     }
 
 END:
@@ -895,4 +897,77 @@ elk_heap_peek(struct ElkHeap const *const heap)
 
     ElkHeapTuple *item = elk_heap_item_by_index(heap, 0);
     return item->payload;
+}
+
+/*-------------------------------------------------------------------------------------------------
+ *                                   Hashes, Hash Table
+ *-----------------------------------------------------------------------------------------------*/
+struct ElkHashTable {
+    ElkHashFunction hasher;
+    int size_exp;
+    void *values[];
+};
+
+ElkHashTable *
+elk_hash_table_create(int size_exp, ElkHashFunction hasher)
+{
+    assert(false);
+    return NULL;
+}
+void
+elk_hash_table_destroy(ElkHashTable *table)
+{
+    assert(false);
+    return;
+}
+bool
+elk_hash_table_insert(ElkHashTable *table, size_t n, void *key, void *value)
+{
+    assert(false);
+    return false;
+}
+void const *
+elk_hash_table_retrieve(ElkHashTable *table, size_t n, void *key)
+{
+    assert(false);
+    return NULL;
+}
+void
+elk_hash_table_foreach(ElkHashTable *table, IterFunc func)
+{
+    assert(false);
+    return;
+}
+
+/*-------------------------------------------------------------------------------------------------
+ *                                       String Interner
+ *-----------------------------------------------------------------------------------------------*/
+struct ElkStringInterner {
+    ElkHashTable *index;
+    char buffer[];
+};
+
+ElkStringInterner *
+elk_string_interner_create(int size_exp)
+{
+    assert(false);
+    return NULL;
+}
+void
+elk_string_interner_destroy(ElkStringInterner *interner)
+{
+    assert(false);
+    return;
+}
+ElkInternedString
+elk_string_interner_intern(ElkStringInterner *interner, char const *string)
+{
+    assert(false);
+    return 0;
+}
+char const *
+elk_string_interner_retrieve(ElkStringInterner *interner, ElkInternedString handle)
+{
+    assert(false);
+    return NULL;
 }

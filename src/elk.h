@@ -8,8 +8,8 @@
 #include <assert.h>
 #include <limits.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
@@ -301,7 +301,7 @@ typedef struct ElkArray {
     /** The number of items stored in the array. Users SHOULD NOT CHANGE THIS VALUE. */
     size_t length;
 
-    /** An "untyped" pointer to the objects in memory. 
+    /** An "untyped" pointer to the objects in memory.
      *
      * Alignment is not an issue here since this field is always created via \c malloc and friends.
      * These functions always return an object of suitable alignment for any type.
@@ -464,7 +464,7 @@ ElkCode elk_array_filter_out(ElkArray *const src, ElkArray *sink, FilterFunc fil
  * they will abort the program.
  *
  * This queue assumes storing types of constant size that do not require any copy or delete
- * functions. It stores plain old data types (PODs). Of course you could store pointers or 
+ * functions. It stores plain old data types (PODs). Of course you could store pointers or
  * something that contains pointers in the array, but you would be responsible for managing the
  * memory (including any dangling aliases that may be out there after adding it to the queue). That
  * can be done by calling a function to free items if necessary through the \ref elk_queue_foreach()
@@ -567,7 +567,7 @@ void elk_queue_foreach(ElkQueue *queue, IterFunc ifunc, void *user_data);
  * they will abort the program.
  *
  * This dequeue assumes storing types of constant size that do not require any copy or delete
- * functions. It stores plain old data types (PODs). Of course you could store pointers or 
+ * functions. It stores plain old data types (PODs). Of course you could store pointers or
  * something that contains pointers in the array, but you would be responsible for managing the
  * memory (including any dangling aliases that may be out there after adding it to the deque). That
  * can be done by calling a function to free items if necessary through the
@@ -591,7 +591,7 @@ ElkDequeue *elk_dequeue_new(size_t element_size, size_t capacity);
 /** Free the memory used by this dequeue.
  *
  * This method does not free any memory pointed to by items in the queue. To do that create an
- * \ref IterFunc and use the \ref elk_dequeue_foreach() function to free memory pointed to by 
+ * \ref IterFunc and use the \ref elk_dequeue_foreach() function to free memory pointed to by
  * members.
  */
 void elk_dequeue_free(ElkDequeue *dequeue);
@@ -804,7 +804,7 @@ void const *elk_heap_peek(ElkHeap const *const heap);
 typedef uint64_t (*ElkHashFunction)(size_t n, void *value);
 
 /** FNV-1a hash function */
-static inline uint64_t 
+static inline uint64_t
 elk_fnv1a_hash(size_t n, void *value)
 {
     uint64_t const fnv_offset_bias = 0xcbf29ce484222325;
@@ -813,7 +813,7 @@ elk_fnv1a_hash(size_t n, void *value)
     uint8_t *data = value;
 
     uint64_t hash = fnv_offset_bias;
-    for(size_t i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
         hash ^= data[i];
         hash *= fnv_prime;
     }
@@ -827,22 +827,22 @@ typedef struct ElkHashTable ElkHashTable;
 /** Create a new hash table
  *
  * \param size_exp The hash table has a capacity that is a power of 2. The size_exp is that power
- *                 of two. This value is only used initially, if the table needs to expand, it 
+ *                 of two. This value is only used initially, if the table needs to expand, it
  *                 will, so it's OK to start with small values here.
  * \param hasher is the function to use when hashing values (objects). If you plan to use this
- *        table with a \c struct, make sure the \c struct is tightly packed OR you define a 
+ *        table with a \c struct, make sure the \c struct is tightly packed OR you define a
  *        \ref ElkHashFunction specifically for hashing the type while ignoring padding.
  *
  * \returns a pointer to a hash table. If allocation fails, it will abort the program.
  */
 ElkHashTable *elk_hash_table_create(int size_exp, ElkHashFunction hasher);
 
-/** Free memory and clean up. 
+/** Free memory and clean up.
  *
- * This function does not clean up any memory with the objects/values pointed to by the table. The 
+ * This function does not clean up any memory with the objects/values pointed to by the table. The
  * easiest way to do that is use \ref elk_hash_table_foreach() with a function that frees each
  * value. Using some kind of arena to store items is also a possibility. Bottom line, the user must
- * manage the memory of the values stored in the table, and they must live until the table is 
+ * manage the memory of the values stored in the table, and they must live until the table is
  * destroyed. Keys are not stored with the table.
  */
 void elk_hash_table_destroy(ElkHashTable *table);
@@ -895,15 +895,15 @@ void elk_hash_table_foreach(ElkHashTable *table, IterFunc func);
 /** Intern strings for more memory efficient storage. */
 typedef struct ElkStringInterner ElkStringInterner;
 
-/** A handle to an interned string. 
+/** A handle to an interned string.
  *
  *  Values of this type are unique to a particular \ref ElkStringInterner, but if you have multiple
- *  \ref ElkStringInterner objects, you cannot swap handles back and forth. Each handle is 
+ *  \ref ElkStringInterner objects, you cannot swap handles back and forth. Each handle is
  *  associated with a particular \ref ElkStringInterner object.
  */
 typedef size_t ElkInternedString;
 
-/** Create a new string interner. 
+/** Create a new string interner.
  *
  * \param size_exp The interner is backed by a hash table with a capacity that is a power of 2. The
  *                 size_exp is that power of two. This value is only used initially, if the table
@@ -933,12 +933,11 @@ ElkInternedString elk_string_interner_intern(ElkStringInterner *interner, char c
  *        \ref elk_string_interner_intern().
  *
  * \returns an alias to the string. The \p interner owns this string, so do not try to free it. If
- *          you use an invalid handle that didn't come from a previous call to 
+ *          you use an invalid handle that didn't come from a previous call to
  *          \ref elk_string_interner_intern(), then it may return \c NULL or it may return in the
- *          middle of a random string. If \c NDEBUG is not defined, then \c assert calls will be 
+ *          middle of a random string. If \c NDEBUG is not defined, then \c assert calls will be
  *          used to do some checks which will help if you're debugging.
  */
 char const *elk_string_interner_retrieve(ElkStringInterner *interner, ElkInternedString handle);
-
 
 /** @} */ // end of intern group

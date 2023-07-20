@@ -95,7 +95,7 @@ elk_dequeue_test_data_integrity_front_to_back(void)
 /*-------------------------------------------------------------------------------------------------
  *                                  Test ElkDequeue foreach
  *-----------------------------------------------------------------------------------------------*/
-static bool 
+static bool
 sum_queue(void *item, void *sum)
 {
     int x = *(int *)item;

@@ -15,7 +15,7 @@ elk_queue_test_data_integrity(void)
     assert(queue);
     assert(elk_queue_empty(queue));
     assert(!elk_queue_full(queue));
-    
+
     // Test it several times to make sure we can put a lot through the queue
     for (int j = 0; j < 10; j++) {
         for (int i = 0; i < 50; ++i) {
@@ -53,7 +53,7 @@ elk_queue_test_data_integrity(void)
 /*-------------------------------------------------------------------------------------------------
  *                                  Test ElkQueue foreach
  *-----------------------------------------------------------------------------------------------*/
-static bool 
+static bool
 sum_queue(void *item, void *sum)
 {
     int x = *(int *)item;
@@ -70,7 +70,7 @@ elk_queue_test_foreach(void)
     assert(queue);
     assert(elk_queue_empty(queue));
     assert(!elk_queue_full(queue));
-    
+
     for (int i = 0; i < 50; ++i) {
         assert(ELK_CODE_SUCCESS == elk_queue_enqueue(queue, &i));
         assert(elk_queue_count(queue) == i + 1);
