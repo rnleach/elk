@@ -1,7 +1,7 @@
 # elk - A general purpose C11 library.
 
   I like elk. They're really interesting, majestic animals. And did you know they have ivory?! So
-  I decided to name my general purpose C library after them. 
+  I decided to name my ~~general purpose~~ utility C library after them. 
  
  Goals and non-Goals:
   1. I only implement the things I need. If it's in here, I needed it at some point.
@@ -13,8 +13,10 @@
   3. NOT threadsafe. Access to any objects will need to be protected by the user of those objects
      with a mutex or other means to prevent data races.
 
-  4. NO global state. All state related to any objects created by this library should be stored 
-     in that object. No global state makes it possible to use it in multithreaded applications. 
+  4. NO global mutable state and reentrant functions. All state related to any objects created by
+     this library should be stored in that object. No global state and reentrant functions makes it
+     possible to use it in multithreaded applications so long as the user ensures the data they
+     need protected is protected. 
 
   5. As a result of number 4, functions are thread safe so as long as the input parameters are
      protected from data races before being passed into the function, the function itself will not
@@ -33,15 +35,20 @@
   Know your time and what you need from it! THE TIME FUNCTIONALITY IN THIS LIBRARY IS NOT WIDELY 
   APPLICABLE. I don't even know if something like that exists.
 
+  My use cases typically involve meteorological forecasts and/or observations. The current 
+  implementation of this library uses January 1st, 1 AD as the epoch. It cannot handle times
+  before that. The maximum time that can be handled by all the functions is December 31st, 32767.
+  So this more than covers the useful period of meteorological observations and forecasts.
+
 ## Releases
 
 ### Version 2.0.0 - IN PROGRESS
   - Minimalistic, general purpose tools.
-  - TODO: string interner
-  - TODO: hash functions and hash function API.
+  - Created my own types for handling calendar time.
+  - TODO: memory arena
   - TODO: memory utilities - steal a pointer
-  - TODO: Convenient error checking macros.
-  - TODO: time parsing, printing, and calculating.
+  - TODO: hash functions and hash function API.
+  - TODO: string interner
 
 ### Version 1.2.0
   - (2023-02-14) Multiple upgrades.

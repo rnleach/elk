@@ -15,15 +15,12 @@
 #endif
 
 #include <assert.h>
-#include <tgmath.h>
 
 #include "../src/elk.h"
 
 void elk_time_tests(void);
-void elk_array_tests(void);
-void elk_queue_tests(void);
-void elk_dequeue_tests(void);
-void elk_heap_tests(void);
+
+#if 0
 void elk_fnv1a_tests(void);
-void elk_hash_table_tests(void);
 void elk_string_interner_tests(void);
+#endif
