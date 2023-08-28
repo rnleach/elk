@@ -1,5 +1,7 @@
 #include "test.h"
 
+#include <inttypes.h>
+
 #define TEST_EVERY_1_SEC_INTERVAL 0
 #define TEST_EVERY_SECOND 0
 /*------------------------------------------------------------------------------------------------
@@ -130,7 +132,8 @@ test_increments_are_1_second(void)
                             ElkTime current =
                                 elk_time_from_ymd_and_hms(year, month, day, hour, minute, second);
                             if (current - previous != 1) {
-                                printf("\nFAIL: diff=%d, year=%d, month=%d, day=%d, hour=%d, "
+                                printf("\nFAIL: diff=%" PRId64
+                                       ", year=%d, month=%d, day=%d, hour=%d, "
                                        "minute=%d, second=%d\n",
                                        current - previous, year, month, day, hour, minute, second);
                                 assert(current - previous == 1);
@@ -173,7 +176,7 @@ test_time_struct(void)
         ElkTime middle = elk_make_time(testVals[i]);
         ElkStructTime back = elk_make_struct_time(middle);
         if (!struct_times_equal(forward, back)) {
-            printf("%+05d-%02d-%02d %02d:%02d:%02d %12ld %+05d-%02d-%02d %02d:%02d:%02d \n",
+            printf("%+05d-%02d-%02d %02d:%02d:%02d %12" PRId64 " %+05d-%02d-%02d %02d:%02d:%02d \n",
                    forward.year, forward.month, forward.day, forward.hour, forward.minute,
                    forward.second, middle, back.year, back.month, back.day, back.hour, back.minute,
                    back.second);
@@ -200,7 +203,8 @@ test_time_struct(void)
                             ElkStructTime back = elk_make_struct_time(middle);
 
                             if (!struct_times_equal(forward, back)) {
-                                printf("%+05d-%02d-%02d %02d:%02d:%02d %12ld %+05d-%02d-%02d "
+                                printf("%+05d-%02d-%02d %02d:%02d:%02d %12" PRId64
+                                       " %+05d-%02d-%02d "
                                        "%02d:%02d:%02d \n",
                                        forward.year, forward.month, forward.day, forward.hour,
                                        forward.minute, forward.second, middle, back.year,
