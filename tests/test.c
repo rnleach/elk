@@ -10,8 +10,8 @@ main(void)
     printf("\n\n***        Starting Tests.        ***\n\n");
 
     elk_time_tests();
-#if 0
     elk_fnv1a_tests();
+#if 0
     elk_string_interner_tests();
 #endif
 

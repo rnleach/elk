@@ -99,16 +99,16 @@
  *-----------------------------------------------------------------------------------------------*/
 /** \defgroup time Time and Dates
  *
- * The standard C library interface for time isn't threadsafe in general, so I'm reimplementing it
- * here.
+ * The standard C library interface for time isn't threadsafe in general, so I'm reimplementing
+ * parts of it here.
  *
  * To do that is pretty difficult! So I'm specializing based on my needs.
- *  - I work almost entirely in UTC, so I won't bother with timezones. That requires interfacing
- *    with the OS, and so it belongs in a platform library anyway.
+ *  - I work entirely in UTC, so I won't bother with timezones. Timezones require interfacing with
+ *    the OS, and so it belongs in a platform library anyway.
  *  - I mainly handle meteorological data, including observations and forecasts. I'm not concerned
  *    with time and dates before the 19th century or after the 21st century. Covering more is fine,
  *    but not necessary.
- *  - Given the restrictions above, I'm going to make the code as simple and fast as possible.
+ *  - Given the restrictions above, I'm going to make the code as simple and fast as I can.
  *  - The end result covers the time ranging from midnight January 1st, 1 ADE to the last second of
  *    the day on December 31st, 32767.
  *
@@ -205,36 +205,16 @@ typedef enum {
 ElkTime elk_time_add(ElkTime time, int change_in_time);
 
 /** @} */ // end of time group
-#if 0
-/*-------------------------------------------------------------------------------------------------
- *                                       Memory and Pointers
- *-----------------------------------------------------------------------------------------------*/
-/** \defgroup memory Memory management.
- *
- * Functions related pointers and memory.
- *
- * @{
- */
-
-/** Steal a pointer.
- *
- * This is useful for tracking ownership. To move an object by pointer, steal the pointer using this
- * function, and the original value will be set to \c NULL.
- */
-static inline void *
-elk_steal_ptr(void **ptr)
-{
-    void *item = *ptr;
-    *ptr = NULL;
-    return item;
-}
-
-/** @} */ // end of memory group
-#endif
 /*-------------------------------------------------------------------------------------------------
  *                                         Hashes
  *-----------------------------------------------------------------------------------------------*/
 /** \defgroup hash Hash functions
+ *
+ * Non-cryptographically secure hash functions.
+ *
+ * If you're passing user supplied data to this, it's possible that a nefarious actor could send
+ * data specifically designed to jam up one of these functions. So don't use them to write a web
+ * browser or server, or banking software. They should be good and fast though for data munging.
  *
  * @{
  */
@@ -248,16 +228,27 @@ elk_steal_ptr(void **ptr)
  */
 typedef uint64_t (*ElkHashFunction)(size_t n, void *value);
 
-/** FNV-1a hash function */
+/** Accumulate values into a hash.
+ *
+ * This is a useful tool for writing functions to calculate hashes of custom types. For instance
+ * if you have a struct, you could write a function that creates a hash by sending the first
+ * member through \ref elk_fnv1a_hash() and then sending each of the other members in turn through
+ * this function. Then finally return the final value.
+ *
+ * \param n is the size of the value in bytes.
+ * \param value is a pointer to the object to hash.
+ * \param hash_so_far is the hash value calculated so far.
+ *
+ * \returns the hash value (so far) as an unsigned, 64 bit integer.
+ */
 static inline uint64_t
-elk_fnv1a_hash(size_t n, void *value)
+elk_fnv1a_hash_accumulate(size_t n, void *value, uint64_t hash_so_far)
 {
-    uint64_t const fnv_offset_bias = 0xcbf29ce484222325;
     uint64_t const fnv_prime = 0x00000100000001b3;
 
     uint8_t *data = value;
 
-    uint64_t hash = fnv_offset_bias;
+    uint64_t hash = hash_so_far;
     for (size_t i = 0; i < n; ++i) {
         hash ^= data[i];
         hash *= fnv_prime;
@@ -266,6 +257,29 @@ elk_fnv1a_hash(size_t n, void *value)
     return hash;
 }
 
+/** FNV-1a hash function.
+ *
+ * WARNING: In types with padding, such as many structs, it is not safe to use this function to
+ * calculate a hash value since it will also include the values of the bytes in the padding, which
+ * the programmer doesn't generally have control over. This is only safe for types all the data is
+ * stored in contiguous bytes with no padding (such as a string). For composite types, create a
+ * custom hash function that uses this function for the first struct member and then passes the
+ * resulting hash value through \ref elk_fnv1a_hash_accumulate() with the other members to build
+ * up a hash value.
+ *
+ * \param n is the size of the value in bytes.
+ * \param value is a pointer to the object to hash.
+ *
+ * \returns the hash value as an unsigned, 64 bit integer.
+ */
+static inline uint64_t
+elk_fnv1a_hash(size_t n, void *value)
+{
+    uint64_t const fnv_offset_bias = 0xcbf29ce484222325;
+    return elk_fnv1a_hash_accumulate(n, value, fnv_offset_bias);
+}
+
+/** @} */ // end of hash group
 /*-------------------------------------------------------------------------------------------------
  *                                       String Interner
  *-----------------------------------------------------------------------------------------------*/
@@ -323,3 +337,29 @@ ElkInternedString elk_string_interner_intern(ElkStringInterner *interner, char c
 char const *elk_string_interner_retrieve(ElkStringInterner *interner, ElkInternedString handle);
 
 /** @} */ // end of intern group
+#if 0
+/*-------------------------------------------------------------------------------------------------
+ *                                       Memory and Pointers
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup memory Memory management.
+ *
+ * Functions related pointers and memory.
+ *
+ * @{
+ */
+
+/** Steal a pointer.
+ *
+ * This is useful for tracking ownership. To move an object by pointer, steal the pointer using this
+ * function, and the original value will be set to \c NULL.
+ */
+static inline void *
+elk_steal_ptr(void **ptr)
+{
+    void *item = *ptr;
+    *ptr = NULL;
+    return item;
+}
+
+/** @} */ // end of memory group
+#endif

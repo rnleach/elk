@@ -47,7 +47,6 @@
   - Created my own types for handling calendar time.
   - TODO: memory arena
   - TODO: memory utilities - steal a pointer
-  - TODO: hash functions and hash function API.
   - TODO: string interner
 
 ### Version 1.2.0

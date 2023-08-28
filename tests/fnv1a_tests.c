@@ -18,6 +18,7 @@ struct fnv1a_test_pair {
  * Test values copied from http://www.isthe.com/chongo/src/fnv/test_fnv.c, which is in the public
  * domain.
  */
+//clang-format off
 struct fnv1a_test_pair fnv1a_pairs[] = {{"", UINT64_C(0xcbf29ce484222325)},
                                         {"a", UINT64_C(0xaf63dc4c8601ec8c)},
                                         {"b", UINT64_C(0xaf63df4c8601f1a5)},
@@ -47,6 +48,7 @@ struct fnv1a_test_pair fnv1a_pairs[] = {{"", UINT64_C(0xcbf29ce484222325)},
                                         {"chongo was here!", UINT64_C(0x858e2fa32a55e61d)},
                                         {"chongo was here!\n", UINT64_C(0x46810940eff5f915)},
                                         {NULL, UINT64_C(0)}};
+//clang-format on
 
 /*-------------------------------------------------------------------------------------------------
  *                                           All tests
