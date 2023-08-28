@@ -28,6 +28,8 @@ elk_num_leap_years_since_epoch(int64_t year)
     return year / 4 - year / 100 + year / 400;
 }
 
+ElkTime const elk_unix_epoch_timestamp = INT64_C(62135596800);
+
 bool
 elk_is_leap_year(int year)
 {

@@ -109,7 +109,7 @@
  *    with time and dates before the 19th century or after the 21st century. Covering more is fine,
  *    but not necessary.
  *  - Given the restrictions above, I'm going to make the code as simple and fast as possible.
- *  - The end result covers the time ranging from midnight January 1st, 1 ADE to the last second of 
+ *  - The end result covers the time ranging from midnight January 1st, 1 ADE to the last second of
  *    the day on December 31st, 32767.
  *
  * @{
@@ -117,12 +117,18 @@
 
 /** Succinct type used for calendar time.
  *
- * Most work with times and dates should be done using this type as it is small and natively 
+ * Most work with times and dates should be done using this type as it is small and natively
  * supported on most modern architectures that I will be using.
  */
 typedef int64_t ElkTime;
 
-/** Calendar time. 
+/** The unix epoch in ElkTime.
+ *
+ * If you have a timestamp based on the unix epoch, add this value to get it into the elk epoch.
+ */
+extern ElkTime const elk_unix_epoch_timestamp;
+
+/** Calendar time.
  *
  * Useful for constructing or deconstructing \ref ElkTime objects, and doing output.
  */
@@ -150,8 +156,7 @@ bool elk_is_leap_year(int year);
  *
  * The minimum year is year 1 and the maximum year is year 32767.
  */
-ElkTime elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes,
-                                     int seconds);
+ElkTime elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, int seconds);
 
 /** Convert from \ref ElkStructTime to \ref ElkTime. */
 ElkTime elk_make_time(ElkStructTime tm);
