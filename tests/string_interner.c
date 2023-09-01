@@ -20,7 +20,7 @@ test_string_interner(void)
 {
     size_t const NUM_TEST_STRINGS = sizeof(some_strings) / sizeof(some_strings[0]);
 
-    ElkInternedString strs[NUM_TEST_STRINGS] = {0};
+    ElkInternedString strs[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
 
     ElkStringInterner *interner = elk_string_interner_create(3, 3);
     assert(interner);
