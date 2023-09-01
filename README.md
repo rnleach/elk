@@ -47,7 +47,6 @@
   - Created my own types for handling calendar time.
   - TODO: memory arena
   - TODO: memory utilities - steal a pointer
-  - TODO: string interner
 
 ### Version 1.2.0
   - (2023-02-14) Multiple upgrades.

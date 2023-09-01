@@ -226,7 +226,7 @@ ElkTime elk_time_add(ElkTime time, int change_in_time);
  *
  * \returns the hash value as an unsigned, 64 bit integer.
  */
-typedef uint64_t (*ElkHashFunction)(size_t n, void *value);
+typedef uint64_t (*ElkHashFunction)(size_t const n, void const *value);
 
 /** Accumulate values into a hash.
  *
@@ -242,11 +242,11 @@ typedef uint64_t (*ElkHashFunction)(size_t n, void *value);
  * \returns the hash value (so far) as an unsigned, 64 bit integer.
  */
 static inline uint64_t
-elk_fnv1a_hash_accumulate(size_t n, void *value, uint64_t hash_so_far)
+elk_fnv1a_hash_accumulate(size_t const n, void const *value, uint64_t const hash_so_far)
 {
     uint64_t const fnv_prime = 0x00000100000001b3;
 
-    uint8_t *data = value;
+    uint8_t const *data = value;
 
     uint64_t hash = hash_so_far;
     for (size_t i = 0; i < n; ++i) {
@@ -273,7 +273,7 @@ elk_fnv1a_hash_accumulate(size_t n, void *value, uint64_t hash_so_far)
  * \returns the hash value as an unsigned, 64 bit integer.
  */
 static inline uint64_t
-elk_fnv1a_hash(size_t n, void *value)
+elk_fnv1a_hash(size_t const n, void const *value)
 {
     uint64_t const fnv_offset_bias = 0xcbf29ce484222325;
     return elk_fnv1a_hash_accumulate(n, value, fnv_offset_bias);
@@ -297,17 +297,26 @@ typedef struct ElkStringInterner ElkStringInterner;
  *  \ref ElkStringInterner objects, you cannot swap handles back and forth. Each handle is
  *  associated with a particular \ref ElkStringInterner object.
  */
-typedef size_t ElkInternedString;
+typedef int32_t ElkInternedString;
 
 /** Create a new string interner.
  *
  * \param size_exp The interner is backed by a hash table with a capacity that is a power of 2. The
- *                 size_exp is that power of two. This value is only used initially, if the table
- *                 needs to expand, it will, so it's OK to start with small values here.
+ *                 \p size_exp is that power of two. This value is only used initially, if the table
+ *                 needs to expand, it will, so it's OK to start with small values here. However, if
+ *                 you know it will grow larger, it's better to start larger! For most reasonable
+ *                 use cases, it really probably shouldn't be smaller than 5, but no checks are done
+ *                 for this.
+ *
+ * \param avg_string_size is the expected average size of the strings. This isn't really important,
+ *                        because we can reallocate the storage if needed. But if you know you'll 
+ *                        always be using small strings, make this a small number like 5 or 6 to 
+ *                        prevent overallocating memory. If you aren't sure, still use a small 
+ *                        number and the interner will grow the storage as necessary.
  *
  * \returns a pointer to an interner. If allocation fails, it will abort the program.
  */
-ElkStringInterner *elk_string_interner_create(int size_exp);
+ElkStringInterner *elk_string_interner_create(int8_t size_exp, int avg_string_size);
 
 /** Free memory and clean up. */
 void elk_string_interner_destroy(ElkStringInterner *interner);
@@ -337,29 +346,3 @@ ElkInternedString elk_string_interner_intern(ElkStringInterner *interner, char c
 char const *elk_string_interner_retrieve(ElkStringInterner *interner, ElkInternedString handle);
 
 /** @} */ // end of intern group
-#if 0
-/*-------------------------------------------------------------------------------------------------
- *                                       Memory and Pointers
- *-----------------------------------------------------------------------------------------------*/
-/** \defgroup memory Memory management.
- *
- * Functions related pointers and memory.
- *
- * @{
- */
-
-/** Steal a pointer.
- *
- * This is useful for tracking ownership. To move an object by pointer, steal the pointer using this
- * function, and the original value will be set to \c NULL.
- */
-static inline void *
-elk_steal_ptr(void **ptr)
-{
-    void *item = *ptr;
-    *ptr = NULL;
-    return item;
-}
-
-/** @} */ // end of memory group
-#endif

@@ -20,7 +20,4 @@
 
 void elk_time_tests(void);
 void elk_fnv1a_tests(void);
-
-#if 0
 void elk_string_interner_tests(void);
-#endif

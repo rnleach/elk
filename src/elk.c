@@ -1,6 +1,7 @@
 #include "elk.h"
 
 #include <assert.h>
+#include <string.h>
 
 /*-------------------------------------------------------------------------------------------------
  *                                        Date and Time Handling
@@ -197,33 +198,188 @@ elk_time_add(ElkTime time, int change_in_time)
 /*-------------------------------------------------------------------------------------------------
  *                                       String Interner
  *-----------------------------------------------------------------------------------------------*/
+typedef struct ElkStringInternerHandle {
+    uint64_t hash;
+    int32_t position;
+} ElkStringInternerHandle;
+
 struct ElkStringInterner {
+    ElkStringInternerHandle *handles; // The hash table - handles index into storage
+    char *storage;                    // This is where to store the strings
+    size_t storage_len;               // The length of the storage in bytes
+    size_t next_storage_location;     // The next available place to store a string
+    size_t num_handles;               // The number of handles
+    int8_t size_exp;                  // Used to keep track of the length of *handles
 };
 
 ElkStringInterner *
-elk_string_interner_create(int size_exp)
+elk_string_interner_create(int8_t size_exp, int avg_string_size)
 {
-    assert(false);
-    return NULL;
+    assert(size_exp > 0 && size_exp <= 32);                 // Come on, 32 is HUGE
+    assert(avg_string_size > 0 && avg_string_size <= 1000); // Come on, 1000 is a really big string.
+
+    size_t const handles_len = 1 << size_exp;
+    ElkStringInternerHandle *handles = calloc(handles_len, sizeof(*handles));
+    assert(handles);
+
+    size_t const storage_len = avg_string_size * (handles_len / 4);
+    char *storage = calloc(storage_len, sizeof(*storage));
+    assert(storage);
+
+    ElkStringInterner *interner = malloc(sizeof(*interner));
+    assert(interner);
+
+    *interner = (ElkStringInterner){
+        .handles = handles,
+        .storage = storage,
+        .storage_len = storage_len,
+        .next_storage_location = 1, // Don't start at 0, that is an empty flag in the handles table.
+        .size_exp = size_exp};
+
+    return interner;
 }
 
 void
 elk_string_interner_destroy(ElkStringInterner *interner)
 {
-    assert(false);
+    if (interner) {
+        free(interner->storage);
+        free(interner->handles);
+        free(interner);
+    }
+
+    return;
+}
+
+static bool
+elk_string_interner_has_enough_storage(ElkStringInterner const *interner, size_t strlen)
+{
+    return (interner->storage_len - interner->next_storage_location) > (strlen + 1);
+}
+
+static bool
+elk_string_interner_table_large_enough(ElkStringInterner const *interner)
+{
+    // Shoot for no more than 50% of slots filled.
+    return interner->num_handles <= (1 << (interner->size_exp - 1));
+}
+
+static void
+elk_string_interner_expand_storage(ElkStringInterner *interner)
+{
+    assert(interner && interner->storage);
+
+    size_t new_storage_len = 3 * interner->storage_len / 2;
+    char *new_storage = realloc(interner->storage, new_storage_len);
+    assert(new_storage);
+
+    interner->storage = new_storage;
+    interner->storage_len = new_storage_len;
+
+    return;
+}
+
+static int32_t
+elk_string_interner_lookup(uint64_t hash, int8_t exp, int32_t idx)
+{
+    // Copied from https://nullprogram.com/blog/2022/08/08
+    // All code & writing on this blog is in the public domain.
+    uint32_t mask = (UINT32_C(1) << exp) - 1;
+    uint32_t step = (hash >> (64 - exp)) | 1; // the | 1 forces an odd number
+    return (idx + step) & mask;
+}
+
+static void
+elk_string_interner_expand_table(ElkStringInterner *interner)
+{
+    int8_t const size_exp = interner->size_exp;
+    int8_t const new_size_exp = size_exp + 1;
+
+    size_t const handles_len = 1 << size_exp;
+    size_t const new_handles_len = 1 << new_size_exp;
+
+    ElkStringInternerHandle *new_handles = calloc(new_handles_len, sizeof(*new_handles));
+    assert(new_handles);
+
+    for (int32_t i = 0; i < handles_len; i++) {
+        ElkStringInternerHandle *handle = &interner->handles[i];
+        if (handle->position == 0)
+            continue;
+
+        // Find the position in the new table and update it.
+        uint64_t const hash = handle->hash;
+        int32_t j = hash; // This truncates, but it's OK, the *_lookup function takes care of it.
+        while (true) {
+            j = elk_string_interner_lookup(hash, new_size_exp, j);
+            ElkStringInternerHandle *new_handle = &new_handles[j];
+
+            if (!new_handle->position) {
+                // empty - put it here. Don't need to check for room because we just expanded
+                // the hash table of handles, and we're not copying anything new into storage,
+                // it's already there!
+                *new_handle = *handle;
+                break;
+            }
+        }
+    }
+
+    free(interner->handles);
+    interner->handles = new_handles;
+    interner->size_exp = new_size_exp;
+
     return;
 }
 
 ElkInternedString
 elk_string_interner_intern(ElkStringInterner *interner, char const *string)
 {
-    assert(false);
-    return 0;
+    assert(interner);
+
+    // Inspired by https://nullprogram.com/blog/2022/08/08
+    // All code & writing on this blog is in the public domain.
+    size_t str_len = strlen(string);
+    uint64_t const hash = elk_fnv1a_hash(str_len, string);
+    int32_t i = hash; // I know this truncates, but it's OK, the *_lookup function takes care of it.
+    while (true) {
+        i = elk_string_interner_lookup(hash, interner->size_exp, i);
+        ElkStringInternerHandle *handle = &interner->handles[i];
+
+        if (!handle->position) {
+            // empty, insert here if room in the table of handles. Check for room first!
+            if (elk_string_interner_table_large_enough(interner)) {
+
+                // Check if we have enough storage for the string.
+                while (!elk_string_interner_has_enough_storage(interner, str_len)) {
+                    elk_string_interner_expand_storage(interner);
+                }
+
+                *handle = (ElkStringInternerHandle){.hash = hash,
+                                                    .position = interner->next_storage_location};
+
+                strcpy(&interner->storage[interner->next_storage_location], string);
+                interner->next_storage_location += (str_len + 1);
+                interner->num_handles += 1;
+
+                return handle->position;
+            } else {
+                // Grow the table so we have room
+                elk_string_interner_expand_table(interner);
+
+                // Recurse because all the state needed by the *_lookup function was just crushed
+                // by the expansion of the table.
+                return elk_string_interner_intern(interner, string);
+            }
+        } else if (handle->hash == hash && !strcmp(&interner->storage[handle->position], string)) {
+            // found it!
+            return handle->position;
+        }
+    }
 }
 
 char const *
-elk_string_interner_retrieve(ElkStringInterner *interner, ElkInternedString handle)
+elk_string_interner_retrieve(ElkStringInterner *interner, ElkInternedString position)
 {
-    assert(false);
-    return NULL;
+    assert(interner);
+
+    return &interner->storage[position];
 }

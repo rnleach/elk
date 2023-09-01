@@ -15,14 +15,14 @@ char *some_strings[] = {
     "beer!",    "scotch",        "yes please", "raspberries",      "snack time",
 };
 
-void
+static void
 test_string_interner(void)
 {
-#define NUM_TEST_STRINGS sizeof(some_strings) / sizeof(some_strings[0])
+    size_t const NUM_TEST_STRINGS = sizeof(some_strings) / sizeof(some_strings[0]);
 
     ElkInternedString strs[NUM_TEST_STRINGS] = {0};
 
-    ElkStringInterner *interner = elk_string_interner_create(4);
+    ElkStringInterner *interner = elk_string_interner_create(3, 3);
     assert(interner);
 
     // Fill the interner with strings!
@@ -41,7 +41,6 @@ test_string_interner(void)
 
     elk_string_interner_destroy(interner);
 
-#undef NUM_TEST_STRINGS
 }
 
 /*-------------------------------------------------------------------------------------------------
