@@ -200,22 +200,23 @@ elk_time_add(ElkTime time, int change_in_time)
  *-----------------------------------------------------------------------------------------------*/
 typedef struct ElkStringInternerHandle {
     uint64_t hash;
-    int32_t position;
+    uint32_t position;
 } ElkStringInternerHandle;
 
 struct ElkStringInterner {
+    char *storage;                  // This is where to store the strings
+    uint32_t storage_len;           // The length of the storage in bytes
+    uint32_t next_storage_location; // The next available place to store a string
+
     ElkStringInternerHandle *handles; // The hash table - handles index into storage
-    char *storage;                    // This is where to store the strings
-    size_t storage_len;               // The length of the storage in bytes
-    size_t next_storage_location;     // The next available place to store a string
-    size_t num_handles;               // The number of handles
+    uint32_t num_handles;             // The number of handles
     int8_t size_exp;                  // Used to keep track of the length of *handles
 };
 
 ElkStringInterner *
 elk_string_interner_create(int8_t size_exp, int avg_string_size)
 {
-    assert(size_exp > 0 && size_exp <= 32);                 // Come on, 32 is HUGE
+    assert(size_exp > 0 && size_exp <= 31);                 // Come on, 31 is HUGE
     assert(avg_string_size > 0 && avg_string_size <= 1000); // Come on, 1000 is a really big string.
 
     size_t const handles_len = 1 << size_exp;
@@ -279,8 +280,8 @@ elk_string_interner_expand_storage(ElkStringInterner *interner)
     return;
 }
 
-static int32_t
-elk_string_interner_lookup(uint64_t hash, int8_t exp, int32_t idx)
+static uint32_t
+elk_string_interner_lookup(uint64_t hash, int8_t exp, uint32_t idx)
 {
     // Copied from https://nullprogram.com/blog/2022/08/08
     // All code & writing on this blog is in the public domain.
@@ -301,14 +302,16 @@ elk_string_interner_expand_table(ElkStringInterner *interner)
     ElkStringInternerHandle *new_handles = calloc(new_handles_len, sizeof(*new_handles));
     assert(new_handles);
 
-    for (int32_t i = 0; i < handles_len; i++) {
+    for (uint32_t i = 0; i < handles_len; i++) {
         ElkStringInternerHandle *handle = &interner->handles[i];
+
+        // Check if it's empty - and if so skip it!
         if (handle->position == 0)
             continue;
 
         // Find the position in the new table and update it.
         uint64_t const hash = handle->hash;
-        int32_t j = hash; // This truncates, but it's OK, the *_lookup function takes care of it.
+        uint32_t j = hash; // This truncates, but it's OK, the *_lookup function takes care of it.
         while (true) {
             j = elk_string_interner_lookup(hash, new_size_exp, j);
             ElkStringInternerHandle *new_handle = &new_handles[j];
@@ -339,7 +342,8 @@ elk_string_interner_intern(ElkStringInterner *interner, char const *string)
     // All code & writing on this blog is in the public domain.
     size_t str_len = strlen(string);
     uint64_t const hash = elk_fnv1a_hash(str_len, string);
-    int32_t i = hash; // I know this truncates, but it's OK, the *_lookup function takes care of it.
+    uint32_t i =
+        hash; // I know this truncates, but it's OK, the *_lookup function takes care of it.
     while (true) {
         i = elk_string_interner_lookup(hash, interner->size_exp, i);
         ElkStringInternerHandle *handle = &interner->handles[i];
@@ -377,7 +381,7 @@ elk_string_interner_intern(ElkStringInterner *interner, char const *string)
 }
 
 char const *
-elk_string_interner_retrieve(ElkStringInterner *interner, ElkInternedString position)
+elk_string_interner_retrieve(ElkStringInterner const *interner, ElkInternedString const position)
 {
     assert(interner);
 

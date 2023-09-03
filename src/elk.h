@@ -297,7 +297,7 @@ typedef struct ElkStringInterner ElkStringInterner;
  *  \ref ElkStringInterner objects, you cannot swap handles back and forth. Each handle is
  *  associated with a particular \ref ElkStringInterner object.
  */
-typedef int32_t ElkInternedString;
+typedef uint32_t ElkInternedString;
 
 /** Create a new string interner.
  *
@@ -309,9 +309,9 @@ typedef int32_t ElkInternedString;
  *                 for this.
  *
  * \param avg_string_size is the expected average size of the strings. This isn't really important,
- *                        because we can reallocate the storage if needed. But if you know you'll 
- *                        always be using small strings, make this a small number like 5 or 6 to 
- *                        prevent overallocating memory. If you aren't sure, still use a small 
+ *                        because we can reallocate the storage if needed. But if you know you'll
+ *                        always be using small strings, make this a small number like 5 or 6 to
+ *                        prevent overallocating memory. If you aren't sure, still use a small
  *                        number and the interner will grow the storage as necessary.
  *
  * \returns a pointer to an interner. If allocation fails, it will abort the program.
@@ -331,7 +331,7 @@ void elk_string_interner_destroy(ElkStringInterner *interner);
  */
 ElkInternedString elk_string_interner_intern(ElkStringInterner *interner, char const *string);
 
-/** Feetch an interned string.
+/** Fetch an interned string.
  *
  * \param interner must not be \c NULL.
  * \param handle is the handle to the interned string. This value must be a value that came from
@@ -343,6 +343,7 @@ ElkInternedString elk_string_interner_intern(ElkStringInterner *interner, char c
  *          middle of a random string. If \c NDEBUG is not defined, then \c assert calls will be
  *          used to do some checks which will help if you're debugging.
  */
-char const *elk_string_interner_retrieve(ElkStringInterner *interner, ElkInternedString handle);
+char const *elk_string_interner_retrieve(ElkStringInterner const *interner,
+                                         ElkInternedString const handle);
 
 /** @} */ // end of intern group
