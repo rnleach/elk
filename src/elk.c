@@ -387,3 +387,43 @@ elk_string_interner_retrieve(ElkStringInterner const *interner, ElkInternedStrin
 
     return &interner->storage[position];
 }
+
+/*-------------------------------------------------------------------------------------------------
+ *                                       Arena Allocator
+ *-----------------------------------------------------------------------------------------------*/
+typedef struct ElkArenaBlock {
+    unsigned char *buffer;
+    size_t buf_size;
+    size_t next_free_byte;
+    struct ElkArenaBlock *next_block;
+} ElkArenaBlock;
+
+typedef struct ElkArenaAllocator {
+    ElkArenaBlock *head;
+} ElkArenaAllocator;
+
+ElkArenaAllocator *
+elk_create_arena_allocator(size_t block_size)
+{
+    assert(false);
+    return NULL;
+}
+
+void
+elk_reset_arena_allocator(ElkArenaAllocator *arena)
+{
+    assert(false);
+}
+
+void
+elk_destroy_arena_allocator(ElkArenaAllocator *arena)
+{
+    assert(false);
+}
+
+void *
+elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment)
+{
+    assert(false);
+    return NULL;
+}

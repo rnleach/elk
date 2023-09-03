@@ -361,3 +361,56 @@ char const *elk_string_interner_retrieve(ElkStringInterner const *interner,
                                          ElkInternedString const handle);
 
 /** @} */ // end of intern group
+/*-------------------------------------------------------------------------------------------------
+ *                                       Arena Allocator
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup memory Utilities for working with memory.
+ *
+ * @{
+ */
+
+/** An arena allocator. */
+typedef struct ElkArenaAllocator ElkArenaAllocator;
+
+/** Create an arena allocator.
+ *
+ * If this fails, it aborts. If the machine runs out of memory, it aborts.
+ *
+ * \param block_size if later calls to \ref elk_arena_allloc() don't have enough space, a new block
+ *  is created. \p block_size is a minimum size. If the requested allocation size by
+ *  \ref elk_arean_alloc() is larger than \p block_size, it may request a larger block.
+ *
+ *  \returns a new \ref ElkAreanAllocator. Upon failure, it aborts the program.
+ */
+ElkArenaAllocator *elk_create_arena_allocator(size_t block_size);
+
+/** Reset the arena.
+ *
+ * This is useful if you don't want to return the memory to the OS because you will reuse it soon,
+ * e.g. in a loop, but you're done with the objects. If there are multiple blocks allocated in the
+ * arena, they may be freed and a new block the same size as the sum of all the previous pages may
+ * be allocated in their place.
+ */
+void elk_reset_arena_allocator(ElkArenaAllocator *arena);
+
+/** Free all memory associated with this arena.
+ *
+ * It is unusable and the \p arena pointer is invalid after this operation.
+ */
+void elk_destroy_arena_allocator(ElkArenaAllocator *arena);
+
+/** Make an allocation on the \p arena.
+ *
+ * \param arena is the arena to use.
+ * \param bytes is the size in bytes of the requested allocation.
+ * \param alignment the required alignment for the allocation. This must be a power of 2. The power
+ *  of 2 requirement is checked for in an assert, so it can be compiled out with -DNDEBUG.
+ *
+ *  \returns a pointer to a memory block of the requested size and alignment. If there isn't enough
+ *  space, then a new block of at least the required size is allocated from the operating system.
+ *  If the requested memory isn't available from the operating system, then this function aborts
+ *  the program.
+ */
+void *elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment);
+
+/** @} */ // end of memory group
