@@ -128,6 +128,20 @@ typedef int64_t ElkTime;
  */
 extern ElkTime const elk_unix_epoch_timestamp;
 
+/** Convert an \ref ElkTime to a Unix timestamp. */
+static inline int64_t
+elk_time_to_unix_epoch(ElkTime time)
+{
+    return time - elk_unix_epoch_timestamp;
+}
+
+/** Convert an Unxi timestamp to an \ref ElkTime. */
+static inline ElkTime
+elk_time_from_unix_timestamp(int64_t unixtime)
+{
+    return unixtime + elk_unix_epoch_timestamp;
+}
+
 /** Calendar time.
  *
  * Useful for constructing or deconstructing \ref ElkTime objects, and doing output.

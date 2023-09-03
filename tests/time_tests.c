@@ -36,13 +36,17 @@ test_leap_years(void)
     size_t const years_400_len = sizeof(years_400_rule) / sizeof(years_400_rule[0]);
 
     int const years_100_rule[] = {
-        100,  200,  300,  500,   600,   700,   900,   1000,  1100,  1300,  1400,  1500,
-        1700, 1800, 1900, 2100,  2200,  2300,  2500,  2600,  2700,  2900,  3000,  3100,
-        3300, 3400, 3500, 3700,  3800,  3900,  4100,  4200,  4300,  4500,  4600,  4700,
-        4900, 5000, 5100, 5300,  5400,  5500,  5700,  5800,  5900,  6100,  6200,  6300,
-        6500, 6600, 6700, 6900,  7000,  7100,  7300,  7400,  7500,  7700,  7800,  7900,
-        8100, 8200, 8300, 8500,  8600,  8700,  8900,  9000,  9100,  9300,  9400,  9500,
-        9700, 9800, 9900, 10100, 10200, 10300, 10500, 10600, 10700, 10900, 11000, 11100};
+        100,   200,   300,   500,   600,   700,   900,   1000,  1100,  1300,  1400,  1500,
+        1700,  1800,  1900,  2100,  2200,  2300,  2500,  2600,  2700,  2900,  3000,  3100,
+        3300,  3400,  3500,  3700,  3800,  3900,  4100,  4200,  4300,  4500,  4600,  4700,
+        4900,  5000,  5100,  5300,  5400,  5500,  5700,  5800,  5900,  6100,  6200,  6300,
+        6500,  6600,  6700,  6900,  7000,  7100,  7300,  7400,  7500,  7700,  7800,  7900,
+        8100,  8200,  8300,  8500,  8600,  8700,  8900,  9000,  9100,  9300,  9400,  9500,
+        9700,  9800,  9900,  10100, 10200, 10300, 10500, 10600, 10700, 10900, 11000, 11100,
+        11300, 11400, 11500, 11700, 11800, 11900, 12100, 12200, 12300, 12500, 12600, 12700,
+        12900, 13000, 13100, 13300, 13400, 13500, 13700, 13800, 13900, 14100, 14200, 14300,
+        14500, 14600, 14700, 14900, 15000, 15100, 15300, 15400, 15500, 15700, 15800, 15900,
+    };
 
     size_t const years_100_len = sizeof(years_100_rule) / sizeof(years_100_rule[0]);
 
@@ -226,12 +230,23 @@ test_time_struct(void)
 }
 
 static void
+test_time_linux_timestamp(void)
+{
+    ElkTime t0 = elk_time_from_ymd_and_hms(1970, 1, 1, 0, 0, 0);
+    int64_t unix_t0 = elk_time_to_unix_epoch(t0);
+
+    assert(unix_t0 == 0);
+
+    assert(elk_time_from_unix_timestamp(0) == elk_unix_epoch_timestamp);
+}
+
+static void
 test_time_truncate_to_hour()
 {
-    ElkTime epoch = elk_time_from_ymd_and_hms(1970, 1, 1, 0, 0, 0);
+    ElkTime t0 = elk_time_from_ymd_and_hms(1970, 1, 1, 0, 0, 0);
     ElkTime t1 = elk_time_from_ymd_and_hms(1970, 1, 1, 0, 14, 39);
 
-    assert(elk_time_truncate_to_hour(t1) == epoch);
+    assert(elk_time_truncate_to_hour(t1) == t0);
 }
 
 static void
@@ -266,6 +281,7 @@ elk_time_tests(void)
     test_time_time_t_is_seconds();
     test_increments_are_1_second();
     test_time_struct();
+    test_time_linux_timestamp();
     test_time_truncate_to_hour();
     test_time_truncate_to_specific_hour();
     test_time_addition();
