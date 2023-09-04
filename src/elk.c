@@ -391,39 +391,140 @@ elk_string_interner_retrieve(ElkStringInterner const *interner, ElkInternedStrin
 /*-------------------------------------------------------------------------------------------------
  *                                       Arena Allocator
  *-----------------------------------------------------------------------------------------------*/
-typedef struct ElkArenaBlock {
-    unsigned char *buffer;
-    size_t buf_size;
-    size_t next_free_byte;
-    struct ElkArenaBlock *next_block;
-} ElkArenaBlock;
 
-typedef struct ElkArenaAllocator {
-    ElkArenaBlock *head;
-} ElkArenaAllocator;
+typedef struct ElkArenaBlockHeader {
+    unsigned char *next_block;
+    size_t next_block_size;
+} ElkArenaBlockHeader;
 
-ElkArenaAllocator *
-elk_create_arena_allocator(size_t block_size)
+static void
+elk_arena_add_block(ElkArenaAllocator *arena, size_t block_size)
 {
-    assert(false);
-    return NULL;
+    uint32_t max_block_size = arena->buf_size > block_size ? arena->buf_size : block_size;
+
+    unsigned char *buffer = calloc(max_block_size, 1);
+    PanicIf(!buffer, "out of memory");
+
+    // Put the header in the front of the new block
+    ElkArenaBlockHeader *header = (ElkArenaBlockHeader *)&buffer[0];
+    *header =
+        (ElkArenaBlockHeader){.next_block = arena->buffer, .next_block_size = arena->buf_size};
+
+    arena->buffer = buffer;
+    arena->buf_size = max_block_size;
+    arena->buf_offset = sizeof(*header);
 }
 
 void
-elk_reset_arena_allocator(ElkArenaAllocator *arena)
+elk_arena_initialize(ElkArenaAllocator *arena, size_t starting_block_size)
 {
-    assert(false);
+    assert(arena);
+    assert(starting_block_size > 8);
+
+    // Zero everything out.
+    *arena = (ElkArenaAllocator){.buffer = NULL, .buf_size = 0, .buf_offset = 0};
+
+    elk_arena_add_block(arena, starting_block_size);
+}
+
+static void
+elk_arena_free_blocks(ElkArenaAllocator *arena)
+{
+    assert(arena);
+    ElkArenaBlockHeader *header = (ElkArenaBlockHeader *)&arena->buffer[0];
+    unsigned char *curr_block = arena->buffer;
+    while (curr_block) {
+        // Move the buffer pointer to the next block
+        arena->buffer = header->next_block;
+
+        // Free the current block
+        free(curr_block);
+
+        // Set up for the next iteration
+        header = (ElkArenaBlockHeader *)&arena->buffer[0];
+        curr_block = arena->buffer;
+    }
 }
 
 void
-elk_destroy_arena_allocator(ElkArenaAllocator *arena)
+elk_arena_reset(ElkArenaAllocator *arena)
 {
-    assert(false);
+    assert(arena);
+
+    // Get the total size in all the blocks
+    size_t sum_block_sizes = arena->buf_size;
+    ElkArenaBlockHeader *header = (ElkArenaBlockHeader *)&arena->buffer[0];
+    while (header->next_block) {
+        sum_block_sizes += header->next_block_size;
+        header = (ElkArenaBlockHeader *)&header->next_block[0];
+    }
+
+    if (sum_block_sizes > arena->buf_size) {
+        // Free the blocks
+        elk_arena_free_blocks(arena);
+
+        // Re-initialize
+        elk_arena_initialize(arena, sum_block_sizes);
+    } else {
+        // We only have one block, no reaseon to free and reallocate
+        arena->buf_offset = sizeof(ElkArenaBlockHeader);
+    }
+}
+
+void
+elk_arena_destroy(ElkArenaAllocator *arena)
+{
+    assert(arena);
+    elk_arena_free_blocks(arena);
+    arena->buf_size = 0;
+    arena->buf_offset = 0;
+}
+
+#ifndef NDEBUG
+static bool
+elk_is_power_of_2(uintptr_t p)
+{
+    return (p & (p - 1)) == 0;
+}
+#endif
+
+static uintptr_t
+elk_align_pointer(uintptr_t ptr, size_t align)
+{
+
+    assert(elk_is_power_of_2(align));
+
+    uintptr_t a = (uintptr_t)align;
+    uintptr_t mod = ptr & (a - 1); // Same as (ptr % a) but faster as 'a' is a power of 2
+
+    if (mod != 0) {
+        // push the address forward to the next value which is aligned
+        ptr += a - mod;
+    }
+
+    return ptr;
 }
 
 void *
 elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment)
 {
-    assert(false);
+    // Align 'curr_offset' forward to the specified alignment
+    uintptr_t curr_ptr = (uintptr_t)arena->buffer + (uintptr_t)arena->buf_offset;
+    uintptr_t offset = elk_align_pointer(curr_ptr, alignment);
+    offset -= (uintptr_t)arena->buffer; // change to relative offset
+
+    // Check to see if the current block has space left
+    if (offset + bytes <= arena->buf_size) {
+        void *ptr = &arena->buffer[offset];
+        arena->buf_offset = offset + bytes;
+
+        return ptr;
+    } else {
+        // add a new block of at least the required size and recurse to try again
+        elk_arena_add_block(arena, bytes + sizeof(ElkArenaBlockHeader));
+        return elk_arena_alloc(arena, bytes, alignment);
+    }
+
+    // should never be able to get here
     return NULL;
 }

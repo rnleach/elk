@@ -370,19 +370,22 @@ char const *elk_string_interner_retrieve(ElkStringInterner const *interner,
  */
 
 /** An arena allocator. */
-typedef struct ElkArenaAllocator ElkArenaAllocator;
+typedef struct ElkArenaAllocator {
+    size_t buf_size;
+    size_t buf_offset;
+    unsigned char *buffer;
+} ElkArenaAllocator;
 
-/** Create an arena allocator.
+/** Initialize an arena allocator.
  *
  * If this fails, it aborts. If the machine runs out of memory, it aborts.
  *
- * \param block_size if later calls to \ref elk_arena_allloc() don't have enough space, a new block
- *  is created. \p block_size is a minimum size. If the requested allocation size by
- *  \ref elk_arean_alloc() is larger than \p block_size, it may request a larger block.
- *
- *  \returns a new \ref ElkAreanAllocator. Upon failure, it aborts the program.
+ * \param arena The arena to initialize. This cannot be \c NULL.
+ * \param starting_block_size this is the minimum block size that it will use if it needs to expand.
+ *      If however a larger allocations is ever requested than the block size, that will become the
+ *      new block size.
  */
-ElkArenaAllocator *elk_create_arena_allocator(size_t block_size);
+void elk_arena_initialize(ElkArenaAllocator *arena, size_t starting_block_size);
 
 /** Reset the arena.
  *
@@ -391,13 +394,13 @@ ElkArenaAllocator *elk_create_arena_allocator(size_t block_size);
  * arena, they may be freed and a new block the same size as the sum of all the previous pages may
  * be allocated in their place.
  */
-void elk_reset_arena_allocator(ElkArenaAllocator *arena);
+void elk_arena_reset(ElkArenaAllocator *arena);
 
 /** Free all memory associated with this arena.
  *
- * It is unusable and the \p arena pointer is invalid after this operation.
+ * It is unusable after this operation, but you can put it through initialize again if you want.
  */
-void elk_destroy_arena_allocator(ElkArenaAllocator *arena);
+void elk_arena_destroy(ElkArenaAllocator *arena);
 
 /** Make an allocation on the \p arena.
  *
