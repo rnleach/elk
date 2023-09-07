@@ -425,4 +425,50 @@ void *elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment);
 #define elk_arena_nmalloc(arena, count, type)                                                      \
     elk_arena_alloc(arena, (count) * sizeof(type), _Alignof(type))
 
+/** A pool allocator. 
+ *
+ * A pool stores objects all of the same size and alignment. This pool implementation does NOT
+ * automatically expand if it runs out of space.
+ */
+typedef struct ElkPoolAllocator {
+    size_t object_size;
+    size_t num_objects;
+    void* free;
+    unsigned char *buffer;
+} ElkPoolAllocator;
+
+/** Initialize a pool allocator.
+ *
+ * If this fails, it aborts. If the machine runs out of memory, it aborts.
+ *
+ * \param pool The pool to initialize. This cannot be \c NULL.
+ * \param object_size is the size of the objects to store in the pool.
+ * \param num_objects is the capacity of the pool.
+ */
+void elk_pool_initialize(ElkPoolAllocator *pool, size_t object_size, size_t num_objects);
+
+/** Reset the pool.
+ *
+ * This is useful if you don't want to return the memory to the OS because you will reuse it soon,
+ * e.g. in a loop, but you're done with the objects. 
+ */
+void elk_pool_reset(ElkPoolAllocator *pool);
+
+/** Free all memory associated with this pool.
+ *
+ * It is unusable after this operation, but you can put it through initialize again if you want.
+ */
+void elk_pool_destroy(ElkPoolAllocator *pool);
+
+/** Make an allocation on the \p pool.
+ *
+ * \param pool is the pool to use.
+ *
+ *  \returns a pointer to a memory block. If the pool is full, it returns \c NULL;
+ */
+void *elk_pool_alloc(ElkPoolAllocator *pool);
+
+
+/** Free an allocation made on the pool. */
+void elk_pool_free(ElkPoolAllocator *pool, void *ptr);
 /** @} */ // end of memory group

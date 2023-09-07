@@ -45,8 +45,7 @@
 ### Version 2.0.0 - IN PROGRESS
   - Minimalistic, general purpose tools.
   - Created my own types for handling calendar time.
-  - TODO: memory arena
-  - TODO: memory utilities - steal a pointer
+  - Added pool and arena allocators.
 
 ### Version 1.2.0
   - (2023-02-14) Multiple upgrades.

@@ -528,3 +528,82 @@ elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment)
     // should never be able to get here
     return NULL;
 }
+
+static void
+elk_pool_initialize_linked_list(unsigned char *buffer, size_t object_size, size_t num_objects) {
+
+    // Initialize the free list to a linked list.
+
+    // start by pointing to last element
+    size_t offset = object_size * (num_objects - 1);
+    uintptr_t *ptr = (uintptr_t*)&buffer[offset];
+    *ptr = (uintptr_t)NULL;
+    while(offset) {
+        size_t next_offset = offset;
+        offset -= object_size;
+        uintptr_t *ptr = (uintptr_t*)&buffer[offset];
+        uintptr_t next = (uintptr_t)&buffer[next_offset];
+        *ptr = next;
+    }
+}
+
+void
+elk_pool_initialize(ElkPoolAllocator *pool, size_t object_size, size_t num_objects)
+{
+    assert(pool);
+    assert(object_size >= sizeof(void*)); // Need to be able to fit at least a pointer!
+    assert(num_objects > 0);
+
+    size_t size_in_bytes = object_size * num_objects;
+    unsigned char *buffer = calloc(size_in_bytes, 1);
+    assert(buffer);
+
+    // Initialize the free list to a linked list.
+    elk_pool_initialize_linked_list(buffer, object_size, num_objects);
+
+    pool->buffer = buffer;
+    pool->free = &buffer[0];
+    pool->object_size = object_size;
+    pool->num_objects = num_objects;
+}
+
+void
+elk_pool_reset(ElkPoolAllocator *pool)
+{
+    assert(pool);
+    elk_pool_initialize_linked_list(pool->buffer, pool->object_size, pool->num_objects);
+    pool->free = &pool->buffer[0];
+}
+
+void
+elk_pool_destroy(ElkPoolAllocator *pool)
+{
+    assert(pool);
+    free(pool->buffer);
+    memset(pool, 0, sizeof(*pool));
+}
+
+void *
+elk_pool_alloc(ElkPoolAllocator *pool)
+{
+    assert(pool);
+
+    void *ptr = pool->free;
+    uintptr_t *next = pool->free;
+    if(ptr) {
+        pool->free = (void*) *next;
+    }
+    
+    return ptr;
+}
+
+void
+elk_pool_free(ElkPoolAllocator *pool, void *ptr)
+{
+    assert(pool && ptr);
+
+    uintptr_t *next = ptr;
+    *next = (uintptr_t) pool->free;
+    pool->free = ptr;
+}
+
