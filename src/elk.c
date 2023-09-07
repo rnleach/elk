@@ -534,14 +534,16 @@ elk_pool_initialize_linked_list(unsigned char *buffer, size_t object_size, size_
 
     // Initialize the free list to a linked list.
 
-    // start by pointing to last element
+    // start by pointing to last element and assigning it NULL
     size_t offset = object_size * (num_objects - 1);
     uintptr_t *ptr = (uintptr_t*)&buffer[offset];
     *ptr = (uintptr_t)NULL;
+
+    // Then work backwards to the front of the list.
     while(offset) {
         size_t next_offset = offset;
         offset -= object_size;
-        uintptr_t *ptr = (uintptr_t*)&buffer[offset];
+        ptr = (uintptr_t*)&buffer[offset];
         uintptr_t next = (uintptr_t)&buffer[next_offset];
         *ptr = next;
     }
