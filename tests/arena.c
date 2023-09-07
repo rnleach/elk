@@ -20,7 +20,7 @@ static char *
 copy_string_to_arena(ElkArenaAllocator *arena, char const *str)
 {
     size_t len = strlen(str) + 1;
-    char *dest = elk_arena_alloc(arena, len, _Alignof(char));
+    char *dest = elk_arena_nmalloc(arena, len, char);
     assert(dest);
 
     strcpy(dest, str);
@@ -50,21 +50,21 @@ test_arena(void)
 
         // Fill the arena
         for (int j = 0; j < 6; j++) {
-            arena_chars[j * 3 + 0] = elk_arena_alloc(arena, sizeof(char), _Alignof(char));
+            arena_chars[j * 3 + 0] = elk_arena_malloc(arena, char); 
             *arena_chars[j * 3 + 0] = test_chars[j * 3 + 0];
 
-            arena_doubles[j] = elk_arena_alloc(arena, sizeof(double), _Alignof(double));
+            arena_doubles[j] = elk_arena_malloc(arena, double);
             *arena_doubles[j] = test_doubles[j];
 
-            arena_chars[j * 3 + 1] = elk_arena_alloc(arena, sizeof(char), _Alignof(char));
+            arena_chars[j * 3 + 1] = elk_arena_malloc(arena, char);
             *arena_chars[j * 3 + 1] = test_chars[j * 3 + 1];
 
             arena_strs[j] = copy_string_to_arena(arena, tst_strings[j]);
 
-            arena_chars[j * 3 + 2] = elk_arena_alloc(arena, sizeof(char), _Alignof(char));
+            arena_chars[j * 3 + 2] = elk_arena_malloc(arena, char);
             *arena_chars[j * 3 + 2] = test_chars[j * 3 + 2];
 
-            arena_ints[j] = elk_arena_alloc(arena, sizeof(int), _Alignof(int));
+            arena_ints[j] = elk_arena_malloc(arena, int);
             *arena_ints[j] = 2 * trip_num + 3 * j;
         }
 

@@ -362,9 +362,11 @@ char const *elk_string_interner_retrieve(ElkStringInterner const *interner,
 
 /** @} */ // end of intern group
 /*-------------------------------------------------------------------------------------------------
- *                                       Arena Allocator
+ *                                          Memory
  *-----------------------------------------------------------------------------------------------*/
-/** \defgroup memory Utilities for working with memory.
+/** \defgroup memory Memory management
+ *
+ * Utilities for managing memory.
  *
  * @{
  */
@@ -415,5 +417,12 @@ void elk_arena_destroy(ElkArenaAllocator *arena);
  *  the program.
  */
 void *elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment);
+
+/** Convenience macro for allocating an object on an arena. */
+#define elk_arena_malloc(arena, type) elk_arena_alloc(arena, sizeof(type), _Alignof(type))
+
+/** Convenience macro for allocating an array on an arena. */
+#define elk_arena_nmalloc(arena, count, type)                                                      \
+    elk_arena_alloc(arena, (count) * sizeof(type), _Alignof(type))
 
 /** @} */ // end of memory group
