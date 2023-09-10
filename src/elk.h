@@ -384,7 +384,7 @@ typedef struct ElkArenaAllocator {
  *
  * \param arena The arena to initialize. This cannot be \c NULL.
  * \param starting_block_size this is the minimum block size that it will use if it needs to expand.
- *      If however a larger allocations is ever requested than the block size, that will become the
+ *      If however a larger allocation is ever requested than the block size, that will become the
  *      new block size.
  */
 void elk_arena_initialize(ElkArenaAllocator *arena, size_t starting_block_size);
@@ -467,7 +467,6 @@ void elk_pool_destroy(ElkPoolAllocator *pool);
  *  \returns a pointer to a memory block. If the pool is full, it returns \c NULL;
  */
 void *elk_pool_alloc(ElkPoolAllocator *pool);
-
 
 /** Free an allocation made on the pool. */
 void elk_pool_free(ElkPoolAllocator *pool, void *ptr);

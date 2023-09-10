@@ -558,7 +558,7 @@ elk_pool_initialize(ElkPoolAllocator *pool, size_t object_size, size_t num_objec
 
     size_t size_in_bytes = object_size * num_objects;
     unsigned char *buffer = calloc(size_in_bytes, 1);
-    assert(buffer);
+    PanicIf(!buffer, "out of memory");
 
     // Initialize the free list to a linked list.
     elk_pool_initialize_linked_list(buffer, object_size, num_objects);
