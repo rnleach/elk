@@ -17,19 +17,19 @@ test_full_pool(void)
 
     double *dubs[10] = {0};
 
-    for(int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 10; ++i) {
         dubs[i] = elk_pool_alloc(pool);
         assert(dubs[i]);
 
         *dubs[i] = (double)i;
     }
 
-    for(int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 10; ++i) {
         assert(*dubs[i] == (double)i);
     }
 
     // Test that it's full!
-    for(int i = 10; i < 20; i++) {
+    for (int i = 10; i < 20; i++) {
         double *no_dub = elk_pool_alloc(pool);
         assert(!no_dub);
     }
@@ -47,32 +47,32 @@ test_pool_freeing(void)
 
     double *dubs[10] = {0};
 
-    for(int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 10; ++i) {
         dubs[i] = elk_pool_alloc(pool);
         assert(dubs[i]);
 
         *dubs[i] = (double)i;
     }
 
-    for(int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 10; ++i) {
         assert(*dubs[i] == (double)i);
     }
 
     // Empty it!
-    for(int i = 0; i < 5; i++) {
-        elk_pool_free(pool, dubs[2*i]);
-        dubs[2*i] = NULL;
+    for (int i = 0; i < 5; i++) {
+        elk_pool_free(pool, dubs[2 * i]);
+        dubs[2 * i] = NULL;
     }
 
-    for(int i = 0; i < 5; i++) {
-        dubs[2*i] = elk_pool_alloc(pool);
-        assert(dubs[2*i]);
+    for (int i = 0; i < 5; i++) {
+        dubs[2 * i] = elk_pool_alloc(pool);
+        assert(dubs[2 * i]);
 
-        *dubs[2*i] = (double)i;
+        *dubs[2 * i] = (double)i;
     }
 
-    for(int i = 0; i < 5; i++) {
-        assert(*dubs[2*i] == (double)i);
+    for (int i = 0; i < 5; i++) {
+        assert(*dubs[2 * i] == (double)i);
     }
 
     elk_pool_destroy(pool);
