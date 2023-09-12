@@ -39,7 +39,7 @@ test_arena(void)
     // This is a really small block size, but we want to test the arena expansion as well.
     ElkArenaAllocator arena_i = {0};
     ElkArenaAllocator *arena = &arena_i;
-    elk_arena_initialize(arena, 50);
+    elk_arena_init(arena, 50);
 
     for (int trip_num = 1; trip_num <= 5; trip_num++) {
 
@@ -50,7 +50,7 @@ test_arena(void)
 
         // Fill the arena
         for (int j = 0; j < 6; j++) {
-            arena_chars[j * 3 + 0] = elk_arena_malloc(arena, char); 
+            arena_chars[j * 3 + 0] = elk_arena_malloc(arena, char);
             *arena_chars[j * 3 + 0] = test_chars[j * 3 + 0];
 
             arena_doubles[j] = elk_arena_malloc(arena, double);

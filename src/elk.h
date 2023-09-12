@@ -5,6 +5,7 @@
  *
  * See the main page for an overall description and the list of goals/non-goals: \ref index
  */
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -362,7 +363,9 @@ char const *elk_string_interner_retrieve(ElkStringInterner const *interner,
 
 /** @} */ // end of intern group
 /*-------------------------------------------------------------------------------------------------
+ *
  *                                          Memory
+ *
  *-----------------------------------------------------------------------------------------------*/
 /** \defgroup memory Memory management
  *
@@ -370,12 +373,75 @@ char const *elk_string_interner_retrieve(ElkStringInterner const *interner,
  *
  * @{
  */
-
-/** An arena allocator. */
-typedef struct ElkArenaAllocator {
+/*-------------------------------------------------------------------------------------------------
+ *                                          Static Arena Allocator
+ *-----------------------------------------------------------------------------------------------*/
+/** A statically sized arena allocator. */
+typedef struct ElkStaticArena {
+    /// \cond HIDDEN
     size_t buf_size;
     size_t buf_offset;
     unsigned char *buffer;
+    /// \endcond HIDDEN
+} ElkStaticArena;
+
+/** Initialize the static arena with a user supplied buffer. */
+static inline void
+elk_static_arena_init(ElkStaticArena *arena, size_t buf_size, unsigned char buffer[buf_size])
+{
+    assert(arena);
+    assert(buffer);
+
+    *arena = (ElkStaticArena){.buf_size = buf_size, .buf_offset = 0, .buffer = buffer};
+    return;
+}
+
+/** Destroy & cleanup the static arena.
+ *
+ * Currently this is a no-op but the function is provided for symmetry and use in type generic
+ * macros.
+ */
+static inline void
+elk_static_arena_destroy(ElkStaticArena *arena)
+{
+    // no-op
+    return;
+}
+
+/** Reset the arena.
+ *
+ * Starts allocating from the beginning and invalidates all memory and pointers allocated before
+ * this call.
+ */
+static inline void
+elk_static_arena_reset(ElkStaticArena *arena)
+{
+    assert(arena && arena->buffer);
+    arena->buf_offset = 0;
+    return;
+}
+
+/** Do an allocation on the arena.
+ *
+ * \returns a pointer to the aligned memory or \c NULL if there isn't enough memory in the buffer.
+ */
+void *elk_static_arena_alloc_aligned(ElkStaticArena *arena, size_t size, size_t alignment);
+
+static inline void
+elk_static_arena_free(ElkStaticArena *arena)
+{
+    // no-op - we don't own the buffer!
+    return;
+}
+
+/*-------------------------------------------------------------------------------------------------
+ *                                     Growable Arena Allocator
+ *-----------------------------------------------------------------------------------------------*/
+/** An arena allocator. */
+typedef struct ElkArenaAllocator {
+    /// \cond HIDDEN
+    ElkStaticArena head;
+    /// \endcond HIDDEN
 } ElkArenaAllocator;
 
 /** Initialize an arena allocator.
@@ -387,7 +453,7 @@ typedef struct ElkArenaAllocator {
  *      If however a larger allocation is ever requested than the block size, that will become the
  *      new block size.
  */
-void elk_arena_initialize(ElkArenaAllocator *arena, size_t starting_block_size);
+void elk_arena_init(ElkArenaAllocator *arena, size_t starting_block_size);
 
 /** Reset the arena.
  *
@@ -425,7 +491,7 @@ void *elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment);
 #define elk_arena_nmalloc(arena, count, type)                                                      \
     elk_arena_alloc(arena, (count) * sizeof(type), _Alignof(type))
 
-/** A pool allocator. 
+/** A pool allocator.
  *
  * A pool stores objects all of the same size and alignment. This pool implementation does NOT
  * automatically expand if it runs out of space.
@@ -433,7 +499,7 @@ void *elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment);
 typedef struct ElkPoolAllocator {
     size_t object_size;
     size_t num_objects;
-    void* free;
+    void *free;
     unsigned char *buffer;
 } ElkPoolAllocator;
 
@@ -450,7 +516,7 @@ void elk_pool_initialize(ElkPoolAllocator *pool, size_t object_size, size_t num_
 /** Reset the pool.
  *
  * This is useful if you don't want to return the memory to the OS because you will reuse it soon,
- * e.g. in a loop, but you're done with the objects. 
+ * e.g. in a loop, but you're done with the objects.
  */
 void elk_pool_reset(ElkPoolAllocator *pool);
 
