@@ -416,7 +416,7 @@ elk_align_pointer(uintptr_t ptr, size_t align)
 }
 
 void *
-elk_static_arena_alloc_aligned(ElkStaticArena *arena, size_t size, size_t alignment)
+elk_static_arena_alloc(ElkStaticArena *arena, size_t size, size_t alignment)
 {
     assert(arena);
     assert(size > 0);
@@ -453,8 +453,7 @@ elk_arena_add_block(ElkArenaAllocator *arena, size_t block_size)
     ElkStaticArena next = arena->head;
 
     elk_static_arena_init(&arena->head, max_block_size, buffer);
-    ElkStaticArena *next_ptr =
-        elk_static_arena_alloc_aligned(&arena->head, sizeof(next), _Alignof(ElkStaticArena));
+    ElkStaticArena *next_ptr = elk_static_arena_malloc(&arena->head, ElkStaticArena);
     assert(next_ptr);
     *next_ptr = next;
 }
@@ -465,7 +464,8 @@ elk_arena_init(ElkArenaAllocator *arena, size_t starting_block_size)
     assert(arena);
     assert(starting_block_size > sizeof(arena->head) + 8);
 
-    // Zero everything out.
+    // Zero everything out - important for the intrusive linked list used to keep track of how
+    // many blocks have been added. The NULL buffer signals the end of the list.
     *arena = (ElkArenaAllocator){
         .head = (ElkStaticArena){.buffer = NULL, .buf_size = 0, .buf_offset = 0}};
 
@@ -476,6 +476,8 @@ static void
 elk_arena_free_blocks(ElkArenaAllocator *arena)
 {
     unsigned char *curr_buffer = arena->head.buffer;
+
+    // Relies on the first block's buffer being initialized to NULL
     while (curr_buffer) {
         // Copy next into head.
         arena->head = *(ElkStaticArena *)&curr_buffer[0];
@@ -495,7 +497,11 @@ elk_arena_reset(ElkArenaAllocator *arena)
 
     // Get the total size in all the blocks
     size_t sum_block_sizes = arena->head.buf_size;
+
+    // It's always placed at the very beginning of the buffer.
     ElkStaticArena *next = (ElkStaticArena *)&arena->head.buffer[0];
+
+    // Relies on the first block's buffer being initialized to NULL in the arena initialization.
     while (next->buffer) {
         sum_block_sizes += next->buf_size;
         next = (ElkStaticArena *)&next->buffer[0];
@@ -505,12 +511,15 @@ elk_arena_reset(ElkArenaAllocator *arena)
         // Free the blocks
         elk_arena_free_blocks(arena);
 
-        // Re-initialize
+        // Re-initialize with a larger block size.
         elk_arena_init(arena, sum_block_sizes);
     } else {
-        // We only have one block, no reaseon to free and reallocate
+        // We only have one block, no reaseon to free and reallocate, but we need to maintain
+        // the header describing the "next" block.
         arena->head.buf_offset = sizeof(ElkStaticArena);
     }
+
+    return;
 }
 
 void
@@ -528,12 +537,12 @@ elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment)
 
     assert(arena && arena->head.buffer);
 
-    void *ptr = elk_static_arena_alloc_aligned(&arena->head, bytes, alignment);
+    void *ptr = elk_static_arena_alloc(&arena->head, bytes, alignment);
 
     if (!ptr) {
         // add a new block of at least the required size
         elk_arena_add_block(arena, bytes + sizeof(ElkStaticArena) + alignment);
-        ptr = elk_static_arena_alloc_aligned(&arena->head, bytes, alignment);
+        ptr = elk_static_arena_alloc(&arena->head, bytes, alignment);
     }
 
     return ptr;

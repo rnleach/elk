@@ -376,6 +376,13 @@ char const *elk_string_interner_retrieve(ElkStringInterner const *interner,
 /*-------------------------------------------------------------------------------------------------
  *                                          Static Arena Allocator
  *-----------------------------------------------------------------------------------------------*/
+/** \defgroup static_arena Statically Sized Arena
+ *  \ingroup memory
+ *
+ * A statically sized, non-growable arena allocator.
+ * @{
+ */
+
 /** A statically sized arena allocator. */
 typedef struct ElkStaticArena {
     /// \cond HIDDEN
@@ -423,10 +430,22 @@ elk_static_arena_reset(ElkStaticArena *arena)
 
 /** Do an allocation on the arena.
  *
+ * \param size is the size of the requested allocation in bytes.
+ * \param alignment is the alignment required of the memory. It must be a power of 2 and is most
+ *        is most easily assigned by just passing \c _Alignof() for the type of the memory will be
+ *        used for.
  * \returns a pointer to the aligned memory or \c NULL if there isn't enough memory in the buffer.
  */
-void *elk_static_arena_alloc_aligned(ElkStaticArena *arena, size_t size, size_t alignment);
+void *elk_static_arena_alloc(ElkStaticArena *arena, size_t size, size_t alignment);
 
+/** Free an allocation from the arena.
+ *
+ * Currently this is implemented as a no-op.
+ *
+ * A future implementation may actually free this allocation IF it was the last allocation that
+ * was made. This would allow the arena to behave like a stack if the allocation pattern is just
+ * right.
+ */
 static inline void
 elk_static_arena_free(ElkStaticArena *arena)
 {
@@ -434,10 +453,26 @@ elk_static_arena_free(ElkStaticArena *arena)
     return;
 }
 
+/** Convenience macro for allocating an object on a static arena. */
+#define elk_static_arena_malloc(arena, type)                                                       \
+    (type *)elk_static_arena_alloc((arena), sizeof(type), _Alignof(type))
+
+/** Convenience macro for allocating an array on a static arena. */
+#define elk_static_arena_nmalloc(arena, count, type)                                               \
+    (type *)elk_static_arena_alloc((arena), (count) * sizeof(type), _Alignof(type))
+
+/** @} */ // end of static_arena group
 /*-------------------------------------------------------------------------------------------------
  *                                     Growable Arena Allocator
  *-----------------------------------------------------------------------------------------------*/
-/** An arena allocator. */
+/** \defgroup growable_arena Arena
+ *  \ingroup memory
+ *
+ * A growable arena allocator.
+ * @{
+ */
+
+/** An arena allocator that adds blocks as needed. */
 typedef struct ElkArenaAllocator {
     /// \cond HIDDEN
     ElkStaticArena head;
@@ -448,25 +483,33 @@ typedef struct ElkArenaAllocator {
  *
  * If this fails, it aborts. If the machine runs out of memory, it aborts.
  *
- * \param arena The arena to initialize. This cannot be \c NULL.
  * \param starting_block_size this is the minimum block size that it will use if it needs to expand.
- *      If however a larger allocation is ever requested than the block size, that will become the
- *      new block size.
+ *        If however a larger allocation is ever requested than the block size, that will become
+ *        the new block size.
  */
 void elk_arena_init(ElkArenaAllocator *arena, size_t starting_block_size);
 
 /** Reset the arena.
  *
  * This is useful if you don't want to return the memory to the OS because you will reuse it soon,
- * e.g. in a loop, but you're done with the objects. If there are multiple blocks allocated in the
- * arena, they may be freed and a new block the same size as the sum of all the previous pages may
- * be allocated in their place.
+ * e.g. in a loop, but you're done with the objects allocated off it so far.
+ *
+ * If there are multiple blocks allocated in the arena, they will be freed and a new block the same
+ * size as the sum of all the previous blocks will be allocated in their place. If you want the
+ * memory to shrink, then use \ref elk_arena_destroy() followed by a call to \ref elk_arena_init()
+ * to ensure that it doesn't remain larger than needed.
+ *
+ * TODO: Consider adding a function that resets and only keeps the first page as a way to keep the
+ * arena from gobbling up memory and returning it.
  */
 void elk_arena_reset(ElkArenaAllocator *arena);
 
 /** Free all memory associated with this arena.
  *
- * It is unusable after this operation, but you can put it through initialize again if you want.
+ * It is unusable after this operation, but you can put it through \ref elk_arena_init() again if
+ * you want. You may prefer to destroy and reinitialize an arena if you want it to shrink back to
+ * the originally requested block size. \ref elk_arena_reset() will always use keep the arena at the
+ * largest size used so far, so this is also a way to reclaim memory.
  */
 void elk_arena_destroy(ElkArenaAllocator *arena);
 
@@ -485,22 +528,28 @@ void elk_arena_destroy(ElkArenaAllocator *arena);
 void *elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment);
 
 /** Convenience macro for allocating an object on an arena. */
-#define elk_arena_malloc(arena, type) elk_arena_alloc(arena, sizeof(type), _Alignof(type))
+#define elk_arena_malloc(arena, type) (type *)elk_arena_alloc(arena, sizeof(type), _Alignof(type))
 
 /** Convenience macro for allocating an array on an arena. */
 #define elk_arena_nmalloc(arena, count, type)                                                      \
-    elk_arena_alloc(arena, (count) * sizeof(type), _Alignof(type))
+    (type *)elk_arena_alloc(arena, (count) * sizeof(type), _Alignof(type))
 
+/** @} */ // end of growable_arena group
+/*-------------------------------------------------------------------------------------------------
+ *                                      Pool Allocator
+ *-----------------------------------------------------------------------------------------------*/
 /** A pool allocator.
  *
  * A pool stores objects all of the same size and alignment. This pool implementation does NOT
  * automatically expand if it runs out of space.
  */
 typedef struct ElkPoolAllocator {
+    /// \cond HIDDEN
     size_t object_size;
     size_t num_objects;
     void *free;
     unsigned char *buffer;
+    /// \endcond HIDDEN
 } ElkPoolAllocator;
 
 /** Initialize a pool allocator.
