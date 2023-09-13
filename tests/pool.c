@@ -10,7 +10,7 @@
 static void
 test_full_pool(void)
 {
-    ElkPoolAllocator pool_obj = {};
+    ElkPoolAllocator pool_obj = {0};
     ElkPoolAllocator *pool = &pool_obj;
 
     elk_pool_initialize(pool, sizeof(double), 10);
@@ -40,7 +40,7 @@ test_full_pool(void)
 static void
 test_pool_freeing(void)
 {
-    ElkPoolAllocator pool_obj = {};
+    ElkPoolAllocator pool_obj = {0};
     ElkPoolAllocator *pool = &pool_obj;
 
     elk_pool_initialize(pool, sizeof(double), 10);

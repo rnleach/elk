@@ -10,7 +10,7 @@
  *
  *-----------------------------------------------------------------------------------------------*/
 static bool
-is_in_array(int val, size_t items, int const array[items])
+is_in_array(int val, size_t items, int const array[])
 {
     for (int i = 0; i < items; i++) {
         if (array[i] == val) {

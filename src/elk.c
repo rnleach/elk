@@ -9,9 +9,9 @@ static int64_t const SECONDS_PER_MINUTE = INT64_C(60);
 static int64_t const MINUTES_PER_HOUR = INT64_C(60);
 static int64_t const HOURS_PER_DAY = INT64_C(24);
 static int64_t const DAYS_PER_YEAR = INT64_C(365);
-static int64_t const SECONDS_PER_HOUR = MINUTES_PER_HOUR * SECONDS_PER_MINUTE;
-static int64_t const SECONDS_PER_DAY = SECONDS_PER_HOUR * HOURS_PER_DAY;
-static int64_t const SECONDS_PER_YEAR = SECONDS_PER_DAY * DAYS_PER_YEAR;
+static int64_t const SECONDS_PER_HOUR = INT64_C(60) * INT64_C(60);
+static int64_t const SECONDS_PER_DAY = INT64_C(60) * INT64_C(60) * INT64_C(24);
+static int64_t const SECONDS_PER_YEAR = INT64_C(60) * INT64_C(60) * INT64_C(24) * INT64_C(365);
 
 // Days in a year up to beginning of month
 static int64_t const sum_days_to_month[2][13] = {
