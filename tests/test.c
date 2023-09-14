@@ -14,6 +14,7 @@ main(void)
     elk_string_interner_tests();
     elk_arena_tests();
     elk_pool_tests();
+    elk_allocator_generic_api_tests();
 
     printf("\n\n*** Tests completed successfully. ***\n\n");
     return EXIT_SUCCESS;

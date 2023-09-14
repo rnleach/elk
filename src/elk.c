@@ -575,7 +575,7 @@ elk_static_pool_initialize_linked_list(unsigned char *buffer, size_t object_size
 
 void
 elk_static_pool_init(ElkStaticPool *pool, size_t object_size, size_t num_objects,
-                           unsigned char *buffer)
+                     unsigned char *buffer)
 {
     assert(pool);
     assert(object_size >= sizeof(void *));       // Need to be able to fit at least a pointer!

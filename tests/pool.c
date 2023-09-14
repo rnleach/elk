@@ -62,7 +62,7 @@ test_pool_freeing(void)
         assert(*dubs[i] == (double)i);
     }
 
-    // Empty it!
+    // Half empty it!
     for (int i = 0; i < TEST_BUF_COUNT / 2; i++) {
         elk_static_pool_free(pool, dubs[2 * i]);
         dubs[2 * i] = NULL;
@@ -83,7 +83,7 @@ test_pool_freeing(void)
 }
 
 /*-------------------------------------------------------------------------------------------------
- *                                      All Memory Arena Tests
+ *                                      All Memory Pool Tests
  *-----------------------------------------------------------------------------------------------*/
 void
 elk_pool_tests(void)

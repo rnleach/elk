@@ -369,7 +369,11 @@ char const *elk_string_interner_retrieve(ElkStringInterner const *interner,
  *-----------------------------------------------------------------------------------------------*/
 /** \defgroup memory Memory management
  *
- * Utilities for managing memory.
+ * Utilities for managing memory. The recommended approach is to create an allocator by declaring
+ * it and using its init function, and then from there on out use the \ref generic_alloc functions
+ * for allocating and freeing memory on the allocator, and for destroying the allocator. That means
+ * if you ever want to change your allocation strategy for a section of code, you can just swap
+ * out the code that sets up the allocator and the rest should just work.
  *
  * @{
  */
@@ -379,7 +383,7 @@ char const *elk_string_interner_retrieve(ElkStringInterner const *interner,
 /** \defgroup static_arena Static Arena
  *  \ingroup memory
  *
- * A statically sized, non-growable arena allocator.
+ * A statically sized, non-growable arena allocator that works on top of a user supplied buffer.
  * @{
  */
 
@@ -447,7 +451,7 @@ void *elk_static_arena_alloc(ElkStaticArena *arena, size_t size, size_t alignmen
  * right.
  */
 static inline void
-elk_static_arena_free(ElkStaticArena *arena)
+elk_static_arena_free(ElkStaticArena *arena, void *ptr)
 {
     // no-op - we don't own the buffer!
     return;
@@ -513,6 +517,21 @@ void elk_arena_reset(ElkArenaAllocator *arena);
  */
 void elk_arena_destroy(ElkArenaAllocator *arena);
 
+/** Free an allocation from the arena.
+ *
+ * Currently this is implemented as a no-op.
+ *
+ * A future implementation may actually free this allocation IF it was the last allocation that
+ * was made. This would allow the arena to behave like a stack if the allocation pattern is just
+ * right.
+ */
+static inline void
+elk_arena_free(ElkStaticArena *arena, void *ptr)
+{
+    // no-op - we don't own the buffer!
+    return;
+}
+
 /** Make an allocation on the \p arena.
  *
  * \param arena is the arena to use.
@@ -570,8 +589,8 @@ typedef struct ElkStaticPool {
  * \p object_size * \p num_objects bytes in the backing \p buffer. If that isn't true, you'll
  * probably get a seg-fault during initialization.
  *
- * \warning \p object_size must be a multiple of \c sizeof(void*) enable to ensure the buffer 
- * is aligned to hold pointers also. That also means \p object_size must be at least 
+ * \warning \p object_size must be a multiple of \c sizeof(void*) enable to ensure the buffer
+ * is aligned to hold pointers also. That also means \p object_size must be at least
  * \c sizeof(void*).
  *
  * \warning It is the user's responsibility to make sure the buffer is correctly aligned for the
@@ -584,7 +603,7 @@ typedef struct ElkStaticPool {
  * \param buffer A user provided buffer to store the objects.
  */
 void elk_static_pool_init(ElkStaticPool *pool, size_t object_size, size_t num_objects,
-                                unsigned char buffer[]);
+                          unsigned char buffer[]);
 
 /** Reset the pool.
  *
@@ -601,14 +620,130 @@ void elk_static_pool_reset(ElkStaticPool *pool);
  */
 void elk_static_pool_destroy(ElkStaticPool *pool);
 
+/** Free an allocation made on the pool. */
+void elk_static_pool_free(ElkStaticPool *pool, void *ptr);
+
 /** Make an allocation on the pool.
  *
  *  \returns a pointer to a memory block. If the pool is full, it returns \c NULL;
  */
 void *elk_static_pool_alloc(ElkStaticPool *pool);
 
-/** Free an allocation made on the pool. */
-void elk_static_pool_free(ElkStaticPool *pool, void *ptr);
-
+/// \cond HIDDEN
+// Just a stub so that it will work in the generic macros.
+static inline void *
+elk_static_pool_alloc_aligned(ElkStaticPool *pool, size_t size, size_t alignment)
+{
+    assert(pool && pool->object_size == size);
+    return elk_static_pool_alloc(pool);
+}
+/// \endcond HIDDEN
 /** @} */ // end of static_pool group
+/*-------------------------------------------------------------------------------------------------
+ *                                      Generic Allocator API
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup generic_alloc Generic Allocator API
+ *  \ingroup memory
+ *
+ * A C11 _Generic based API for swapping out allocators.
+ *
+ * The API doesn't include any initialization functions, those are unique enough to each allocator
+ * and they are tied closely to the type.
+ * @{
+ */
+
+/// \cond HIDDEN
+
+// These are stubs for the default case in the generic macros below that have the same API, these
+// are there so that it compiles, but it will abort the program. FAIL FAST.
+
+static inline void
+elk_panic_allocator_reset(void *alloc)
+{
+    Panic("allocator not configured: %s", __FUNCTION__);
+}
+
+static inline void
+elk_panic_allocator_destroy(void *arena)
+{
+    Panic("allocator not configured: %s", __FUNCTION__);
+}
+
+static inline void
+elk_panic_allocator_free(void *arena, void *ptr)
+{
+    Panic("allocator not configured: %s", __FUNCTION__);
+}
+
+static inline void
+elk_panic_allocator_alloc_aligned(void *arena, size_t size, size_t alignment)
+{
+    Panic("allocator not configured: %s", __FUNCTION__);
+}
+
+/// \endcond HIDDEN
+
+// clang-format off
+
+/** Allocate an item.
+ *
+ * \param type is the type of object the memory location will be used for.
+ */
+#define elk_allocator_malloc(alloc, type) (type *)_Generic((alloc),                                \
+        ElkStaticArena*: elk_static_arena_alloc,                                                   \
+        ElkArenaAllocator*: elk_arena_alloc,                                                       \
+        ElkStaticPool*: elk_static_pool_alloc_aligned,                                             \
+        default: elk_panic_allocator_alloc_aligned)(alloc, sizeof(type), _Alignof(type))
+
+/** Allocate an array.
+ *
+ * \param count is the number of items that will be in the array.
+ * \param type is the type of the items that will be in the array.
+ */
+#define elk_allocator_nmalloc(alloc, count, type) (type *)_Generic((alloc),                        \
+        ElkStaticArena*: elk_static_arena_alloc,                                                   \
+        ElkArenaAllocator*: elk_arena_alloc,                                                       \
+        ElkStaticPool*: elk_static_pool_alloc_aligned,                                             \
+        default:                                                                                   \
+            elk_panic_allocator_alloc_aligned)(alloc, count * sizeof(type), _Alignof(type))
+
+/** Free an allocation made on this allocator.
+ *
+ * Results may vary, not all allocators support freeing. For those, it's just a no-op. 
+ *
+ * \warning Most (all?) of the allocators don't check to see if this pointer was originally 
+ * allocated on this allocator instance. So if you send in a pointer that didn't come out of this
+ * allocator, the behavior is undefined.
+ */
+#define elk_allocator_free(alloc, ptr) _Generic((alloc),                                           \
+        ElkStaticArena*: elk_static_arena_free,                                                    \
+        ElkArenaAllocator*: elk_arena_free,                                                        \
+        ElkStaticPool*: elk_static_pool_free,                                                      \
+        default: elk_panic_allocator_free)(alloc, ptr)
+
+/** Reset the allocator.
+ *
+ * This invalidates all pointers previously returned from this allocator, but the backing memory
+ * remains and can be reused.
+ */
+#define elk_allocator_reset(alloc) _Generic((alloc),                                               \
+        ElkStaticArena*: elk_static_arena_reset,                                                   \
+        ElkArenaAllocator*: elk_arena_reset,                                                       \
+        ElkStaticPool*: elk_static_pool_reset,                                                     \
+        default: elk_panic_allocator_reset)(alloc)
+
+/** Destroy the allocator.
+ *
+ * If it has any backing memory that it got from the operating system, it will be returned via
+ * \c free() here.
+ */
+#define elk_allocator_destroy(alloc) _Generic((alloc),                                             \
+        ElkStaticArena*: elk_static_arena_destroy,                                                 \
+        ElkArenaAllocator*: elk_arena_destroy,                                                     \
+        ElkStaticPool*: elk_static_pool_destroy,                                                   \
+        default: elk_panic_allocator_destroy)(alloc)
+
+// clang-format off
+
+/** @} */ // end of generic_alloc group
 /** @} */ // end of memory group

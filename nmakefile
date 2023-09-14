@@ -25,6 +25,7 @@ TEST_OBJS = tests/test.obj            \
 			tests/pool.obj            \
 			tests/string_interner.obj \
 			tests/time.obj            \
+			tests/generic_alloc.obj   \
 			src/elk.obj
 
 all: test.exe test
