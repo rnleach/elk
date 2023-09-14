@@ -53,5 +53,5 @@ test: test.exe
 clean:
 	@echo -------------------------------------------------------------------------------------------
 	@echo Cleaning compile artefacts.
-	del tests\*.obj src\*.obj *.exe
+	del tests\*.obj src\*.obj *.pdb *.exe
 

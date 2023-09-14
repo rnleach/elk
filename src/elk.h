@@ -398,7 +398,7 @@ typedef struct ElkStaticArena {
 
 /** Initialize the static arena with a user supplied buffer. */
 static inline void
-elk_static_arena_init(ElkStaticArena *arena, size_t buf_size, unsigned char buffer[buf_size])
+elk_static_arena_init(ElkStaticArena *arena, size_t buf_size, unsigned char buffer[])
 {
     assert(arena);
     assert(buffer);
