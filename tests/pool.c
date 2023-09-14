@@ -7,75 +7,79 @@
  *                               Tests for the Memory Pool
  *
  *-----------------------------------------------------------------------------------------------*/
+#define TEST_BUF_COUNT 10
+
 static void
 test_full_pool(void)
 {
-    ElkPoolAllocator pool_obj = {0};
-    ElkPoolAllocator *pool = &pool_obj;
+    ElkStaticPool pool_obj = {0};
+    ElkStaticPool *pool = &pool_obj;
+    _Alignas(_Alignof(double)) unsigned char buffer[TEST_BUF_COUNT * sizeof(double)] = {0};
 
-    elk_pool_initialize(pool, sizeof(double), 10);
+    elk_static_pool_init(pool, sizeof(double), TEST_BUF_COUNT, buffer);
 
-    double *dubs[10] = {0};
+    double *dubs[TEST_BUF_COUNT] = {0};
 
-    for (int i = 0; i < 10; ++i) {
-        dubs[i] = elk_pool_alloc(pool);
+    for (int i = 0; i < TEST_BUF_COUNT; ++i) {
+        dubs[i] = elk_static_pool_alloc(pool);
         assert(dubs[i]);
 
         *dubs[i] = (double)i;
     }
 
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < TEST_BUF_COUNT; ++i) {
         assert(*dubs[i] == (double)i);
     }
 
     // Test that it's full!
-    for (int i = 10; i < 20; i++) {
-        double *no_dub = elk_pool_alloc(pool);
+    for (int i = TEST_BUF_COUNT; i < 2 * TEST_BUF_COUNT; i++) {
+        double *no_dub = elk_static_pool_alloc(pool);
         assert(!no_dub);
     }
 
-    elk_pool_destroy(pool);
+    elk_static_pool_destroy(pool);
 }
 
 static void
 test_pool_freeing(void)
 {
-    ElkPoolAllocator pool_obj = {0};
-    ElkPoolAllocator *pool = &pool_obj;
+    ElkStaticPool pool_obj = {0};
+    ElkStaticPool *pool = &pool_obj;
+    _Alignas(_Alignof(double)) unsigned char buffer[TEST_BUF_COUNT * sizeof(double)] = {0};
 
-    elk_pool_initialize(pool, sizeof(double), 10);
+    elk_static_pool_init(pool, sizeof(double), TEST_BUF_COUNT, buffer);
 
-    double *dubs[10] = {0};
+    double *dubs[TEST_BUF_COUNT] = {0};
 
-    for (int i = 0; i < 10; ++i) {
-        dubs[i] = elk_pool_alloc(pool);
+    for (int i = 0; i < TEST_BUF_COUNT; ++i) {
+        dubs[i] = elk_static_pool_alloc(pool);
         assert(dubs[i]);
 
         *dubs[i] = (double)i;
     }
 
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < TEST_BUF_COUNT; ++i) {
         assert(*dubs[i] == (double)i);
     }
 
     // Empty it!
-    for (int i = 0; i < 5; i++) {
-        elk_pool_free(pool, dubs[2 * i]);
+    for (int i = 0; i < TEST_BUF_COUNT / 2; i++) {
+        elk_static_pool_free(pool, dubs[2 * i]);
         dubs[2 * i] = NULL;
     }
 
-    for (int i = 0; i < 5; i++) {
-        dubs[2 * i] = elk_pool_alloc(pool);
+    for (int i = 0; i < TEST_BUF_COUNT / 2; i++) {
+        dubs[2 * i] = elk_static_pool_alloc(pool);
         assert(dubs[2 * i]);
 
         *dubs[2 * i] = (double)i;
     }
 
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < TEST_BUF_COUNT / 2; i++) {
         assert(*dubs[2 * i] == (double)i);
     }
 
-    elk_pool_destroy(pool);
+    elk_static_pool_destroy(pool);
 }
 
 /*-------------------------------------------------------------------------------------------------

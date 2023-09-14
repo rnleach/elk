@@ -552,7 +552,8 @@ elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment)
  *                                       Pool Allocator
  *-----------------------------------------------------------------------------------------------*/
 static void
-elk_pool_initialize_linked_list(unsigned char *buffer, size_t object_size, size_t num_objects)
+elk_static_pool_initialize_linked_list(unsigned char *buffer, size_t object_size,
+                                       size_t num_objects)
 {
 
     // Initialize the free list to a linked list.
@@ -573,43 +574,40 @@ elk_pool_initialize_linked_list(unsigned char *buffer, size_t object_size, size_
 }
 
 void
-elk_pool_initialize(ElkPoolAllocator *pool, size_t object_size, size_t num_objects)
+elk_static_pool_init(ElkStaticPool *pool, size_t object_size, size_t num_objects,
+                           unsigned char *buffer)
 {
     assert(pool);
-    assert(object_size >= sizeof(void *)); // Need to be able to fit at least a pointer!
+    assert(object_size >= sizeof(void *));       // Need to be able to fit at least a pointer!
+    assert(object_size % _Alignof(void *) == 0); // Need for alignment of pointers.
     assert(num_objects > 0);
 
-    size_t size_in_bytes = object_size * num_objects;
-    unsigned char *buffer = calloc(size_in_bytes, 1);
-    PanicIf(!buffer, "out of memory");
-
-    // Initialize the free list to a linked list.
-    elk_pool_initialize_linked_list(buffer, object_size, num_objects);
-
     pool->buffer = buffer;
-    pool->free = &buffer[0];
     pool->object_size = object_size;
     pool->num_objects = num_objects;
+
+    elk_static_pool_reset(pool);
 }
 
 void
-elk_pool_reset(ElkPoolAllocator *pool)
+elk_static_pool_reset(ElkStaticPool *pool)
 {
-    assert(pool);
-    elk_pool_initialize_linked_list(pool->buffer, pool->object_size, pool->num_objects);
+    assert(pool && pool->buffer && pool->num_objects && pool->object_size);
+
+    // Initialize the free list to a linked list.
+    elk_static_pool_initialize_linked_list(pool->buffer, pool->object_size, pool->num_objects);
     pool->free = &pool->buffer[0];
 }
 
 void
-elk_pool_destroy(ElkPoolAllocator *pool)
+elk_static_pool_destroy(ElkStaticPool *pool)
 {
     assert(pool);
-    free(pool->buffer);
     memset(pool, 0, sizeof(*pool));
 }
 
 void *
-elk_pool_alloc(ElkPoolAllocator *pool)
+elk_static_pool_alloc(ElkStaticPool *pool)
 {
     assert(pool);
 
@@ -623,7 +621,7 @@ elk_pool_alloc(ElkPoolAllocator *pool)
 }
 
 void
-elk_pool_free(ElkPoolAllocator *pool, void *ptr)
+elk_static_pool_free(ElkStaticPool *pool, void *ptr)
 {
     assert(pool && ptr);
 

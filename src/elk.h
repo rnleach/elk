@@ -376,7 +376,7 @@ char const *elk_string_interner_retrieve(ElkStringInterner const *interner,
 /*-------------------------------------------------------------------------------------------------
  *                                          Static Arena Allocator
  *-----------------------------------------------------------------------------------------------*/
-/** \defgroup static_arena Statically Sized Arena
+/** \defgroup static_arena Static Arena
  *  \ingroup memory
  *
  * A statically sized, non-growable arena allocator.
@@ -465,7 +465,7 @@ elk_static_arena_free(ElkStaticArena *arena)
 /*-------------------------------------------------------------------------------------------------
  *                                     Growable Arena Allocator
  *-----------------------------------------------------------------------------------------------*/
-/** \defgroup growable_arena Arena
+/** \defgroup growable_arena Arena Allocator
  *  \ingroup memory
  *
  * A growable arena allocator.
@@ -538,51 +538,77 @@ void *elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment);
 /*-------------------------------------------------------------------------------------------------
  *                                      Pool Allocator
  *-----------------------------------------------------------------------------------------------*/
-/** A pool allocator.
+/** \defgroup static_pool Static Pool Allocator
+ *  \ingroup memory
+ *
+ * A static pool allocator that does not grow.
+ * @{
+ */
+
+/** A static pool allocator.
  *
  * A pool stores objects all of the same size and alignment. This pool implementation does NOT
- * automatically expand if it runs out of space.
+ * automatically expand if it runs out of space; it is statically sized at runtime.
  */
-typedef struct ElkPoolAllocator {
+typedef struct ElkStaticPool {
     /// \cond HIDDEN
-    size_t object_size;
-    size_t num_objects;
-    void *free;
-    unsigned char *buffer;
+    size_t object_size;    // The size of each object.
+    size_t num_objects;    // The capacity, or number of objects storable in the pool.
+    void *free;            // The head of a free list of available slots for objects.
+    unsigned char *buffer; // The buffer we actually store the data in.
     /// \endcond HIDDEN
-} ElkPoolAllocator;
+} ElkStaticPool;
 
-/** Initialize a pool allocator.
+/** Initialize a static pool allocator.
  *
  * If this fails, it aborts. If the machine runs out of memory, it aborts.
  *
- * \param pool The pool to initialize. This cannot be \c NULL.
+ * This is an error prone and brittle type. If you get it all working, a refactor or code edit
+ * later is likely to break it.
+ *
+ * \warning It is the user's responsibility to make sure that there is at least
+ * \p object_size * \p num_objects bytes in the backing \p buffer. If that isn't true, you'll
+ * probably get a seg-fault during initialization.
+ *
+ * \warning \p object_size must be a multiple of \c sizeof(void*) enable to ensure the buffer 
+ * is aligned to hold pointers also. That also means \p object_size must be at least 
+ * \c sizeof(void*).
+ *
+ * \warning It is the user's responsibility to make sure the buffer is correctly aligned for the
+ * type of objects they will be storing in it. This isn't a concern if the memory came from
+ * \c malloc() et al as they return memory with the most pessimistic alignment. However, if using
+ * a stack allocated or static memory section, you should use an \c _Alignas to force the alignment.
+ *
  * \param object_size is the size of the objects to store in the pool.
  * \param num_objects is the capacity of the pool.
+ * \param buffer A user provided buffer to store the objects.
  */
-void elk_pool_initialize(ElkPoolAllocator *pool, size_t object_size, size_t num_objects);
+void elk_static_pool_init(ElkStaticPool *pool, size_t object_size, size_t num_objects,
+                                unsigned char buffer[]);
 
 /** Reset the pool.
  *
  * This is useful if you don't want to return the memory to the OS because you will reuse it soon,
  * e.g. in a loop, but you're done with the objects.
  */
-void elk_pool_reset(ElkPoolAllocator *pool);
+void elk_static_pool_reset(ElkStaticPool *pool);
 
 /** Free all memory associated with this pool.
  *
  * It is unusable after this operation, but you can put it through initialize again if you want.
+ * For a static pool like this, it is really a no-op because the user owns the buffer, but this
+ * function is provided for symmetry with the other allocators API's.
  */
-void elk_pool_destroy(ElkPoolAllocator *pool);
+void elk_static_pool_destroy(ElkStaticPool *pool);
 
-/** Make an allocation on the \p pool.
- *
- * \param pool is the pool to use.
+/** Make an allocation on the pool.
  *
  *  \returns a pointer to a memory block. If the pool is full, it returns \c NULL;
  */
-void *elk_pool_alloc(ElkPoolAllocator *pool);
+void *elk_static_pool_alloc(ElkStaticPool *pool);
 
 /** Free an allocation made on the pool. */
-void elk_pool_free(ElkPoolAllocator *pool, void *ptr);
+void elk_static_pool_free(ElkStaticPool *pool, void *ptr);
+
+/** @} */ // end of static_pool group
 /** @} */ // end of memory group
