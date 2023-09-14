@@ -15,16 +15,16 @@ CFLAGS = $(CFLAGS) /Od /Zi
 
 !ELSE
 
-CFLAGS = $(CFLAGS) /O2 /openmp:experimental /Qvec-report:1
+CFLAGS = $(CFLAGS) /O2 /DNDEBUG /openmp:experimental /Qvec-report:1
 
 !ENDIF
 
 TEST_OBJS = tests/test.obj            \
 			tests/arena.obj           \
-			tests/fnv1a_tests.obj     \
+			tests/fnv1a.obj           \
 			tests/pool.obj            \
 			tests/string_interner.obj \
-			tests/time_tests.obj      \
+			tests/time.obj            \
 			src/elk.obj
 
 all: test.exe test
