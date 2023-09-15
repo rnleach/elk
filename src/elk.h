@@ -301,7 +301,8 @@ elk_fnv1a_hash(size_t const n, void const *value)
 /** \defgroup str Strings
  *
  * An altenrate implementation of strings with "fat pointers" that are pointers to the start and
- * the length of the string.
+ * the length of the string. When strings are copied or moved, every effort is made to keep them
+ * null terminated so they place nice with the standard C string implementation.
  *
  * @{
  */
