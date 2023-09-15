@@ -45,6 +45,8 @@
 ### Version 2.0.0 - IN PROGRESS
   - Minimalistic, general purpose tools.
   - Created my own types for handling calendar time.
+  - Added a string type (gotta reinvent the C-string)
+  - Added a string interner.
   - Added pool and arena allocators.
 
 ### Version 1.2.0

@@ -195,6 +195,58 @@ elk_time_add(ElkTime time, int change_in_time)
 }
 
 /*-------------------------------------------------------------------------------------------------
+ *                                       String Slice
+ *-----------------------------------------------------------------------------------------------*/
+
+_Static_assert(sizeof(size_t) == sizeof(uintptr_t), "size_t and uintptr_t aren't the same size?!");
+_Static_assert(UINTPTR_MAX == SIZE_MAX, "sizt_t and uintptr_t dont' have same max?!");
+
+ElkStr
+elk_str_from_cstring(char *src)
+{
+    assert(src);
+
+    size_t len;
+    for (len = 0; *(src + len) != '\0'; ++len)
+        ; // intentionally left blank.
+    return (ElkStr){.start = src, .len = len};
+}
+
+ElkStr
+elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src)
+{
+    assert(dest);
+
+    size_t const src_len = src.len;
+    size_t const copy_len = src_len < dst_len ? src_len : dst_len;
+    memcpy(dest, src.start, copy_len);
+
+    size_t end = copy_len < dst_len ? copy_len : dst_len - 1;
+    dest[end] = '\0';
+
+    return (ElkStr){.start = dest, .len = end};
+}
+
+int
+elk_str_cmp(ElkStr left, ElkStr right)
+{
+    size_t len = left.len > right.len ? right.len : left.len;
+
+    for (size_t i = 0; i < len; ++i) {
+        if (left.start[i] < right.start[i])
+            return -1;
+        else if (left.start[i] > right.start[i])
+            return 1;
+    }
+
+    if (left.len == right.len)
+        return 0;
+    if (left.len > right.len)
+        return 1;
+    return -1;
+}
+
+/*-------------------------------------------------------------------------------------------------
  *                                       String Interner
  *-----------------------------------------------------------------------------------------------*/
 typedef struct ElkStringInternerHandle {

@@ -296,6 +296,49 @@ elk_fnv1a_hash(size_t const n, void const *value)
 
 /** @} */ // end of hash group
 /*-------------------------------------------------------------------------------------------------
+ *                                       String Slice
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup str Strings
+ *
+ * An altenrate implementation of strings with "fat pointers" that are pointers to the start and
+ * the length of the string.
+ *
+ * @{
+ */
+
+/** A fat pointer type for strings. */
+typedef struct ElkStr {
+    char *start; /// points at first character in the string.
+    size_t len;  /// the length of the string (not including a null terminator if it's there).
+} ElkStr;
+
+/** Create an \ref ElkStr from a null terminated C string. */
+ElkStr elk_str_from_cstring(char *src);
+
+/** Copy a string into a buffer.
+ *
+ * Copies the string referred to by \p src into the buffer \p dest. If the buffer isn't big enough,
+ * then it copies as much as it can. If the buffer is large enough, a null character will be
+ * appended to the end. If not, the last position in the buffer will be set to the null character.
+ * So it ALWAYS leaves a null terminated string in \p dest.
+ *
+ * \returns an ElkStr representing the destination.
+ */
+ElkStr elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src);
+
+/** Compare two strings character by character.
+ *
+ * \warning this is NOT utf-8 safe. It looks 1 byte at a time. So if you're using fancy utf-8 stuff,
+ * no promises.
+ *
+ * \return zero (0) if the two slices are equal, less than zero (-1) if \p left alphabetically
+ *     comes before \p right and greater than zero (1) if \p left is alphabetically comes after
+ *     \p right.
+ */
+int elk_str_cmp(ElkStr left, ElkStr right);
+
+/** @} */ // end of str group
+/*-------------------------------------------------------------------------------------------------
  *                                       String Interner
  *-----------------------------------------------------------------------------------------------*/
 /** \defgroup intern A string interner.
