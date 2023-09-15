@@ -306,28 +306,19 @@ elk_fnv1a_hash(size_t const n, void const *value)
 /** Intern strings for more memory efficient storage. */
 typedef struct ElkStringInterner ElkStringInterner;
 
-/** A handle to an interned string.
- *
- *  Values of this type are unique to a particular \ref ElkStringInterner, but if you have multiple
- *  \ref ElkStringInterner objects, you cannot swap handles back and forth. Each handle is
- *  associated with a particular \ref ElkStringInterner object.
- */
-typedef uint32_t ElkInternedString;
-
 /** Create a new string interner.
  *
  * \param size_exp The interner is backed by a hash table with a capacity that is a power of 2. The
- *                 \p size_exp is that power of two. This value is only used initially, if the table
- *                 needs to expand, it will, so it's OK to start with small values here. However, if
- *                 you know it will grow larger, it's better to start larger! For most reasonable
- *                 use cases, it really probably shouldn't be smaller than 5, but no checks are done
- *                 for this.
+ *     \p size_exp is that power of two. This value is only used initially, if the table needs to
+ *     expand, it will, so it's OK to start with small values here. However, if you know it will
+ *     grow larger, it's better to start larger! For most reasonable use cases, it really probably
+ *     shouldn't be smaller than 5, but no checks are done for this.
  *
  * \param avg_string_size is the expected average size of the strings. This isn't really important,
- *                        because we can reallocate the storage if needed. But if you know you'll
- *                        always be using small strings, make this a small number like 5 or 6 to
- *                        prevent overallocating memory. If you aren't sure, still use a small
- *                        number and the interner will grow the storage as necessary.
+ *     because we can allocate more storage if needed. But if you know you'll always be using
+ *     small strings, make this a small number like 5 or 6 to prevent overallocating memory. If
+ *     you aren't sure, still use a small number and the interner will grow the storage as
+ *     necessary.
  *
  * \returns a pointer to an interner. If allocation fails, it will abort the program.
  */
@@ -341,25 +332,10 @@ void elk_string_interner_destroy(ElkStringInterner *interner);
  * \param interner must not be \c NULL.
  * \param string is the string to intern.
  *
- * \returns a handle to the interned string that can be used to retrieve it later. This cannot fail
- * unless the program runs out of memory, in which case it aborts the probram.
+ * \returns a pointer to the interned string. This cannot fail unless the program runs out of
+ * memory, in which case it aborts the program.
  */
-ElkInternedString elk_string_interner_intern(ElkStringInterner *interner, char const *string);
-
-/** Fetch an interned string.
- *
- * \param interner must not be \c NULL.
- * \param handle is the handle to the interned string. This value must be a value that came from
- *        \ref elk_string_interner_intern().
- *
- * \returns an alias to the string. The \p interner owns this string, so do not try to free it. If
- *          you use an invalid handle that didn't come from a previous call to
- *          \ref elk_string_interner_intern(), then it may return \c NULL or it may return in the
- *          middle of a random string. If \c NDEBUG is not defined, then \c assert calls will be
- *          used to do some checks which will help if you're debugging.
- */
-char const *elk_string_interner_retrieve(ElkStringInterner const *interner,
-                                         ElkInternedString const handle);
+char const *elk_string_interner_intern(ElkStringInterner *interner, char const *string);
 
 /** @} */ // end of intern group
 /*-------------------------------------------------------------------------------------------------
