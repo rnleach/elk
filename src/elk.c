@@ -251,7 +251,7 @@ elk_str_cmp(ElkStr left, ElkStr right)
  *-----------------------------------------------------------------------------------------------*/
 typedef struct ElkStringInternerHandle {
     uint64_t hash;
-    char *string;
+    ElkStr str;
 } ElkStringInternerHandle;
 
 struct ElkStringInterner {
@@ -330,7 +330,7 @@ elk_string_interner_expand_table(ElkStringInterner *interner)
         ElkStringInternerHandle *handle = &interner->handles[i];
 
         // Check if it's empty - and if so skip it!
-        if (handle->string == NULL)
+        if (handle->str.start == NULL)
             continue;
 
         // Find the position in the new table and update it.
@@ -340,7 +340,7 @@ elk_string_interner_expand_table(ElkStringInterner *interner)
             j = elk_string_interner_lookup(hash, new_size_exp, j);
             ElkStringInternerHandle *new_handle = &new_handles[j];
 
-            if (!new_handle->string) {
+            if (!new_handle->str.start) {
                 // empty - put it here. Don't need to check for room because we just expanded
                 // the hash table of handles, and we're not copying anything new into storage,
                 // it's already there!
@@ -357,42 +357,51 @@ elk_string_interner_expand_table(ElkStringInterner *interner)
     return;
 }
 
-char const *
-elk_string_interner_intern(ElkStringInterner *interner, char const *string)
+ElkStr
+elk_string_interner_intern_cstring(ElkStringInterner *interner, char *string)
+{
+    assert(interner && string);
+
+    ElkStr str = elk_str_from_cstring(string);
+    return elk_string_interner_intern(interner, str);
+}
+
+ElkStr
+elk_string_interner_intern(ElkStringInterner *interner, ElkStr str)
 {
     assert(interner);
 
     // Inspired by https://nullprogram.com/blog/2022/08/08
     // All code & writing on this blog is in the public domain.
-    size_t str_len = strlen(string);
-    uint64_t const hash = elk_fnv1a_hash(str_len, string);
+
+    uint64_t const hash = elk_fnv1a_hash(str.len, str.start);
     uint32_t i = hash; // I know it truncates, but it's OK, the *_lookup function takes care of it.
     while (true) {
         i = elk_string_interner_lookup(hash, interner->size_exp, i);
         ElkStringInternerHandle *handle = &interner->handles[i];
 
-        if (!handle->string) {
+        if (!handle->str.start) {
             // empty, insert here if room in the table of handles. Check for room first!
             if (elk_string_interner_table_large_enough(interner)) {
 
-                char *str = elk_allocator_nmalloc(&interner->storage, str_len + 1, char);
-                strcpy(str, string);
+                char *dest = elk_allocator_nmalloc(&interner->storage, str.len + 1, char);
+                ElkStr interned_str = elk_str_copy(str.len + 1, dest, str);
 
-                *handle = (ElkStringInternerHandle){.hash = hash, .string = str};
+                *handle = (ElkStringInternerHandle){.hash = hash, .str = interned_str};
                 interner->num_handles += 1;
 
-                return handle->string;
+                return handle->str;
             } else {
                 // Grow the table so we have room
                 elk_string_interner_expand_table(interner);
 
                 // Recurse because all the state needed by the *_lookup function was just crushed
                 // by the expansion of the table.
-                return elk_string_interner_intern(interner, string);
+                return elk_string_interner_intern(interner, str);
             }
-        } else if (handle->hash == hash && !strcmp(handle->string, string)) {
+        } else if (handle->hash == hash && !elk_str_cmp(str, handle->str)) {
             // found it!
-            return handle->string;
+            return handle->str;
         }
     }
 }

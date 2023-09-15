@@ -376,10 +376,20 @@ void elk_string_interner_destroy(ElkStringInterner *interner);
  * \param interner must not be \c NULL.
  * \param string is the string to intern.
  *
- * \returns a pointer to the interned string. This cannot fail unless the program runs out of
- * memory, in which case it aborts the program.
+ * \returns An \ref ElkStr. This cannot fail unless the program runs out of memory, in which case
+ * it aborts the program.
  */
-char const *elk_string_interner_intern(ElkStringInterner *interner, char const *string);
+ElkStr elk_string_interner_intern_cstring(ElkStringInterner *interner, char *string);
+
+/** Intern a string.
+ *
+ * \param interner must not be \c NULL.
+ * \param string is the string to intern.
+ *
+ * \returns An \ref ElkStr. This cannot fail unless the program runs out of memory, in which case
+ * it aborts the program.
+ */
+ElkStr elk_string_interner_intern(ElkStringInterner *interner, ElkStr str);
 
 /** @} */ // end of intern group
 /*-------------------------------------------------------------------------------------------------
