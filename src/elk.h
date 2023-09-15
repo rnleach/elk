@@ -298,16 +298,25 @@ elk_fnv1a_hash(size_t const n, void const *value)
 /*-------------------------------------------------------------------------------------------------
  *                                       String Slice
  *-----------------------------------------------------------------------------------------------*/
-/** \defgroup str Strings
+/** \defgroup str String slice.
  *
  * An altenrate implementation of strings with "fat pointers" that are pointers to the start and
  * the length of the string. When strings are copied or moved, every effort is made to keep them
- * null terminated so they place nice with the standard C string implementation.
+ * null terminated so they play nice with the standard C string implementation.
  *
+ * \warning Slices are only meant to alias into larger strings and so have no built in memory
+ *    management functions. It's unadvised to have an \ref ElkStr that is the only thing that
+ *    contains a pointer from \c malloc(). A seperate pointer to any buffer should be kept around
+ *    for memory management purposes.
  * @{
  */
 
-/** A fat pointer type for strings. */
+/** A fat pointer type for strings.
+ *
+ * \note If \ref ElkStr.start is not \c NULL but \ref ElkStr.len is zero, this refers to an empty
+ *     string slice. If \ref ElkStr.start is \c NULL, then it doesn't refer to anything, it's the
+ *     same as a \c NULL pointer in plain C.
+ */
 typedef struct ElkStr {
     char *start; /// points at first character in the string.
     size_t len;  /// the length of the string (not including a null terminator if it's there).
@@ -329,7 +338,7 @@ ElkStr elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src);
 
 /** Compare two strings character by character.
  *
- * \warning this is NOT utf-8 safe. It looks 1 byte at a time. So if you're using fancy utf-8 stuff,
+ * \warning This is NOT utf-8 safe. It looks 1 byte at a time. So if you're using fancy utf-8 stuff,
  * no promises.
  *
  * \return zero (0) if the two slices are equal, less than zero (-1) if \p left alphabetically
@@ -337,6 +346,19 @@ ElkStr elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src);
  *     \p right.
  */
 int elk_str_cmp(ElkStr left, ElkStr right);
+
+/** Check for equality between two strings.
+ *
+ * We could just use \ref elk_str_cmp(), but that is doing more than necessary. If I'm just looking
+ * for equal strings I can use far fewer instructions to do that.
+ *
+ * \warning This is NOT utf-8 safe. It looks 1 byte at a time. So if you're using fancy utf-8 stuff,
+ * no promises.
+ */
+bool elk_str_eq(ElkStr left, ElkStr right);
+
+/** Strip the leading and trailing white space from a string slice. */
+ElkStr elk_str_strip(ElkStr input);
 
 /** @} */ // end of str group
 /*-------------------------------------------------------------------------------------------------

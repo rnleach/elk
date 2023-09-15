@@ -230,6 +230,8 @@ elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src)
 int
 elk_str_cmp(ElkStr left, ElkStr right)
 {
+    assert(left.start && right.start);
+
     size_t len = left.len > right.len ? right.len : left.len;
 
     for (size_t i = 0; i < len; ++i) {
@@ -244,6 +246,43 @@ elk_str_cmp(ElkStr left, ElkStr right)
     if (left.len > right.len)
         return 1;
     return -1;
+}
+
+bool
+elk_str_eq(ElkStr left, ElkStr right)
+{
+    assert(left.start && right.start);
+
+    if (left.len != right.len)
+        return false;
+
+    size_t len = left.len > right.len ? right.len : left.len;
+
+    for (size_t i = 0; i < len; ++i) {
+        if (left.start[i] != right.start[i])
+            return false;
+    }
+
+    return true;
+}
+
+ElkStr
+elk_str_strip(ElkStr input)
+{
+    char *const start = input.start;
+    int start_offset = 0;
+    for (start_offset = 0; start_offset < input.len; ++start_offset) {
+        if (start[start_offset] > 0x20)
+            break;
+    }
+
+    int end_offset = 0;
+    for (end_offset = input.len - 1; end_offset > start_offset; --end_offset) {
+        if (start[end_offset] > 0x20)
+            break;
+    }
+
+    return (ElkStr){.start = &start[start_offset], .len = end_offset - start_offset + 1};
 }
 
 /*-------------------------------------------------------------------------------------------------

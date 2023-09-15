@@ -44,6 +44,7 @@
 
 ### Version 2.0.0 - IN PROGRESS
   - Minimalistic, general purpose tools.
+  - Removed a lot of stuff from V1.2.0
   - Created my own types for handling calendar time.
   - Added a string type (gotta reinvent the C-string)
   - Added a string interner.
