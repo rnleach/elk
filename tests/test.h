@@ -25,3 +25,4 @@ void elk_arena_tests(void);
 void elk_pool_tests(void);
 void elk_allocator_generic_api_tests(void);
 void elk_string_interner_tests(void);
+void elk_queue_ledger_tests(void);

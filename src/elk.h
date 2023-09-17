@@ -7,6 +7,7 @@
  */
 #include <assert.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -799,3 +800,186 @@ elk_panic_allocator_alloc_aligned(void *arena, size_t size, size_t alignment)
 
 /** @} */ // end of generic_alloc group
 /** @} */ // end of memory group
+/*-------------------------------------------------------------------------------------------------
+ *
+ *                                         
+ *                                         Collections
+ *
+ *
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup collections Collections
+ *
+ * Collections are any grouping of objects. This library breaks them up into ordered (sometimes 
+ * called sequences) and unordered collections. Some examples of ordered collections are: arrays or
+ * vectors, queues, dequeues, and heaps. Some examples of unordered collections are hashsets, 
+ * hashtables or dictionaries, and bags.
+ *
+ * @{
+ */
+
+/*-------------------------------------------------------------------------------------------------
+ *                                         
+ *                                     Ordered Collections
+ *
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup ordered_adjacent_collections Ordered and Adjacent Collections
+ *  \ingroup collections
+ *
+ *  Ordered collections are things like arrays (sometimes called vectors), queues, dequeues, and 
+ *  heaps. I'm taking a different approach to how I implement them. They will be implemented in two
+ *  parts, the second of which might not be necessary. 
+ *
+ *  The first part is the ledger, which just does all the bookkeeping about how full the collection 
+ *  is, which elements are valid, and the order of elements. A user can use these with their own 
+ *  supplied buffer for storing objects. The ledger types only track indexes.
+ *
+ *  One advantage of the ledger approach is that the user can manage their own memory, allowing 
+ *  them to use the most efficient allocation strategy. 
+ *
+ *  Another advantage of this is that if you have several parallel collections (e.g. parallel 
+ *  arrays), you can use a single instance of a bookkeeping type (e.g. \ref ElkQueueLedger) to
+ *  track the state of all the arrays that back it. Further, different collections in the parallel 
+ *  collections can have different sized objects.
+ *
+ *  Complicated memory management can be a disadvantage of the ledger approach. For instance, 
+ *  implementing growable collections can require shuffling objects around in the backing buffer 
+ *  during the resize operation. A queue, for instance, is non-trivial to expand because you have 
+ *  to account for wrap-around (assuming it is backed by a circular buffer). So not all the ledger 
+ *  types APIs will directly support resizing, and even those that do will further require the user
+ *  to make sure as they allocate more memory in the backing buffer, then also update the 
+ *  ledger. Finally, if you want to pass the collection as a whole to a function, you'll have to
+ *  pass the ledger and buffer separately or create your own composite type to package them 
+ *  together in.
+ *
+ *  The second part is an implementation that manages memory for the user. This gives the user less
+ *  control over how memory is allocated / freed, but it also burdens them less with the 
+ *  responsibility of doing so. These types can reliably be expanded on demand. These types will
+ *  internally use the ledger types.
+ *
+ *  The more full featured types that manage memory also require the use of \c void pointers for
+ *  adding and retrieving data from the collections. So they are less type safe, whereas when using
+ *  just the ledger types they only deal in indexes, so you can make the backing buffer have any
+ *  type you want.
+ *
+ *  Adjacent just means that the objects are stored adjacently in memory. All of the collection
+ *  ledger types must be backed by an array or a block of contiguous memory.
+ *
+ *  \note The resizable collections may not be implemented unless I need them. I've found that I 
+ *  need dynamically expandable collections much less frequently.
+ *
+ * @{
+ */
+
+/** Return from a function on a ledger type that indicates the collection is empty. */
+static ptrdiff_t const ELK_COLLECTION_LEDGER_EMPTY = -1;
+
+/** Return from a function on a ledger type that indicates the collection is empty. */
+static ptrdiff_t const ELK_COLLECTION_LEDGER_FULL = -2;
+
+/** Check the index returned from a ledger type function for any errors. */
+static inline bool elk_collection_ledger_error(ptrdiff_t index) { return index < 0; }
+/*-------------------------------------------------------------------------------------------------
+ *                                            Queue
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup queueledger Queue Ledger
+ *  \ingroup ordered_collections
+ *
+ * The bookkeeping parts of a queue.
+ *
+ * @{
+ */
+
+/** A bookkeeping type for a queue. */
+typedef struct ElkQueueLedger {
+    /// \cond HIDDEN
+    size_t capacity;
+    size_t length;
+    size_t front;
+    size_t back;
+    /// \endcond HIDDEN
+} ElkQueueLedger;
+
+/** Create a ledger for a queue with \p capacity. */
+static inline ElkQueueLedger
+elk_queue_ledger_create(size_t capacity)
+{
+    return (ElkQueueLedger){.capacity = capacity, .length=0, .front=0, .back=0};
+}
+
+/** Is the queue full? */
+static inline bool 
+elk_queue_ledger_full(ElkQueueLedger *queue)
+{ 
+    return queue->length == queue->capacity;
+}
+
+/** Is the queue empty? */
+static inline bool
+elk_queue_ledger_empty(ElkQueueLedger *queue)
+{ 
+    return queue->length == 0;
+}
+
+/** Get the index to place the next item to be pushed back. 
+ *
+ * This assumes you actually copy/move the item into the buffer, and so on the next call it will 
+ * return the next index position!
+ *
+ * \returns The index of the next position to put something into the queue. If the queue is full,
+ * then it returns \ref ELK_COLLECTION_LEDGER_FULL.
+ */
+static inline ptrdiff_t
+elk_queue_ledger_push_back_index(ElkQueueLedger *queue)
+{
+    assert(queue);
+    if(elk_queue_ledger_full(queue)) return ELK_COLLECTION_LEDGER_FULL;
+
+    ptrdiff_t idx = queue->back % queue->capacity;
+    queue->back += 1;
+    queue->length += 1;
+    return idx;
+}
+
+/** Get the index of the next item to take out of the queue.
+ *
+ * This assumes you actually copy/move the item out of the buffer, and so on the next call it will
+ * return the next index position!
+ *
+ * \returns The index of the next position to remove something from the queue. If the queue is 
+ * empty it returns \ref ELK_COLLECTION_LEDGER_EMPTY.
+ */
+static inline ptrdiff_t
+elk_queue_ledger_pop_front_index(ElkQueueLedger *queue)
+{
+    if(elk_queue_ledger_empty(queue)) return ELK_COLLECTION_LEDGER_EMPTY;
+
+    ptrdiff_t idx = queue->front % queue->capacity;
+    queue->front += 1;
+    queue->length -= 1;
+    return idx;
+}
+
+/** Get the index of the next item to take out of the queue, without advancing it.
+ *
+ * This assumes you DO NOT copy/move the item out of the buffer so it remains at the head.
+ *
+ * \returns The index of the next position to remove something from the queue without removing. If
+ * the queue is empty it returns \ref ELK_COLLECTION_LEDGER_EMPTY.
+ */
+static inline ptrdiff_t
+elk_queue_ledger_peek_front_index(ElkQueueLedger *queue)
+{
+    if(queue->length == 0) return ELK_COLLECTION_LEDGER_EMPTY;
+    return queue->front % queue->capacity;
+}
+
+/** Get the number of items in the queue. */
+static inline size_t
+elk_queue_ledger_len(ElkQueueLedger const *queue)
+{
+    return queue->length;
+}
+
+/** @} */ // end of queueledger group
+/** @} */ // end of ordered_adjacent_collections.
+/** @} */ // end of collections group
