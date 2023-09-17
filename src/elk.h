@@ -879,7 +879,7 @@ static ptrdiff_t const ELK_COLLECTION_LEDGER_FULL = -2;
 /** Check the index returned from a ledger type function for any errors. */
 static inline bool elk_collection_ledger_error(ptrdiff_t index) { return index < 0; }
 /*-------------------------------------------------------------------------------------------------
- *                                            Queue
+ *                                         Queue Ledger
  *-----------------------------------------------------------------------------------------------*/
 /** \defgroup queueledger Queue Ledger
  *  \ingroup ordered_collections
@@ -981,5 +981,92 @@ elk_queue_ledger_len(ElkQueueLedger const *queue)
 }
 
 /** @} */ // end of queueledger group
+/*-------------------------------------------------------------------------------------------------
+ *                                            Array Ledger
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup arrayledger Array Ledger
+ *  \ingroup ordered_collections
+ *
+ * The bookkeeping parts of an array.
+ *
+ * @{
+ */
+
+/** A bookkeeping type for an array. */
+typedef struct ElkArrayLedger {
+    /// \cond HIDDEN
+    size_t capacity;
+    size_t length;
+    /// \endcond HIDDEN
+} ElkArrayLedger;
+
+/** Create a ledger for an array with \p capacity. */
+static inline ElkArrayLedger
+elk_array_ledger_create(size_t capacity)
+{
+    return (ElkArrayLedger){.capacity = capacity, .length=0};
+}
+
+/** Is the array full? */
+static inline bool 
+elk_array_ledger_full(ElkArrayLedger *array)
+{ 
+    return array->length == array->capacity;
+}
+
+/** Is the array empty? */
+static inline bool
+elk_array_ledger_empty(ElkArrayLedger *array)
+{ 
+    return array->length == 0;
+}
+
+/** Get the index to place the next item to be pushed back. 
+ *
+ * This assumes you actually copy/move the item into the buffer, and so on the next call it will 
+ * return the next index position!
+ *
+ * \returns The index of the next position to put something into the array. If the array is full,
+ * then it returns \ref ELK_COLLECTION_LEDGER_FULL.
+ */
+static inline ptrdiff_t
+elk_array_ledger_push_back_index(ElkArrayLedger *array)
+{
+    assert(array);
+    if(elk_array_ledger_full(array)) return ELK_COLLECTION_LEDGER_FULL;
+
+    ptrdiff_t idx = array->length;
+    array->length += 1;
+    return idx;
+}
+
+/** Get the number of items in the array. */
+static inline size_t
+elk_array_ledger_len(ElkArrayLedger const *array)
+{
+    assert(array);
+    return array->length;
+}
+
+/** Reset the array so it's empty. */
+static inline void
+elk_array_ledger_reset(ElkArrayLedger *array)
+{
+    assert(array);
+    array->length = 0;
+}
+
+/** Change the capcity of the array.
+ *
+ * \warning Make sure you adjust the size of the backing buffer before you do this!
+ */
+static inline void
+elk_array_ledger_set_capacity(ElkArrayLedger *array, size_t capacity)
+{
+    assert(array);
+    array->capacity = capacity;
+}
+
+/** @} */ // end of arrayledger group
 /** @} */ // end of ordered_adjacent_collections.
 /** @} */ // end of collections group
