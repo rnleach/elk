@@ -28,6 +28,7 @@ TEST_OBJS = tests/test.obj            \
 			tests/time.obj            \
 			tests/generic_alloc.obj   \
 			tests/queue_ledger.obj    \
+			tests/array_ledger.obj    \
 			src/elk.obj
 
 all: test.exe test

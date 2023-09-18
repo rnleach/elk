@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /*-------------------------------------------------------------------------------------------------
  *                                      Error Handling
@@ -117,6 +118,39 @@
  * @{
  */
 
+/// \cond HIDDEN
+extern int64_t const SECONDS_PER_MINUTE;
+extern int64_t const MINUTES_PER_HOUR;
+extern int64_t const HOURS_PER_DAY;
+extern int64_t const DAYS_PER_YEAR;
+extern int64_t const SECONDS_PER_HOUR;
+extern int64_t const SECONDS_PER_DAY;
+extern int64_t const SECONDS_PER_YEAR;
+
+// Days in a year up to beginning of month
+extern int64_t const sum_days_to_month[2][13];
+
+inline int64_t
+elk_num_leap_years_since_epoch(int64_t year)
+{
+    assert(year >= 1);
+
+    year -= 1;
+    return year / 4 - year / 100 + year / 400;
+}
+
+inline int64_t
+elk_days_since_epoch(int year)
+{
+    // Days in the years up to now.
+    int64_t const num_leap_years_since_epoch = elk_num_leap_years_since_epoch(year);
+    int64_t ts = (year - 1) * DAYS_PER_YEAR + num_leap_years_since_epoch;
+
+    return ts;
+}
+
+/// \endcond HIDDEN
+
 /** Succinct type used for calendar time.
  *
  * Most work with times and dates should be done using this type as it is small and natively
@@ -131,14 +165,14 @@ typedef int64_t ElkTime;
 extern ElkTime const elk_unix_epoch_timestamp;
 
 /** Convert an \ref ElkTime to a Unix timestamp. */
-static inline int64_t
+inline int64_t
 elk_time_to_unix_epoch(ElkTime time)
 {
     return time - elk_unix_epoch_timestamp;
 }
 
 /** Convert an Unxi timestamp to an \ref ElkTime. */
-static inline ElkTime
+inline ElkTime
 elk_time_from_unix_timestamp(int64_t unixtime)
 {
     return unixtime + elk_unix_epoch_timestamp;
@@ -158,7 +192,15 @@ typedef struct ElkStructTime {
 } ElkStructTime;
 
 /** Find out if a year is a leap year. */
-bool elk_is_leap_year(int year);
+inline bool
+elk_is_leap_year(int year)
+{
+    if (year % 4 != 0)
+        return false;
+    if (year % 100 == 0 && year % 400 != 0)
+        return false;
+    return true;
+}
 
 /** Create a \ref ElkTime object given the date and time information.
  *
@@ -172,13 +214,100 @@ bool elk_is_leap_year(int year);
  *
  * The minimum year is year 1 and the maximum year is year 32767.
  */
-ElkTime elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, int seconds);
+inline ElkTime
+elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, int seconds)
+{
+    assert(year >= 1 && year <= INT16_MAX);
+    assert(day >= 1 && day <= 31);
+    assert(month >= 1 && month <= 12);
+    assert(hour >= 0 && hour <= 23);
+    assert(minutes >= 0 && minutes <= 59);
+    assert(seconds >= 0 && seconds <= 59);
+
+    // Seconds in the years up to now.
+    int64_t const num_leap_years_since_epoch = elk_num_leap_years_since_epoch(year);
+    ElkTime ts = (year - 1) * SECONDS_PER_YEAR + num_leap_years_since_epoch * SECONDS_PER_DAY;
+
+    // Seconds in the months up to the start of this month
+    int64_t const days_until_start_of_month =
+        elk_is_leap_year(year) ? sum_days_to_month[1][month] : sum_days_to_month[0][month];
+    ts += days_until_start_of_month * SECONDS_PER_DAY;
+
+    // Seconds in the days of the month up to this one.
+    ts += (day - 1) * SECONDS_PER_DAY;
+
+    // Seconds in the hours, minutes, & seconds so far this day.
+    ts += hour * SECONDS_PER_HOUR;
+    ts += minutes * SECONDS_PER_MINUTE;
+    ts += seconds;
+
+    assert(ts >= 0);
+
+    return ts;
+}
 
 /** Convert from \ref ElkStructTime to \ref ElkTime. */
-ElkTime elk_make_time(ElkStructTime tm);
+inline ElkTime
+elk_make_time(ElkStructTime tm)
+{
+    return elk_time_from_ymd_and_hms(tm.year, tm.month, tm.day, tm.hour, tm.minute, tm.second);
+}
 
 /** Convert from \ref ElkTime to \ref ElkRefTime. */
-ElkStructTime elk_make_struct_time(ElkTime time);
+inline ElkStructTime
+elk_make_struct_time(ElkTime time)
+{
+    assert(time >= 0);
+
+    // Get the seconds part and then trim it off and convert to minutes
+    int const second = time % SECONDS_PER_MINUTE;
+    time = (time - second) / SECONDS_PER_MINUTE;
+    assert(time >= 0 && second >= 0 && second <= 59);
+
+    // Get the minutes part, trim it off and convert to hours.
+    int const minute = time % MINUTES_PER_HOUR;
+    time = (time - minute) / MINUTES_PER_HOUR;
+    assert(time >= 0 && minute >= 0 && minute <= 59);
+
+    // Get the hours part, trim it off and convert to days.
+    int const hour = time % HOURS_PER_DAY;
+    time = (time - hour) / HOURS_PER_DAY;
+    assert(time >= 0 && hour >= 0 && hour <= 23);
+
+    // Rename variable for clarity
+    int64_t const days_since_epoch = time;
+
+    // Calculate the year
+    int year = days_since_epoch / (DAYS_PER_YEAR) + 1; // High estimate, but good starting point.
+    int64_t test_time = elk_days_since_epoch(year);
+    while (test_time > days_since_epoch) {
+        int step = (test_time - days_since_epoch) / (DAYS_PER_YEAR + 1);
+        step = step == 0 ? 1 : step;
+        year -= step;
+        test_time = elk_days_since_epoch(year);
+    }
+    assert(test_time <= elk_days_since_epoch(year));
+    time -= elk_days_since_epoch(year); // Now it's days since start of the year.
+    assert(time >= 0);
+
+    // Calculate the month
+    int month = 0;
+    int leap_year_idx = elk_is_leap_year(year) ? 1 : 0;
+    for (month = 1; month <= 11; month++) {
+        if (sum_days_to_month[leap_year_idx][month + 1] > time) {
+            break;
+        }
+    }
+    assert(time >= 0 && month > 0 && month <= 12);
+    time -= sum_days_to_month[leap_year_idx][month]; // Now in days since start of month
+
+    // Calculate the day
+    int const day = time + 1;
+    assert(day > 0 && day <= 31);
+
+    return (ElkStructTime){
+        .year = year, .month = month, .day = day, .hour = hour, .minute = minute, .second = second};
+}
 
 /** Truncate the minutes and seconds from the \p time argument.
  *
@@ -186,7 +315,21 @@ ElkStructTime elk_make_struct_time(ElkTime time);
  *
  * \returns the time truncated, or rounded down, to the most recent hour.
  */
-ElkTime elk_time_truncate_to_hour(ElkTime time);
+inline ElkTime
+elk_time_truncate_to_hour(ElkTime time)
+{
+    ElkTime adjusted = time;
+
+    int64_t const seconds = adjusted % SECONDS_PER_MINUTE;
+    adjusted -= seconds;
+
+    int64_t const minutes = (adjusted / SECONDS_PER_MINUTE) % MINUTES_PER_HOUR;
+    adjusted -= minutes * SECONDS_PER_MINUTE;
+
+    assert(adjusted >= 0);
+
+    return adjusted;
+}
 
 /** Round backwards in time until the desired hour is reached.
  *
@@ -198,7 +341,32 @@ ElkTime elk_time_truncate_to_hour(ElkTime time);
  * \returns the time truncated, or rounded down, to the requested hour, even if it has to go back a
  * day.
  */
-ElkTime elk_time_truncate_to_specific_hour(ElkTime time, int hour);
+inline ElkTime
+elk_time_truncate_to_specific_hour(ElkTime time, int hour)
+{
+    assert(hour >= 0 && hour <= 23 && time >= 0);
+
+    ElkTime adjusted = time;
+
+    int64_t const seconds = adjusted % SECONDS_PER_MINUTE;
+    adjusted -= seconds;
+
+    int64_t const minutes = (adjusted / SECONDS_PER_MINUTE) % MINUTES_PER_HOUR;
+    adjusted -= minutes * SECONDS_PER_MINUTE;
+
+    int64_t actual_hour = (adjusted / SECONDS_PER_HOUR) % HOURS_PER_DAY;
+    if (actual_hour < hour) {
+        actual_hour += 24;
+    }
+
+    int64_t change_hours = actual_hour - hour;
+    assert(change_hours >= 0);
+    adjusted -= change_hours * SECONDS_PER_HOUR;
+
+    assert(adjusted >= 0);
+
+    return adjusted;
+}
 
 /** Units of time for adding / subtracting time.
  *
@@ -218,7 +386,13 @@ typedef enum {
  * The type \ref ElkTimeUnit can be multiplied by an integer to make \p change_in_time more
  * readable. For subtraction, just use a negative sign on the change_in_time.
  */
-ElkTime elk_time_add(ElkTime time, int change_in_time);
+inline ElkTime
+elk_time_add(ElkTime time, int change_in_time)
+{
+    ElkTime result = time + change_in_time;
+    assert(result >= 0);
+    return result;
+}
 
 /** @} */ // end of time group
 /*-------------------------------------------------------------------------------------------------
@@ -257,7 +431,7 @@ typedef uint64_t (*ElkHashFunction)(size_t const n, void const *value);
  *
  * \returns the hash value (so far) as an unsigned, 64 bit integer.
  */
-static inline uint64_t
+inline uint64_t
 elk_fnv1a_hash_accumulate(size_t const n, void const *value, uint64_t const hash_so_far)
 {
     uint64_t const fnv_prime = 0x00000100000001b3;
@@ -288,7 +462,7 @@ elk_fnv1a_hash_accumulate(size_t const n, void const *value, uint64_t const hash
  *
  * \returns the hash value as an unsigned, 64 bit integer.
  */
-static inline uint64_t
+inline uint64_t
 elk_fnv1a_hash(size_t const n, void const *value)
 {
     uint64_t const fnv_offset_bias = 0xcbf29ce484222325;
@@ -324,7 +498,16 @@ typedef struct ElkStr {
 } ElkStr;
 
 /** Create an \ref ElkStr from a null terminated C string. */
-ElkStr elk_str_from_cstring(char *src);
+inline ElkStr
+elk_str_from_cstring(char *src)
+{
+    assert(src);
+
+    size_t len;
+    for (len = 0; *(src + len) != '\0'; ++len)
+        ; // intentionally left blank.
+    return (ElkStr){.start = src, .len = len};
+}
 
 /** Copy a string into a buffer.
  *
@@ -335,7 +518,20 @@ ElkStr elk_str_from_cstring(char *src);
  *
  * \returns an ElkStr representing the destination.
  */
-ElkStr elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src);
+inline ElkStr
+elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src)
+{
+    assert(dest);
+
+    size_t const src_len = src.len;
+    size_t const copy_len = src_len < dst_len ? src_len : dst_len;
+    memcpy(dest, src.start, copy_len);
+
+    size_t end = copy_len < dst_len ? copy_len : dst_len - 1;
+    dest[end] = '\0';
+
+    return (ElkStr){.start = dest, .len = end};
+}
 
 /** Compare two strings character by character.
  *
@@ -346,7 +542,26 @@ ElkStr elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src);
  *     comes before \p right and greater than zero (1) if \p left is alphabetically comes after
  *     \p right.
  */
-int elk_str_cmp(ElkStr left, ElkStr right);
+inline int
+elk_str_cmp(ElkStr left, ElkStr right)
+{
+    assert(left.start && right.start);
+
+    size_t len = left.len > right.len ? right.len : left.len;
+
+    for (size_t i = 0; i < len; ++i) {
+        if (left.start[i] < right.start[i])
+            return -1;
+        else if (left.start[i] > right.start[i])
+            return 1;
+    }
+
+    if (left.len == right.len)
+        return 0;
+    if (left.len > right.len)
+        return 1;
+    return -1;
+}
 
 /** Check for equality between two strings.
  *
@@ -356,10 +571,43 @@ int elk_str_cmp(ElkStr left, ElkStr right);
  * \warning This is NOT utf-8 safe. It looks 1 byte at a time. So if you're using fancy utf-8 stuff,
  * no promises.
  */
-bool elk_str_eq(ElkStr left, ElkStr right);
+inline bool
+elk_str_eq(ElkStr left, ElkStr right)
+{
+    assert(left.start && right.start);
+
+    if (left.len != right.len)
+        return false;
+
+    size_t len = left.len > right.len ? right.len : left.len;
+
+    for (size_t i = 0; i < len; ++i) {
+        if (left.start[i] != right.start[i])
+            return false;
+    }
+
+    return true;
+}
 
 /** Strip the leading and trailing white space from a string slice. */
-ElkStr elk_str_strip(ElkStr input);
+inline ElkStr
+elk_str_strip(ElkStr input)
+{
+    char *const start = input.start;
+    int start_offset = 0;
+    for (start_offset = 0; start_offset < input.len; ++start_offset) {
+        if (start[start_offset] > 0x20)
+            break;
+    }
+
+    int end_offset = 0;
+    for (end_offset = input.len - 1; end_offset > start_offset; --end_offset) {
+        if (start[end_offset] > 0x20)
+            break;
+    }
+
+    return (ElkStr){.start = &start[start_offset], .len = end_offset - start_offset + 1};
+}
 
 /** @} */ // end of str group
 /*-------------------------------------------------------------------------------------------------
@@ -449,8 +697,36 @@ typedef struct ElkStaticArena {
     /// \endcond HIDDEN
 } ElkStaticArena;
 
+/// \cond HIDDEN
+#ifndef NDEBUG
+inline bool
+elk_is_power_of_2(uintptr_t p)
+{
+    return (p & (p - 1)) == 0;
+}
+#endif
+
+inline uintptr_t
+elk_align_pointer(uintptr_t ptr, size_t align)
+{
+
+    assert(elk_is_power_of_2(align));
+
+    uintptr_t a = (uintptr_t)align;
+    uintptr_t mod = ptr & (a - 1); // Same as (ptr % a) but faster as 'a' is a power of 2
+
+    if (mod != 0) {
+        // push the address forward to the next value which is aligned
+        ptr += a - mod;
+    }
+
+    return ptr;
+}
+
+/// \endcond HIDDEN
+
 /** Initialize the static arena with a user supplied buffer. */
-static inline void
+inline void
 elk_static_arena_init(ElkStaticArena *arena, size_t buf_size, unsigned char buffer[])
 {
     assert(arena);
@@ -493,7 +769,27 @@ elk_static_arena_reset(ElkStaticArena *arena)
  *        used for.
  * \returns a pointer to the aligned memory or \c NULL if there isn't enough memory in the buffer.
  */
-void *elk_static_arena_alloc(ElkStaticArena *arena, size_t size, size_t alignment);
+inline void *
+elk_static_arena_alloc(ElkStaticArena *arena, size_t size, size_t alignment)
+{
+    assert(arena);
+    assert(size > 0);
+
+    // Align 'curr_offset' forward to the specified alignment
+    uintptr_t curr_ptr = (uintptr_t)arena->buffer + (uintptr_t)arena->buf_offset;
+    uintptr_t offset = elk_align_pointer(curr_ptr, alignment);
+    offset -= (uintptr_t)arena->buffer; // change to relative offset
+
+    // Check to see if there is enough space left
+    if (offset + size <= arena->buf_size) {
+        void *ptr = &arena->buffer[offset];
+        arena->buf_offset = offset + size;
+
+        return ptr;
+    } else {
+        return NULL;
+    }
+}
 
 /** Free an allocation from the arena.
  *
@@ -509,14 +805,6 @@ elk_static_arena_free(ElkStaticArena *arena, void *ptr)
     // no-op - we don't own the buffer!
     return;
 }
-
-/** Convenience macro for allocating an object on a static arena. */
-#define elk_static_arena_malloc(arena, type)                                                       \
-    (type *)elk_static_arena_alloc((arena), sizeof(type), _Alignof(type))
-
-/** Convenience macro for allocating an array on a static arena. */
-#define elk_static_arena_nmalloc(arena, count, type)                                               \
-    (type *)elk_static_arena_alloc((arena), (count) * sizeof(type), _Alignof(type))
 
 /** @} */ // end of static_arena group
 /*-------------------------------------------------------------------------------------------------
@@ -536,6 +824,46 @@ typedef struct ElkArenaAllocator {
     /// \endcond HIDDEN
 } ElkArenaAllocator;
 
+/// \cond HIDDEN
+
+inline void
+elk_arena_add_block(ElkArenaAllocator *arena, size_t block_size)
+{
+    uint32_t max_block_size = arena->head.buf_size > block_size ? arena->head.buf_size : block_size;
+    assert(max_block_size > sizeof(ElkStaticArena));
+
+    unsigned char *buffer = calloc(max_block_size, 1);
+    PanicIf(!buffer, "out of memory");
+
+    ElkStaticArena next = arena->head;
+
+    elk_static_arena_init(&arena->head, max_block_size, buffer);
+    ElkStaticArena *next_ptr =
+        elk_static_arena_alloc(&arena->head, sizeof(ElkStaticArena), _Alignof(ElkStaticArena));
+    assert(next_ptr);
+    *next_ptr = next;
+}
+
+inline void
+elk_arena_free_blocks(ElkArenaAllocator *arena)
+{
+    unsigned char *curr_buffer = arena->head.buffer;
+
+    // Relies on the first block's buffer being initialized to NULL
+    while (curr_buffer) {
+        // Copy next into head.
+        arena->head = *(ElkStaticArena *)&curr_buffer[0];
+
+        // Free the buffer
+        free(curr_buffer);
+
+        // Update to point to the next buffer
+        curr_buffer = arena->head.buffer;
+    }
+}
+
+/// \endcond HIDDEN
+
 /** Initialize an arena allocator.
  *
  * If this fails, it aborts. If the machine runs out of memory, it aborts.
@@ -544,7 +872,21 @@ typedef struct ElkArenaAllocator {
  *        If however a larger allocation is ever requested than the block size, that will become
  *        the new block size.
  */
-void elk_arena_init(ElkArenaAllocator *arena, size_t starting_block_size);
+inline void
+elk_arena_init(ElkArenaAllocator *arena, size_t starting_block_size)
+{
+    assert(arena);
+
+    size_t const min_size = sizeof(arena->head) + 8;
+    starting_block_size = starting_block_size > min_size ? starting_block_size : min_size;
+
+    // Zero everything out - important for the intrusive linked list used to keep track of how
+    // many blocks have been added. The NULL buffer signals the end of the list.
+    *arena = (ElkArenaAllocator){
+        .head = (ElkStaticArena){.buffer = NULL, .buf_size = 0, .buf_offset = 0}};
+
+    elk_arena_add_block(arena, starting_block_size);
+}
 
 /** Reset the arena.
  *
@@ -559,7 +901,37 @@ void elk_arena_init(ElkArenaAllocator *arena, size_t starting_block_size);
  * TODO: Consider adding a function that resets and only keeps the first page as a way to keep the
  * arena from gobbling up memory and returning it.
  */
-void elk_arena_reset(ElkArenaAllocator *arena);
+inline void
+elk_arena_reset(ElkArenaAllocator *arena)
+{
+    assert(arena);
+
+    // Get the total size in all the blocks
+    size_t sum_block_sizes = arena->head.buf_size;
+
+    // It's always placed at the very beginning of the buffer.
+    ElkStaticArena *next = (ElkStaticArena *)&arena->head.buffer[0];
+
+    // Relies on the first block's buffer being initialized to NULL in the arena initialization.
+    while (next->buffer) {
+        sum_block_sizes += next->buf_size;
+        next = (ElkStaticArena *)&next->buffer[0];
+    }
+
+    if (sum_block_sizes > arena->head.buf_size) {
+        // Free the blocks
+        elk_arena_free_blocks(arena);
+
+        // Re-initialize with a larger block size.
+        elk_arena_init(arena, sum_block_sizes);
+    } else {
+        // We only have one block, no reaseon to free and reallocate, but we need to maintain
+        // the header describing the "next" block.
+        arena->head.buf_offset = sizeof(ElkStaticArena);
+    }
+
+    return;
+}
 
 /** Free all memory associated with this arena.
  *
@@ -568,7 +940,14 @@ void elk_arena_reset(ElkArenaAllocator *arena);
  * the originally requested block size. \ref elk_arena_reset() will always use keep the arena at the
  * largest size used so far, so this is also a way to reclaim memory.
  */
-void elk_arena_destroy(ElkArenaAllocator *arena);
+inline void
+elk_arena_destroy(ElkArenaAllocator *arena)
+{
+    assert(arena);
+    elk_arena_free_blocks(arena);
+    arena->head.buf_size = 0;
+    arena->head.buf_offset = 0;
+}
 
 /** Free an allocation from the arena.
  *
@@ -597,14 +976,21 @@ elk_arena_free(ElkStaticArena *arena, void *ptr)
  *  If the requested memory isn't available from the operating system, then this function aborts
  *  the program.
  */
-void *elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment);
+inline void *
+elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment)
+{
+    assert(arena && arena->head.buffer);
 
-/** Convenience macro for allocating an object on an arena. */
-#define elk_arena_malloc(arena, type) (type *)elk_arena_alloc(arena, sizeof(type), _Alignof(type))
+    void *ptr = elk_static_arena_alloc(&arena->head, bytes, alignment);
 
-/** Convenience macro for allocating an array on an arena. */
-#define elk_arena_nmalloc(arena, count, type)                                                      \
-    (type *)elk_arena_alloc(arena, (count) * sizeof(type), _Alignof(type))
+    if (!ptr) {
+        // add a new block of at least the required size
+        elk_arena_add_block(arena, bytes + sizeof(ElkStaticArena) + alignment);
+        ptr = elk_static_arena_alloc(&arena->head, bytes, alignment);
+    }
+
+    return ptr;
+}
 
 /** @} */ // end of growable_arena group
 /*-------------------------------------------------------------------------------------------------
@@ -631,6 +1017,47 @@ typedef struct ElkStaticPool {
     /// \endcond HIDDEN
 } ElkStaticPool;
 
+/// \cond HIDDEN
+
+inline void
+elk_static_pool_initialize_linked_list(unsigned char *buffer, size_t object_size,
+                                       size_t num_objects)
+{
+
+    // Initialize the free list to a linked list.
+
+    // start by pointing to last element and assigning it NULL
+    size_t offset = object_size * (num_objects - 1);
+    uintptr_t *ptr = (uintptr_t *)&buffer[offset];
+    *ptr = (uintptr_t)NULL;
+
+    // Then work backwards to the front of the list.
+    while (offset) {
+        size_t next_offset = offset;
+        offset -= object_size;
+        ptr = (uintptr_t *)&buffer[offset];
+        uintptr_t next = (uintptr_t)&buffer[next_offset];
+        *ptr = next;
+    }
+}
+
+/// \endcond HIDDEN
+
+/** Reset the pool.
+ *
+ * This is useful if you don't want to return the memory to the OS because you will reuse it soon,
+ * e.g. in a loop, but you're done with the objects.
+ */
+inline void
+elk_static_pool_reset(ElkStaticPool *pool)
+{
+    assert(pool && pool->buffer && pool->num_objects && pool->object_size);
+
+    // Initialize the free list to a linked list.
+    elk_static_pool_initialize_linked_list(pool->buffer, pool->object_size, pool->num_objects);
+    pool->free = &pool->buffer[0];
+}
+
 /** Initialize a static pool allocator.
  *
  * If this fails, it aborts. If the machine runs out of memory, it aborts.
@@ -655,15 +1082,21 @@ typedef struct ElkStaticPool {
  * \param num_objects is the capacity of the pool.
  * \param buffer A user provided buffer to store the objects.
  */
-void elk_static_pool_init(ElkStaticPool *pool, size_t object_size, size_t num_objects,
-                          unsigned char buffer[]);
+inline void
+elk_static_pool_init(ElkStaticPool *pool, size_t object_size, size_t num_objects,
+                     unsigned char *buffer)
+{
+    assert(pool);
+    assert(object_size >= sizeof(void *));       // Need to be able to fit at least a pointer!
+    assert(object_size % _Alignof(void *) == 0); // Need for alignment of pointers.
+    assert(num_objects > 0);
 
-/** Reset the pool.
- *
- * This is useful if you don't want to return the memory to the OS because you will reuse it soon,
- * e.g. in a loop, but you're done with the objects.
- */
-void elk_static_pool_reset(ElkStaticPool *pool);
+    pool->buffer = buffer;
+    pool->object_size = object_size;
+    pool->num_objects = num_objects;
+
+    elk_static_pool_reset(pool);
+}
 
 /** Free all memory associated with this pool.
  *
@@ -671,16 +1104,41 @@ void elk_static_pool_reset(ElkStaticPool *pool);
  * For a static pool like this, it is really a no-op because the user owns the buffer, but this
  * function is provided for symmetry with the other allocators API's.
  */
-void elk_static_pool_destroy(ElkStaticPool *pool);
+inline void
+elk_static_pool_destroy(ElkStaticPool *pool)
+{
+    assert(pool);
+    memset(pool, 0, sizeof(*pool));
+}
 
 /** Free an allocation made on the pool. */
-void elk_static_pool_free(ElkStaticPool *pool, void *ptr);
+inline void
+elk_static_pool_free(ElkStaticPool *pool, void *ptr)
+{
+    assert(pool && ptr);
+
+    uintptr_t *next = ptr;
+    *next = (uintptr_t)pool->free;
+    pool->free = ptr;
+}
 
 /** Make an allocation on the pool.
  *
  *  \returns a pointer to a memory block. If the pool is full, it returns \c NULL;
  */
-void *elk_static_pool_alloc(ElkStaticPool *pool);
+inline void *
+elk_static_pool_alloc(ElkStaticPool *pool)
+{
+    assert(pool);
+
+    void *ptr = pool->free;
+    uintptr_t *next = pool->free;
+    if (ptr) {
+        pool->free = (void *)*next;
+    }
+
+    return ptr;
+}
 
 /// \cond HIDDEN
 // Just a stub so that it will work in the generic macros.
@@ -871,13 +1329,11 @@ elk_panic_allocator_alloc_aligned(void *arena, size_t size, size_t alignment)
  */
 
 /** Return from a function on a ledger type that indicates the collection is empty. */
-static ptrdiff_t const ELK_COLLECTION_LEDGER_EMPTY = -1;
+extern ptrdiff_t const ELK_COLLECTION_LEDGER_EMPTY;
 
 /** Return from a function on a ledger type that indicates the collection is empty. */
-static ptrdiff_t const ELK_COLLECTION_LEDGER_FULL = -2;
+extern ptrdiff_t const ELK_COLLECTION_LEDGER_FULL;
 
-/** Check the index returned from a ledger type function for any errors. */
-static inline bool elk_collection_ledger_error(ptrdiff_t index) { return index < 0; }
 /*-------------------------------------------------------------------------------------------------
  *                                         Queue Ledger
  *-----------------------------------------------------------------------------------------------*/

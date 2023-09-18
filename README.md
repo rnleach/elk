@@ -8,7 +8,7 @@
 
   2. Single header + single source file. Keeps it as simple as possible while also keeping the 
      implementation seperate from the API; just drop 2 files into your source tree and make sure
-     they're configured in your build system.
+     they're configured in your build system. (See design notes section below.)
 
   3. NOT threadsafe. Access to any objects will need to be protected by the user of those objects
      with a mutex or other means to prevent data races.
@@ -26,7 +26,7 @@
      and the C standard library. However I sometimes need string.h (memcpy, memmove), stdio.h 
      (printf and friends) and stdint.h (integer types with specified widths).
 
-## Notes
+## Design Notes
 
 ### Time
   The time related functions in this library do NOT account for local time or timezones. I almost 
@@ -40,6 +40,16 @@
   before that. The maximum time that can be handled by all the functions is December 31st, 32767.
   So this more than covers the useful period of meteorological observations and forecasts.
 
+### Header (.h) & Source (.c) File Layout
+  Most of the code is in the header, which is awkward. But I wanted to favor doing work on the
+  stack and enable as much inlining as possible. So I've let alot of my implementation go into the
+  header. I've given most of the inline functions (except the smallest) external linkage so they
+  only get compiled into the final executable once, but have the best opportunities to get inlined.
+  Some of the smallest functions are just \c static \c inline. This makes it hard to know what's
+  intended as public API and what isn't from the library. But if you can read comments formatted for
+  Doxygen, then you can follow along. If you have Doxygen, just use it to create the documentation
+  and read that.
+
 ## Releases
 
 ### Version 2.0.0 - IN PROGRESS
@@ -49,6 +59,7 @@
   - Added a string type (gotta reinvent the C-string)
   - Added a string interner.
   - Added pool and arena allocators.
+  - Added collection ledger types (queue & array ledgers)
 
 ### Version 1.2.0
   - (2023-02-14) Multiple upgrades.
