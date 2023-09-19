@@ -36,7 +36,7 @@
  * or \c break, or any code snippet you put in there. But it will always print a message to
  * \c stderr when it is triggered.
  */
-#define StopIf(assertion, error_action, ...)                                                       \
+#define ErrorIf(assertion, error_action, ...)                                                      \
     {                                                                                              \
         if (assertion) {                                                                           \
             fprintf(stderr, "[%s %d]: ", __FILE__, __LINE__);                                      \
@@ -54,7 +54,7 @@
  * always on. This macro will do an error action, which could be a \c goto, \c return, \c continue,
  * or \c break, or any code snippet you put in there. It's called quiet because nothing is printed.
  */
-#define Bailout(assertion, error_action)                                                           \
+#define StopIf(assertion, error_action)                                                            \
     {                                                                                              \
         if (assertion) {                                                                           \
             error_action;                                                                          \
