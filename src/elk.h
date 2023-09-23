@@ -953,14 +953,14 @@ elk_arena_destroy(ElkArenaAllocator *arena)
  *
  * Currently this is implemented as a no-op.
  *
- * A future implementation may actually free this allocation IF it was the last allocation that
- * was made. This would allow the arena to behave like a stack if the allocation pattern is just
- * right.
+ * TODO: A future implementation may actually free this allocation IF it was the last allocation
+ * that was made. This would allow the arena to behave like a stack if the allocation pattern is
+ * just right.
  */
 static inline void
 elk_arena_free(ElkStaticArena *arena, void *ptr)
 {
-    // no-op - we don't own the buffer!
+    // no-op
     return;
 }
 
@@ -994,7 +994,7 @@ elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment)
 
 /** @} */ // end of growable_arena group
 /*-------------------------------------------------------------------------------------------------
- *                                      Pool Allocator
+ *                                   Static Pool Allocator
  *-----------------------------------------------------------------------------------------------*/
 /** \defgroup static_pool Static Pool Allocator
  *  \ingroup memory
