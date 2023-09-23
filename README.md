@@ -52,7 +52,8 @@
 
 ## Releases
 
-### Version 2.0.0 - IN PROGRESS
+### Version 2.0.0
+  - (2023-09-23) Major revision.
   - Minimalistic, general purpose tools.
   - Removed a lot of stuff from V1.2.0
   - Created my own types for handling calendar time.
