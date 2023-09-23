@@ -9,16 +9,15 @@ main(void)
 {
     printf("\n\n***        Starting Tests.        ***\n\n");
 
-    elk_init_memory_debug(NULL, NULL, NULL);
-
     elk_time_tests();
-    elk_list_tests();
-    elk_queue_tests();
-    elk_heap_tests();
-    elk_hilbert_tests();
-    elk_rtree_view_tests();
-
-    elk_finalize_memory_debug();
+    elk_fnv1a_tests();
+    elk_str_tests();
+    elk_arena_tests();
+    elk_pool_tests();
+    elk_allocator_generic_api_tests();
+    elk_string_interner_tests();
+    elk_queue_ledger_tests();
+    elk_array_ledger_tests();
 
     printf("\n\n*** Tests completed successfully. ***\n\n");
     return EXIT_SUCCESS;

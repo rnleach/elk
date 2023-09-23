@@ -14,16 +14,16 @@
 #    define ELK_PANIC_CRASH
 #endif
 
-// Turn on ELK_MEMORY_DEBUG from the command line to check for memory errors during testing.
-
 #include <assert.h>
-#include <math.h>
 
 #include "../src/elk.h"
 
 void elk_time_tests(void);
-void elk_list_tests(void);
-void elk_queue_tests(void);
-void elk_heap_tests(void);
-void elk_hilbert_tests(void);
-void elk_rtree_view_tests(void);
+void elk_fnv1a_tests(void);
+void elk_str_tests(void);
+void elk_arena_tests(void);
+void elk_pool_tests(void);
+void elk_allocator_generic_api_tests(void);
+void elk_string_interner_tests(void);
+void elk_queue_ledger_tests(void);
+void elk_array_ledger_tests(void);

@@ -1,5 +1,5 @@
 # Show commands that make uses
-VERBOSE = TRUE
+VERBOSE = FALSE
 
 # Directory layout.
 PROJDIR := $(realpath $(CURDIR)/)
@@ -13,7 +13,7 @@ DEBUGDIR := $(PROJDIR)/debug
 CFLAGS = -Wall -Werror -std=c11 -I$(SOURCEDIR) -I$(TESTDIR)
 LDLIBS = -lm
 ifeq ($(DEBUG),1)
-	CFLAGS += -g -DELK_PANIC_CRASH -DELK_MEMORY_DEBUG
+	CFLAGS += -g3 -DELK_PANIC_CRASH
 	LDLIBS +=
 	BUILDDIR := $(DEBUGDIR)
 else

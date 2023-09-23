@@ -1,0 +1,63 @@
+# NMake Makefile for use on Windows
+#
+# Type $ENV:DEBUG=1 in terminal to enable debug builds. Make sure to run nmake clean_test when done.
+# Type Remove-Item Env:\DEBUG to remove the environment variable and go back to regular builds.
+#
+# run with
+# > nmake /f nmakefile test
+#
+
+CFLAGS= /std:c11 /TC /utf-8
+
+!IF "$(DEBUG)" == "1"
+
+CFLAGS = $(CFLAGS) /Od /Zi 
+
+!ELSE
+
+CFLAGS = $(CFLAGS) /O2 /DNDEBUG /openmp:experimental /Qvec-report:1
+
+!ENDIF
+
+TEST_OBJS = tests/test.obj            \
+			tests/arena.obj           \
+			tests/fnv1a.obj           \
+			tests/pool.obj            \
+			tests/str.obj             \
+			tests/string_interner.obj \
+			tests/time.obj            \
+			tests/generic_alloc.obj   \
+			tests/queue_ledger.obj    \
+			tests/array_ledger.obj
+
+LIB_OBJ = src/elk.obj
+
+all: test.exe test
+
+$(LIB_OBJ): src/elk.h
+{src}.c{src}.obj:
+	@echo -------------------------------------------------------------------------------------------
+	@echo Compiling $*
+	$(CC) $(CFLAGS) /c /Fo$*.obj $*.c 
+
+$(TEST_OBJS): tests/test.h src/elk.h
+{tests}.c{tests}.obj:
+	@echo -------------------------------------------------------------------------------------------
+	@echo Compiling $*
+	$(CC) $(CFLAGS) /c /Fo$*.obj $*.c 
+
+test.exe: $(TEST_OBJS) $(LIB_OBJ) 
+	@echo -------------------------------------------------------------------------------------------
+	@echo Linking $@
+	LINK $**
+
+test: test.exe
+	@echo -------------------------------------------------------------------------------------------
+	@echo Testing $**
+	$**
+
+clean:
+	@echo -------------------------------------------------------------------------------------------
+	@echo Cleaning compile artefacts.
+	del tests\*.obj src\*.obj *.pdb *.exe
+

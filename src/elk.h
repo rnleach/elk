@@ -5,12 +5,13 @@
  *
  * See the main page for an overall description and the list of goals/non-goals: \ref index
  */
-#include <inttypes.h>
-#include <limits.h>
+#include <assert.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+#include <string.h>
 
 /*-------------------------------------------------------------------------------------------------
  *                                      Error Handling
@@ -35,7 +36,7 @@
  * or \c break, or any code snippet you put in there. But it will always print a message to
  * \c stderr when it is triggered.
  */
-#define StopIf(assertion, error_action, ...)                                                       \
+#define ErrorIf(assertion, error_action, ...)                                                      \
     {                                                                                              \
         if (assertion) {                                                                           \
             fprintf(stderr, "[%s %d]: ", __FILE__, __LINE__);                                      \
@@ -53,7 +54,7 @@
  * always on. This macro will do an error action, which could be a \c goto, \c return, \c continue,
  * or \c break, or any code snippet you put in there. It's called quiet because nothing is printed.
  */
-#define QuietStopIf(assertion, error_action)                                                       \
+#define StopIf(assertion, error_action)                                                            \
     {                                                                                              \
         if (assertion) {                                                                           \
             error_action;                                                                          \
@@ -96,78 +97,241 @@
 
 /** @} */ // end of errors group
 
-/** \defgroup errorcodes Error codes returned by some Elk functions.
- *
- * @{
- */
-typedef enum ElkCode {
-    ELK_CODE_FULL,        /** The collection is full and can't accept anymore items. */
-    ELK_CODE_EMPTY,       /** The collection is empty and can't return anymore items. */
-    ELK_CODE_SUCCESS,     /** There was no error, only success! */
-} ElkCode;
-
-/** Test to see if a code indicates an error. */
-static inline bool
-elk_is_error(ElkCode code)
-{
-    return code < ELK_CODE_SUCCESS;
-}
-
-/** @} */ // end of errorcodes group
 /*-------------------------------------------------------------------------------------------------
  *                                        Date and Time Handling
  *-----------------------------------------------------------------------------------------------*/
 /** \defgroup time Time and Dates
  *
- * Time and date functions are generally not thread safe due to their reliance on the C standard
- * library.
+ * The standard C library interface for time isn't threadsafe in general, so I'm reimplementing
+ * parts of it here.
+ *
+ * To do that is pretty difficult! So I'm specializing based on my needs.
+ *  - I work entirely in UTC, so I won't bother with timezones. Timezones require interfacing with
+ *    the OS, and so it belongs in a platform library anyway.
+ *  - I mainly handle meteorological data, including observations and forecasts. I'm not concerned
+ *    with time and dates before the 19th century or after the 21st century. Covering more is fine,
+ *    but not necessary.
+ *  - Given the restrictions above, I'm going to make the code as simple and fast as I can.
+ *  - The end result covers the time ranging from midnight January 1st, 1 ADE to the last second of
+ *    the day on December 31st, 32767.
+ *
  * @{
  */
 
-/** Create a \c time_t object given the date and time information.
+/// \cond HIDDEN
+extern int64_t const SECONDS_PER_MINUTE;
+extern int64_t const MINUTES_PER_HOUR;
+extern int64_t const HOURS_PER_DAY;
+extern int64_t const DAYS_PER_YEAR;
+extern int64_t const SECONDS_PER_HOUR;
+extern int64_t const SECONDS_PER_DAY;
+extern int64_t const SECONDS_PER_YEAR;
+
+// Days in a year up to beginning of month
+extern int64_t const sum_days_to_month[2][13];
+
+inline int64_t
+elk_num_leap_years_since_epoch(int64_t year)
+{
+    assert(year >= 1);
+
+    year -= 1;
+    return year / 4 - year / 100 + year / 400;
+}
+
+inline int64_t
+elk_days_since_epoch(int year)
+{
+    // Days in the years up to now.
+    int64_t const num_leap_years_since_epoch = elk_num_leap_years_since_epoch(year);
+    int64_t ts = (year - 1) * DAYS_PER_YEAR + num_leap_years_since_epoch;
+
+    return ts;
+}
+
+/// \endcond HIDDEN
+
+/** Succinct type used for calendar time.
  *
- * WARNING: The standard C library functions that this function depends on are not reentrant or
- * threadsafe, so neither is this function.
+ * Most work with times and dates should be done using this type as it is small and natively
+ * supported on most modern architectures that I will be using.
+ */
+typedef int64_t ElkTime;
+
+/** The unix epoch in ElkTime.
+ *
+ * If you have a timestamp based on the unix epoch, add this value to get it into the elk epoch.
+ */
+extern ElkTime const elk_unix_epoch_timestamp;
+
+/** Convert an \ref ElkTime to a Unix timestamp. */
+inline int64_t
+elk_time_to_unix_epoch(ElkTime time)
+{
+    return time - elk_unix_epoch_timestamp;
+}
+
+/** Convert an Unxi timestamp to an \ref ElkTime. */
+inline ElkTime
+elk_time_from_unix_timestamp(int64_t unixtime)
+{
+    return unixtime + elk_unix_epoch_timestamp;
+}
+
+/** Calendar time.
+ *
+ * Useful for constructing or deconstructing \ref ElkTime objects, and doing output.
+ */
+typedef struct ElkStructTime {
+    int16_t year;
+    int8_t month;
+    int8_t day;
+    int8_t hour;
+    int8_t minute;
+    int8_t second;
+} ElkStructTime;
+
+/** Find out if a year is a leap year. */
+inline bool
+elk_is_leap_year(int year)
+{
+    if (year % 4 != 0)
+        return false;
+    if (year % 100 == 0 && year % 400 != 0)
+        return false;
+    return true;
+}
+
+/** Create a \ref ElkTime object given the date and time information.
  *
  * NOTE: All inputs are in UTC.
  *
- * \param year is the 4 digit year.
+ * \param year is the 4 digit year, and it must be greater than or equal to 0 (1 BCE).
  * \param month is the month number [1,12].
  * \param day is the day of the month [1,31].
  * \param hour is the hour of the day [0, 23].
  * \param minute is the minute of the day [0, 59].
  *
- * \returns The system representation of that time as a \c time_t. This is usually (but not
- * guaranteed to be) the seconds since midnight UTC on January 1st, 1970. The tests for this
- * library test to make sure it is the seconds since the Unix epoch.
+ * The minimum year is year 1 and the maximum year is year 32767.
  */
-time_t elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, int seconds);
+inline ElkTime
+elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, int seconds)
+{
+    assert(year >= 1 && year <= INT16_MAX);
+    assert(day >= 1 && day <= 31);
+    assert(month >= 1 && month <= 12);
+    assert(hour >= 0 && hour <= 23);
+    assert(minutes >= 0 && minutes <= 59);
+    assert(seconds >= 0 && seconds <= 59);
+
+    // Seconds in the years up to now.
+    int64_t const num_leap_years_since_epoch = elk_num_leap_years_since_epoch(year);
+    ElkTime ts = (year - 1) * SECONDS_PER_YEAR + num_leap_years_since_epoch * SECONDS_PER_DAY;
+
+    // Seconds in the months up to the start of this month
+    int64_t const days_until_start_of_month =
+        elk_is_leap_year(year) ? sum_days_to_month[1][month] : sum_days_to_month[0][month];
+    ts += days_until_start_of_month * SECONDS_PER_DAY;
+
+    // Seconds in the days of the month up to this one.
+    ts += (day - 1) * SECONDS_PER_DAY;
+
+    // Seconds in the hours, minutes, & seconds so far this day.
+    ts += hour * SECONDS_PER_HOUR;
+    ts += minutes * SECONDS_PER_MINUTE;
+    ts += seconds;
+
+    assert(ts >= 0);
+
+    return ts;
+}
+
+/** Convert from \ref ElkStructTime to \ref ElkTime. */
+inline ElkTime
+elk_make_time(ElkStructTime tm)
+{
+    return elk_time_from_ymd_and_hms(tm.year, tm.month, tm.day, tm.hour, tm.minute, tm.second);
+}
+
+/** Convert from \ref ElkTime to \ref ElkRefTime. */
+inline ElkStructTime
+elk_make_struct_time(ElkTime time)
+{
+    assert(time >= 0);
+
+    // Get the seconds part and then trim it off and convert to minutes
+    int const second = time % SECONDS_PER_MINUTE;
+    time = (time - second) / SECONDS_PER_MINUTE;
+    assert(time >= 0 && second >= 0 && second <= 59);
+
+    // Get the minutes part, trim it off and convert to hours.
+    int const minute = time % MINUTES_PER_HOUR;
+    time = (time - minute) / MINUTES_PER_HOUR;
+    assert(time >= 0 && minute >= 0 && minute <= 59);
+
+    // Get the hours part, trim it off and convert to days.
+    int const hour = time % HOURS_PER_DAY;
+    time = (time - hour) / HOURS_PER_DAY;
+    assert(time >= 0 && hour >= 0 && hour <= 23);
+
+    // Rename variable for clarity
+    int64_t const days_since_epoch = time;
+
+    // Calculate the year
+    int year = days_since_epoch / (DAYS_PER_YEAR) + 1; // High estimate, but good starting point.
+    int64_t test_time = elk_days_since_epoch(year);
+    while (test_time > days_since_epoch) {
+        int step = (test_time - days_since_epoch) / (DAYS_PER_YEAR + 1);
+        step = step == 0 ? 1 : step;
+        year -= step;
+        test_time = elk_days_since_epoch(year);
+    }
+    assert(test_time <= elk_days_since_epoch(year));
+    time -= elk_days_since_epoch(year); // Now it's days since start of the year.
+    assert(time >= 0);
+
+    // Calculate the month
+    int month = 0;
+    int leap_year_idx = elk_is_leap_year(year) ? 1 : 0;
+    for (month = 1; month <= 11; month++) {
+        if (sum_days_to_month[leap_year_idx][month + 1] > time) {
+            break;
+        }
+    }
+    assert(time >= 0 && month > 0 && month <= 12);
+    time -= sum_days_to_month[leap_year_idx][month]; // Now in days since start of month
+
+    // Calculate the day
+    int const day = time + 1;
+    assert(day > 0 && day <= 31);
+
+    return (ElkStructTime){
+        .year = year, .month = month, .day = day, .hour = hour, .minute = minute, .second = second};
+}
 
 /** Truncate the minutes and seconds from the \p time argument.
- *
- * WARNING: The standard C library functions that this function depends on are not reentrant or
- * threadsafe, so neither is this function.
- *
- * NOTE: The non-posix version of this function depends on transformations to and from local time.
- * If you're in a timezone without a whole hour offset from UTC, this won't round you down to a
- * whole hour in UTC. At the time I wrote this comment, their are approximately 10 such time zones
- * world wide that use half hour or 45 minute offsets.
  *
  * \param time is the time you want truncated or rounded down (back) to the most recent hour.
  *
  * \returns the time truncated, or rounded down, to the most recent hour.
  */
-time_t elk_time_truncate_to_hour(time_t time);
+inline ElkTime
+elk_time_truncate_to_hour(ElkTime time)
+{
+    ElkTime adjusted = time;
+
+    int64_t const seconds = adjusted % SECONDS_PER_MINUTE;
+    adjusted -= seconds;
+
+    int64_t const minutes = (adjusted / SECONDS_PER_MINUTE) % MINUTES_PER_HOUR;
+    adjusted -= minutes * SECONDS_PER_MINUTE;
+
+    assert(adjusted >= 0);
+
+    return adjusted;
+}
 
 /** Round backwards in time until the desired hour is reached.
- *
- * WARNING: The standard C library functions that this function depends on are not reentrant or
- * threadsafe, so neither is this function.
- *
- * NOTE: The non-posix version of this function depends on transformations to and from local time.
- * If you're in a timezone without a whole hour offset from UTC, this won't round you down to a
- * whole hour in UTC. At the time I wrote this comment, their are approximately 10 such time zones
- * world wide that use half hour or 45 minute offsets.
  *
  * \param time is the time you want truncated or rounded down (backwards) to the requested
  *            (\p hour).
@@ -177,7 +341,32 @@ time_t elk_time_truncate_to_hour(time_t time);
  * \returns the time truncated, or rounded down, to the requested hour, even if it has to go back a
  * day.
  */
-time_t elk_time_truncate_to_specific_hour(time_t time, int hour);
+inline ElkTime
+elk_time_truncate_to_specific_hour(ElkTime time, int hour)
+{
+    assert(hour >= 0 && hour <= 23 && time >= 0);
+
+    ElkTime adjusted = time;
+
+    int64_t const seconds = adjusted % SECONDS_PER_MINUTE;
+    adjusted -= seconds;
+
+    int64_t const minutes = (adjusted / SECONDS_PER_MINUTE) % MINUTES_PER_HOUR;
+    adjusted -= minutes * SECONDS_PER_MINUTE;
+
+    int64_t actual_hour = (adjusted / SECONDS_PER_HOUR) % HOURS_PER_DAY;
+    if (actual_hour < hour) {
+        actual_hour += 24;
+    }
+
+    int64_t change_hours = actual_hour - hour;
+    assert(change_hours >= 0);
+    adjusted -= change_hours * SECONDS_PER_HOUR;
+
+    assert(adjusted >= 0);
+
+    return adjusted;
+}
 
 /** Units of time for adding / subtracting time.
  *
@@ -189,7 +378,7 @@ typedef enum {
     ElkMinute = 60,
     ElkHour = 60 * 60,
     ElkDay = 60 * 60 * 24,
-    ElkWeek = 60 * 60 * 27 * 7,
+    ElkWeek = 60 * 60 * 24 * 7,
 } ElkTimeUnit;
 
 /** Add a change in time.
@@ -197,698 +386,1143 @@ typedef enum {
  * The type \ref ElkTimeUnit can be multiplied by an integer to make \p change_in_time more
  * readable. For subtraction, just use a negative sign on the change_in_time.
  */
-time_t elk_time_add(time_t time, int change_in_time);
+inline ElkTime
+elk_time_add(ElkTime time, int change_in_time)
+{
+    ElkTime result = time + change_in_time;
+    assert(result >= 0);
+    return result;
+}
 
 /** @} */ // end of time group
 /*-------------------------------------------------------------------------------------------------
- *                                       Memory and Pointers
+ *                                         Hashes
  *-----------------------------------------------------------------------------------------------*/
-/** \defgroup memory Memory management.
+/** \defgroup hash Hash functions
  *
- * Functions and macros for managing and debugging memory.
+ * Non-cryptographically secure hash functions.
  *
- * The elk_init_memory_debug(), elk_finalize_memory_debug(), and elk_debug_mem() functions are null
- * functions unless the \c ELK_MEMORY_DEBUG macro is defined. When that macro is defined, malloc(),
- * realloc(), calloc(), and free() from stdlib.h are usurped by macros that keep track of memory
- * allocations.
- *
- * elk_init_memory_debug() can optionally check a mutex to prevent data races in a multithreaded
- * application, but it is the user's responsibility to set that up.
+ * If you're passing user supplied data to this, it's possible that a nefarious actor could send
+ * data specifically designed to jam up one of these functions. So don't use them to write a web
+ * browser or server, or banking software. They should be good and fast though for data munging.
  *
  * @{
  */
 
-/** Steal a pointer.
+/** Function prototype for a hash function.
  *
- * This is useful for tracking ownership. To move an object by pointer, steal the pointer using this
- * function, and the original value will be set to \c NULL.
+ * \param n is the size of the value in bytes.
+ * \param value is a pointer to the object to hash.
+ *
+ * \returns the hash value as an unsigned, 64 bit integer.
  */
-static inline void *
-elk_steal_ptr(void **ptr)
+typedef uint64_t (*ElkHashFunction)(size_t const n, void const *value);
+
+/** Accumulate values into a hash.
+ *
+ * This is a useful tool for writing functions to calculate hashes of custom types. For instance
+ * if you have a struct, you could write a function that creates a hash by sending the first
+ * member through \ref elk_fnv1a_hash() and then sending each of the other members in turn through
+ * this function. Then finally return the final value.
+ *
+ * \param n is the size of the value in bytes.
+ * \param value is a pointer to the object to hash.
+ * \param hash_so_far is the hash value calculated so far.
+ *
+ * \returns the hash value (so far) as an unsigned, 64 bit integer.
+ */
+inline uint64_t
+elk_fnv1a_hash_accumulate(size_t const n, void const *value, uint64_t const hash_so_far)
 {
-    void *item = *ptr;
-    *ptr = NULL;
-    return item;
+    uint64_t const fnv_prime = 0x00000100000001b3;
+
+    uint8_t const *data = value;
+
+    uint64_t hash = hash_so_far;
+    for (size_t i = 0; i < n; ++i) {
+        hash ^= data[i];
+        hash *= fnv_prime;
+    }
+
+    return hash;
 }
 
-/** Initialize the memory debugging system.
+/** FNV-1a hash function.
  *
- * This function is defined as an empty function unless the macro ELK_MEMORY_DEBUG is defined.
+ * WARNING: In types with padding, such as many structs, it is not safe to use this function to
+ * calculate a hash value since it will also include the values of the bytes in the padding, which
+ * the programmer doesn't generally have control over. This is only safe for types all the data is
+ * stored in contiguous bytes with no padding (such as a string). For composite types, create a
+ * custom hash function that uses this function for the first struct member and then passes the
+ * resulting hash value through \ref elk_fnv1a_hash_accumulate() with the other members to build
+ * up a hash value.
  *
- * Since this is only used for debugging, the mutex set up and teardown can be guarded by defines
- * and you can use functions that panic/abort if any part of the setup / teardown, locking,
- * unlocking fail on a given platform.
+ * \param n is the size of the value in bytes.
+ * \param value is a pointer to the object to hash.
  *
- * \param mutex a global mutex for preventing data races in multithreaded applications. \c NULL is
- *        allowed if no global locking is needed.
- * \param lock a function to lock the \p mutex. \c NULL is allowed if no global locking is needed.
- * \param unlock a function to unlock the \p mutex. \c NULL is allowed if no global locking is
- *        needed.
+ * \returns the hash value as an unsigned, 64 bit integer.
  */
-void elk_init_memory_debug(void *mutex, void (*lock)(void *), void (*unlock)(void *));
+inline uint64_t
+elk_fnv1a_hash(size_t const n, void const *value)
+{
+    uint64_t const fnv_offset_bias = 0xcbf29ce484222325;
+    return elk_fnv1a_hash_accumulate(n, value, fnv_offset_bias);
+}
 
-/** Finalize and clean up the memory debugging system.
+/** @} */ // end of hash group
+/*-------------------------------------------------------------------------------------------------
+ *                                       String Slice
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup str String slice.
  *
- * This function is defined as an empty function unless the macro ELK_MEMORY_DEBUG is defined.
+ * An altenrate implementation of strings with "fat pointers" that are pointers to the start and
+ * the length of the string. When strings are copied or moved, every effort is made to keep them
+ * null terminated so they play nice with the standard C string implementation.
+ *
+ * \warning Slices are only meant to alias into larger strings and so have no built in memory
+ *    management functions. It's unadvised to have an \ref ElkStr that is the only thing that
+ *    contains a pointer from \c malloc(). A seperate pointer to any buffer should be kept around
+ *    for memory management purposes.
+ * @{
  */
-void elk_finalize_memory_debug();
 
-/** Run the debug checks with the current state of the application's memory.
+/** A fat pointer type for strings.
  *
- * This function is defined as an empty function unless the macro ELK_MEMORY_DEBUG is defined.
- *
- * If a buffer overrun is detected, this function will crash the program immediately. Otherwise, it
- * will print a list of "active" pointers and the file and line where they were allocated, and some
- * summary statistics of allocations.
+ * \note If \ref ElkStr.start is not \c NULL but \ref ElkStr.len is zero, this refers to an empty
+ *     string slice. If \ref ElkStr.start is \c NULL, then it doesn't refer to anything, it's the
+ *     same as a \c NULL pointer in plain C.
  */
-void elk_debug_mem();
+typedef struct ElkStr {
+    char *start; /// points at first character in the string.
+    size_t len;  /// the length of the string (not including a null terminator if it's there).
+} ElkStr;
+
+/** Create an \ref ElkStr from a null terminated C string. */
+inline ElkStr
+elk_str_from_cstring(char *src)
+{
+    assert(src);
+
+    size_t len;
+    for (len = 0; *(src + len) != '\0'; ++len)
+        ; // intentionally left blank.
+    return (ElkStr){.start = src, .len = len};
+}
+
+/** Copy a string into a buffer.
+ *
+ * Copies the string referred to by \p src into the buffer \p dest. If the buffer isn't big enough,
+ * then it copies as much as it can. If the buffer is large enough, a null character will be
+ * appended to the end. If not, the last position in the buffer will be set to the null character.
+ * So it ALWAYS leaves a null terminated string in \p dest.
+ *
+ * \returns an ElkStr representing the destination.
+ */
+inline ElkStr
+elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src)
+{
+    assert(dest);
+
+    size_t const src_len = src.len;
+    size_t const copy_len = src_len < dst_len ? src_len : dst_len;
+    memcpy(dest, src.start, copy_len);
+
+    size_t end = copy_len < dst_len ? copy_len : dst_len - 1;
+    dest[end] = '\0';
+
+    return (ElkStr){.start = dest, .len = end};
+}
+
+/** Compare two strings character by character.
+ *
+ * \warning This is NOT utf-8 safe. It looks 1 byte at a time. So if you're using fancy utf-8 stuff,
+ * no promises.
+ *
+ * \return zero (0) if the two slices are equal, less than zero (-1) if \p left alphabetically
+ *     comes before \p right and greater than zero (1) if \p left is alphabetically comes after
+ *     \p right.
+ */
+inline int
+elk_str_cmp(ElkStr left, ElkStr right)
+{
+    assert(left.start && right.start);
+
+    size_t len = left.len > right.len ? right.len : left.len;
+
+    for (size_t i = 0; i < len; ++i) {
+        if (left.start[i] < right.start[i])
+            return -1;
+        else if (left.start[i] > right.start[i])
+            return 1;
+    }
+
+    if (left.len == right.len)
+        return 0;
+    if (left.len > right.len)
+        return 1;
+    return -1;
+}
+
+/** Check for equality between two strings.
+ *
+ * We could just use \ref elk_str_cmp(), but that is doing more than necessary. If I'm just looking
+ * for equal strings I can use far fewer instructions to do that.
+ *
+ * \warning This is NOT utf-8 safe. It looks 1 byte at a time. So if you're using fancy utf-8 stuff,
+ * no promises.
+ */
+inline bool
+elk_str_eq(ElkStr left, ElkStr right)
+{
+    assert(left.start && right.start);
+
+    if (left.len != right.len)
+        return false;
+
+    size_t len = left.len > right.len ? right.len : left.len;
+
+    for (size_t i = 0; i < len; ++i) {
+        if (left.start[i] != right.start[i])
+            return false;
+    }
+
+    return true;
+}
+
+/** Strip the leading and trailing white space from a string slice. */
+inline ElkStr
+elk_str_strip(ElkStr input)
+{
+    char *const start = input.start;
+    int start_offset = 0;
+    for (start_offset = 0; start_offset < input.len; ++start_offset) {
+        if (start[start_offset] > 0x20)
+            break;
+    }
+
+    int end_offset = 0;
+    for (end_offset = input.len - 1; end_offset > start_offset; --end_offset) {
+        if (start[end_offset] > 0x20)
+            break;
+    }
+
+    return (ElkStr){.start = &start[start_offset], .len = end_offset - start_offset + 1};
+}
+
+/** @} */ // end of str group
+/*-------------------------------------------------------------------------------------------------
+ *                                       String Interner
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup intern A string interner.
+ *
+ * @{
+ */
+
+/** Intern strings for more memory efficient storage. */
+typedef struct ElkStringInterner ElkStringInterner;
+
+/** Create a new string interner.
+ *
+ * \param size_exp The interner is backed by a hash table with a capacity that is a power of 2. The
+ *     \p size_exp is that power of two. This value is only used initially, if the table needs to
+ *     expand, it will, so it's OK to start with small values here. However, if you know it will
+ *     grow larger, it's better to start larger! For most reasonable use cases, it really probably
+ *     shouldn't be smaller than 5, but no checks are done for this.
+ *
+ * \param avg_string_size is the expected average size of the strings. This isn't really important,
+ *     because we can allocate more storage if needed. But if you know you'll always be using
+ *     small strings, make this a small number like 5 or 6 to prevent overallocating memory. If
+ *     you aren't sure, still use a small number and the interner will grow the storage as
+ *     necessary.
+ *
+ * \returns a pointer to an interner. If allocation fails, it will abort the program.
+ */
+ElkStringInterner *elk_string_interner_create(int8_t size_exp, int avg_string_size);
+
+/** Free memory and clean up. */
+void elk_string_interner_destroy(ElkStringInterner *interner);
+
+/** Intern a string.
+ *
+ * \param interner must not be \c NULL.
+ * \param string is the string to intern.
+ *
+ * \returns An \ref ElkStr. This cannot fail unless the program runs out of memory, in which case
+ * it aborts the program.
+ */
+ElkStr elk_string_interner_intern_cstring(ElkStringInterner *interner, char *string);
+
+/** Intern a string.
+ *
+ * \param interner must not be \c NULL.
+ * \param string is the string to intern.
+ *
+ * \returns An \ref ElkStr. This cannot fail unless the program runs out of memory, in which case
+ * it aborts the program.
+ */
+ElkStr elk_string_interner_intern(ElkStringInterner *interner, ElkStr str);
+
+/** @} */ // end of intern group
+/*-------------------------------------------------------------------------------------------------
+ *
+ *                                          Memory
+ *
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup memory Memory management
+ *
+ * Utilities for managing memory. The recommended approach is to create an allocator by declaring
+ * it and using its init function, and then from there on out use the \ref generic_alloc functions
+ * for allocating and freeing memory on the allocator, and for destroying the allocator. That means
+ * if you ever want to change your allocation strategy for a section of code, you can just swap
+ * out the code that sets up the allocator and the rest should just work.
+ *
+ * @{
+ */
+/*-------------------------------------------------------------------------------------------------
+ *                                          Static Arena Allocator
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup static_arena Static Arena
+ *  \ingroup memory
+ *
+ * A statically sized, non-growable arena allocator that works on top of a user supplied buffer.
+ * @{
+ */
+
+/** A statically sized arena allocator. */
+typedef struct ElkStaticArena {
+    /// \cond HIDDEN
+    size_t buf_size;
+    size_t buf_offset;
+    unsigned char *buffer;
+    /// \endcond HIDDEN
+} ElkStaticArena;
 
 /// \cond HIDDEN
-
-/** Replacement for malloc when ELK_MEMORY_DEBUG is defined. */
-void *elk_malloc(size_t size, char const *fname, unsigned line);
-
-/** Replacement for realloc when ELK_MEMORY_DEBUG is defined. */
-void *elk_realloc(void *ptr, size_t size, char const *fname, unsigned line);
-
-/** Replacement for calloc when ELK_MEMORY_DEBUG is defined. */
-void *elk_calloc(size_t nmemb, size_t size, char const *fname, unsigned line);
-
-/** Replacement for free when ELK_MEMORY_DEBUG is defined. */
-void elk_free(void *ptr, char const *fname, unsigned line);
-
-#ifdef ELK_MEMORY_DEBUG
-#    define malloc(s) elk_malloc((s), __FILE__, __LINE__)
-#    define realloc(p, s) elk_realloc((p), (s), __FILE__, __LINE__)
-#    define calloc(n, s) elk_calloc((n), (s), __FILE__, __LINE__)
-#    define free(p) elk_free((p), __FILE__, __LINE__)
+#ifndef NDEBUG
+inline bool
+elk_is_power_of_2(uintptr_t p)
+{
+    return (p & (p - 1)) == 0;
+}
 #endif
+
+inline uintptr_t
+elk_align_pointer(uintptr_t ptr, size_t align)
+{
+
+    assert(elk_is_power_of_2(align));
+
+    uintptr_t a = (uintptr_t)align;
+    uintptr_t mod = ptr & (a - 1); // Same as (ptr % a) but faster as 'a' is a power of 2
+
+    if (mod != 0) {
+        // push the address forward to the next value which is aligned
+        ptr += a - mod;
+    }
+
+    return ptr;
+}
 
 /// \endcond HIDDEN
 
+/** Initialize the static arena with a user supplied buffer. */
+inline void
+elk_static_arena_init(ElkStaticArena *arena, size_t buf_size, unsigned char buffer[])
+{
+    assert(arena);
+    assert(buffer);
+
+    *arena = (ElkStaticArena){.buf_size = buf_size, .buf_offset = 0, .buffer = buffer};
+    return;
+}
+
+/** Destroy & cleanup the static arena.
+ *
+ * Currently this is a no-op but the function is provided for symmetry and use in type generic
+ * macros.
+ */
+static inline void
+elk_static_arena_destroy(ElkStaticArena *arena)
+{
+    // no-op
+    return;
+}
+
+/** Reset the arena.
+ *
+ * Starts allocating from the beginning and invalidates all memory and pointers allocated before
+ * this call.
+ */
+static inline void
+elk_static_arena_reset(ElkStaticArena *arena)
+{
+    assert(arena && arena->buffer);
+    arena->buf_offset = 0;
+    return;
+}
+
+/** Do an allocation on the arena.
+ *
+ * \param size is the size of the requested allocation in bytes.
+ * \param alignment is the alignment required of the memory. It must be a power of 2 and is most
+ *        is most easily assigned by just passing \c _Alignof() for the type of the memory will be
+ *        used for.
+ * \returns a pointer to the aligned memory or \c NULL if there isn't enough memory in the buffer.
+ */
+inline void *
+elk_static_arena_alloc(ElkStaticArena *arena, size_t size, size_t alignment)
+{
+    assert(arena);
+    assert(size > 0);
+
+    // Align 'curr_offset' forward to the specified alignment
+    uintptr_t curr_ptr = (uintptr_t)arena->buffer + (uintptr_t)arena->buf_offset;
+    uintptr_t offset = elk_align_pointer(curr_ptr, alignment);
+    offset -= (uintptr_t)arena->buffer; // change to relative offset
+
+    // Check to see if there is enough space left
+    if (offset + size <= arena->buf_size) {
+        void *ptr = &arena->buffer[offset];
+        arena->buf_offset = offset + size;
+
+        return ptr;
+    } else {
+        return NULL;
+    }
+}
+
+/** Free an allocation from the arena.
+ *
+ * Currently this is implemented as a no-op.
+ *
+ * A future implementation may actually free this allocation IF it was the last allocation that
+ * was made. This would allow the arena to behave like a stack if the allocation pattern is just
+ * right.
+ */
+static inline void
+elk_static_arena_free(ElkStaticArena *arena, void *ptr)
+{
+    // no-op - we don't own the buffer!
+    return;
+}
+
+/** @} */ // end of static_arena group
+/*-------------------------------------------------------------------------------------------------
+ *                                     Growable Arena Allocator
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup growable_arena Arena Allocator
+ *  \ingroup memory
+ *
+ * A growable arena allocator.
+ * @{
+ */
+
+/** An arena allocator that adds blocks as needed. */
+typedef struct ElkArenaAllocator {
+    /// \cond HIDDEN
+    ElkStaticArena head;
+    /// \endcond HIDDEN
+} ElkArenaAllocator;
+
+/// \cond HIDDEN
+
+inline void
+elk_arena_add_block(ElkArenaAllocator *arena, size_t block_size)
+{
+    uint32_t max_block_size = arena->head.buf_size > block_size ? arena->head.buf_size : block_size;
+    assert(max_block_size > sizeof(ElkStaticArena));
+
+    unsigned char *buffer = calloc(max_block_size, 1);
+    PanicIf(!buffer, "out of memory");
+
+    ElkStaticArena next = arena->head;
+
+    elk_static_arena_init(&arena->head, max_block_size, buffer);
+    ElkStaticArena *next_ptr =
+        elk_static_arena_alloc(&arena->head, sizeof(ElkStaticArena), _Alignof(ElkStaticArena));
+    assert(next_ptr);
+    *next_ptr = next;
+}
+
+inline void
+elk_arena_free_blocks(ElkArenaAllocator *arena)
+{
+    unsigned char *curr_buffer = arena->head.buffer;
+
+    // Relies on the first block's buffer being initialized to NULL
+    while (curr_buffer) {
+        // Copy next into head.
+        arena->head = *(ElkStaticArena *)&curr_buffer[0];
+
+        // Free the buffer
+        free(curr_buffer);
+
+        // Update to point to the next buffer
+        curr_buffer = arena->head.buffer;
+    }
+}
+
+/// \endcond HIDDEN
+
+/** Initialize an arena allocator.
+ *
+ * If this fails, it aborts. If the machine runs out of memory, it aborts.
+ *
+ * \param starting_block_size this is the minimum block size that it will use if it needs to expand.
+ *        If however a larger allocation is ever requested than the block size, that will become
+ *        the new block size.
+ */
+inline void
+elk_arena_init(ElkArenaAllocator *arena, size_t starting_block_size)
+{
+    assert(arena);
+
+    size_t const min_size = sizeof(arena->head) + 8;
+    starting_block_size = starting_block_size > min_size ? starting_block_size : min_size;
+
+    // Zero everything out - important for the intrusive linked list used to keep track of how
+    // many blocks have been added. The NULL buffer signals the end of the list.
+    *arena = (ElkArenaAllocator){
+        .head = (ElkStaticArena){.buffer = NULL, .buf_size = 0, .buf_offset = 0}};
+
+    elk_arena_add_block(arena, starting_block_size);
+}
+
+/** Reset the arena.
+ *
+ * This is useful if you don't want to return the memory to the OS because you will reuse it soon,
+ * e.g. in a loop, but you're done with the objects allocated off it so far.
+ *
+ * If there are multiple blocks allocated in the arena, they will be freed and a new block the same
+ * size as the sum of all the previous blocks will be allocated in their place. If you want the
+ * memory to shrink, then use \ref elk_arena_destroy() followed by a call to \ref elk_arena_init()
+ * to ensure that it doesn't remain larger than needed.
+ *
+ * TODO: Consider adding a function that resets and only keeps the first page as a way to keep the
+ * arena from gobbling up memory and returning it.
+ */
+inline void
+elk_arena_reset(ElkArenaAllocator *arena)
+{
+    assert(arena);
+
+    // Get the total size in all the blocks
+    size_t sum_block_sizes = arena->head.buf_size;
+
+    // It's always placed at the very beginning of the buffer.
+    ElkStaticArena *next = (ElkStaticArena *)&arena->head.buffer[0];
+
+    // Relies on the first block's buffer being initialized to NULL in the arena initialization.
+    while (next->buffer) {
+        sum_block_sizes += next->buf_size;
+        next = (ElkStaticArena *)&next->buffer[0];
+    }
+
+    if (sum_block_sizes > arena->head.buf_size) {
+        // Free the blocks
+        elk_arena_free_blocks(arena);
+
+        // Re-initialize with a larger block size.
+        elk_arena_init(arena, sum_block_sizes);
+    } else {
+        // We only have one block, no reaseon to free and reallocate, but we need to maintain
+        // the header describing the "next" block.
+        arena->head.buf_offset = sizeof(ElkStaticArena);
+    }
+
+    return;
+}
+
+/** Free all memory associated with this arena.
+ *
+ * It is unusable after this operation, but you can put it through \ref elk_arena_init() again if
+ * you want. You may prefer to destroy and reinitialize an arena if you want it to shrink back to
+ * the originally requested block size. \ref elk_arena_reset() will always use keep the arena at the
+ * largest size used so far, so this is also a way to reclaim memory.
+ */
+inline void
+elk_arena_destroy(ElkArenaAllocator *arena)
+{
+    assert(arena);
+    elk_arena_free_blocks(arena);
+    arena->head.buf_size = 0;
+    arena->head.buf_offset = 0;
+}
+
+/** Free an allocation from the arena.
+ *
+ * Currently this is implemented as a no-op.
+ *
+ * TODO: A future implementation may actually free this allocation IF it was the last allocation
+ * that was made. This would allow the arena to behave like a stack if the allocation pattern is
+ * just right.
+ */
+static inline void
+elk_arena_free(ElkStaticArena *arena, void *ptr)
+{
+    // no-op
+    return;
+}
+
+/** Make an allocation on the \p arena.
+ *
+ * \param arena is the arena to use.
+ * \param bytes is the size in bytes of the requested allocation.
+ * \param alignment the required alignment for the allocation. This must be a power of 2. The power
+ *  of 2 requirement is checked for in an assert, so it can be compiled out with -DNDEBUG.
+ *
+ *  \returns a pointer to a memory block of the requested size and alignment. If there isn't enough
+ *  space, then a new block of at least the required size is allocated from the operating system.
+ *  If the requested memory isn't available from the operating system, then this function aborts
+ *  the program.
+ */
+inline void *
+elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment)
+{
+    assert(arena && arena->head.buffer);
+
+    void *ptr = elk_static_arena_alloc(&arena->head, bytes, alignment);
+
+    if (!ptr) {
+        // add a new block of at least the required size
+        elk_arena_add_block(arena, bytes + sizeof(ElkStaticArena) + alignment);
+        ptr = elk_static_arena_alloc(&arena->head, bytes, alignment);
+    }
+
+    return ptr;
+}
+
+/** @} */ // end of growable_arena group
+/*-------------------------------------------------------------------------------------------------
+ *                                   Static Pool Allocator
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup static_pool Static Pool Allocator
+ *  \ingroup memory
+ *
+ * A static pool allocator that does not grow.
+ * @{
+ */
+
+/** A static pool allocator.
+ *
+ * A pool stores objects all of the same size and alignment. This pool implementation does NOT
+ * automatically expand if it runs out of space; it is statically sized at runtime.
+ */
+typedef struct ElkStaticPool {
+    /// \cond HIDDEN
+    size_t object_size;    // The size of each object.
+    size_t num_objects;    // The capacity, or number of objects storable in the pool.
+    void *free;            // The head of a free list of available slots for objects.
+    unsigned char *buffer; // The buffer we actually store the data in.
+    /// \endcond HIDDEN
+} ElkStaticPool;
+
+/// \cond HIDDEN
+
+inline void
+elk_static_pool_initialize_linked_list(unsigned char *buffer, size_t object_size,
+                                       size_t num_objects)
+{
+
+    // Initialize the free list to a linked list.
+
+    // start by pointing to last element and assigning it NULL
+    size_t offset = object_size * (num_objects - 1);
+    uintptr_t *ptr = (uintptr_t *)&buffer[offset];
+    *ptr = (uintptr_t)NULL;
+
+    // Then work backwards to the front of the list.
+    while (offset) {
+        size_t next_offset = offset;
+        offset -= object_size;
+        ptr = (uintptr_t *)&buffer[offset];
+        uintptr_t next = (uintptr_t)&buffer[next_offset];
+        *ptr = next;
+    }
+}
+
+/// \endcond HIDDEN
+
+/** Reset the pool.
+ *
+ * This is useful if you don't want to return the memory to the OS because you will reuse it soon,
+ * e.g. in a loop, but you're done with the objects.
+ */
+inline void
+elk_static_pool_reset(ElkStaticPool *pool)
+{
+    assert(pool && pool->buffer && pool->num_objects && pool->object_size);
+
+    // Initialize the free list to a linked list.
+    elk_static_pool_initialize_linked_list(pool->buffer, pool->object_size, pool->num_objects);
+    pool->free = &pool->buffer[0];
+}
+
+/** Initialize a static pool allocator.
+ *
+ * If this fails, it aborts. If the machine runs out of memory, it aborts.
+ *
+ * This is an error prone and brittle type. If you get it all working, a refactor or code edit
+ * later is likely to break it.
+ *
+ * \warning It is the user's responsibility to make sure that there is at least
+ * \p object_size * \p num_objects bytes in the backing \p buffer. If that isn't true, you'll
+ * probably get a seg-fault during initialization.
+ *
+ * \warning \p object_size must be a multiple of \c sizeof(void*) enable to ensure the buffer
+ * is aligned to hold pointers also. That also means \p object_size must be at least
+ * \c sizeof(void*).
+ *
+ * \warning It is the user's responsibility to make sure the buffer is correctly aligned for the
+ * type of objects they will be storing in it. This isn't a concern if the memory came from
+ * \c malloc() et al as they return memory with the most pessimistic alignment. However, if using
+ * a stack allocated or static memory section, you should use an \c _Alignas to force the alignment.
+ *
+ * \param object_size is the size of the objects to store in the pool.
+ * \param num_objects is the capacity of the pool.
+ * \param buffer A user provided buffer to store the objects.
+ */
+inline void
+elk_static_pool_init(ElkStaticPool *pool, size_t object_size, size_t num_objects,
+                     unsigned char *buffer)
+{
+    assert(pool);
+    assert(object_size >= sizeof(void *));       // Need to be able to fit at least a pointer!
+    assert(object_size % _Alignof(void *) == 0); // Need for alignment of pointers.
+    assert(num_objects > 0);
+
+    pool->buffer = buffer;
+    pool->object_size = object_size;
+    pool->num_objects = num_objects;
+
+    elk_static_pool_reset(pool);
+}
+
+/** Free all memory associated with this pool.
+ *
+ * It is unusable after this operation, but you can put it through initialize again if you want.
+ * For a static pool like this, it is really a no-op because the user owns the buffer, but this
+ * function is provided for symmetry with the other allocators API's.
+ */
+inline void
+elk_static_pool_destroy(ElkStaticPool *pool)
+{
+    assert(pool);
+    memset(pool, 0, sizeof(*pool));
+}
+
+/** Free an allocation made on the pool. */
+inline void
+elk_static_pool_free(ElkStaticPool *pool, void *ptr)
+{
+    assert(pool && ptr);
+
+    uintptr_t *next = ptr;
+    *next = (uintptr_t)pool->free;
+    pool->free = ptr;
+}
+
+/** Make an allocation on the pool.
+ *
+ *  \returns a pointer to a memory block. If the pool is full, it returns \c NULL;
+ */
+inline void *
+elk_static_pool_alloc(ElkStaticPool *pool)
+{
+    assert(pool);
+
+    void *ptr = pool->free;
+    uintptr_t *next = pool->free;
+    if (ptr) {
+        pool->free = (void *)*next;
+    }
+
+    return ptr;
+}
+
+/// \cond HIDDEN
+// Just a stub so that it will work in the generic macros.
+static inline void *
+elk_static_pool_alloc_aligned(ElkStaticPool *pool, size_t size, size_t alignment)
+{
+    assert(pool && pool->object_size == size);
+    return elk_static_pool_alloc(pool);
+}
+/// \endcond HIDDEN
+/** @} */ // end of static_pool group
+/*-------------------------------------------------------------------------------------------------
+ *                                      Generic Allocator API
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup generic_alloc Generic Allocator API
+ *  \ingroup memory
+ *
+ * A C11 _Generic based API for swapping out allocators.
+ *
+ * The API doesn't include any initialization functions, those are unique enough to each allocator
+ * and they are tied closely to the type.
+ * @{
+ */
+
+/// \cond HIDDEN
+
+// These are stubs for the default case in the generic macros below that have the same API, these
+// are there so that it compiles, but it will abort the program. FAIL FAST.
+
+static inline void
+elk_panic_allocator_reset(void *alloc)
+{
+    Panic("allocator not configured: %s", __FUNCTION__);
+}
+
+static inline void
+elk_panic_allocator_destroy(void *arena)
+{
+    Panic("allocator not configured: %s", __FUNCTION__);
+}
+
+static inline void
+elk_panic_allocator_free(void *arena, void *ptr)
+{
+    Panic("allocator not configured: %s", __FUNCTION__);
+}
+
+static inline void
+elk_panic_allocator_alloc_aligned(void *arena, size_t size, size_t alignment)
+{
+    Panic("allocator not configured: %s", __FUNCTION__);
+}
+
+/// \endcond HIDDEN
+
+// clang-format off
+
+/** Allocate an item.
+ *
+ * \param type is the type of object the memory location will be used for.
+ */
+#define elk_allocator_malloc(alloc, type) (type *)_Generic((alloc),                                \
+        ElkStaticArena*: elk_static_arena_alloc,                                                   \
+        ElkArenaAllocator*: elk_arena_alloc,                                                       \
+        ElkStaticPool*: elk_static_pool_alloc_aligned,                                             \
+        default: elk_panic_allocator_alloc_aligned)(alloc, sizeof(type), _Alignof(type))
+
+/** Allocate an array.
+ *
+ * \param count is the number of items that will be in the array.
+ * \param type is the type of the items that will be in the array.
+ */
+#define elk_allocator_nmalloc(alloc, count, type) (type *)_Generic((alloc),                        \
+        ElkStaticArena*: elk_static_arena_alloc,                                                   \
+        ElkArenaAllocator*: elk_arena_alloc,                                                       \
+        ElkStaticPool*: elk_static_pool_alloc_aligned,                                             \
+        default:                                                                                   \
+            elk_panic_allocator_alloc_aligned)(alloc, count * sizeof(type), _Alignof(type))
+
+/** Free an allocation made on this allocator.
+ *
+ * Results may vary, not all allocators support freeing. For those, it's just a no-op. 
+ *
+ * \warning Most (all?) of the allocators don't check to see if this pointer was originally 
+ * allocated on this allocator instance. So if you send in a pointer that didn't come out of this
+ * allocator, the behavior is undefined.
+ */
+#define elk_allocator_free(alloc, ptr) _Generic((alloc),                                           \
+        ElkStaticArena*: elk_static_arena_free,                                                    \
+        ElkArenaAllocator*: elk_arena_free,                                                        \
+        ElkStaticPool*: elk_static_pool_free,                                                      \
+        default: elk_panic_allocator_free)(alloc, ptr)
+
+/** Reset the allocator.
+ *
+ * This invalidates all pointers previously returned from this allocator, but the backing memory
+ * remains and can be reused.
+ */
+#define elk_allocator_reset(alloc) _Generic((alloc),                                               \
+        ElkStaticArena*: elk_static_arena_reset,                                                   \
+        ElkArenaAllocator*: elk_arena_reset,                                                       \
+        ElkStaticPool*: elk_static_pool_reset,                                                     \
+        default: elk_panic_allocator_reset)(alloc)
+
+/** Destroy the allocator.
+ *
+ * If it has any backing memory that it got from the operating system, it will be returned via
+ * \c free() here.
+ */
+#define elk_allocator_destroy(alloc) _Generic((alloc),                                             \
+        ElkStaticArena*: elk_static_arena_destroy,                                                 \
+        ElkArenaAllocator*: elk_arena_destroy,                                                     \
+        ElkStaticPool*: elk_static_pool_destroy,                                                   \
+        default: elk_panic_allocator_destroy)(alloc)
+
+// clang-format off
+
+/** @} */ // end of generic_alloc group
 /** @} */ // end of memory group
 /*-------------------------------------------------------------------------------------------------
- *                                    Iterator Functions
- *-----------------------------------------------------------------------------------------------*/
-/** \defgroup iterator Iterator interface.
  *
- * This section defines the iterator interface for collections defined in Elk.
+ *                                         
+ *                                         Collections
+ *
+ *
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup collections Collections
+ *
+ * Collections are any grouping of objects. This library breaks them up into ordered (sometimes 
+ * called sequences) and unordered collections. Some examples of ordered collections are: arrays or
+ * vectors, queues, dequeues, and heaps. Some examples of unordered collections are hashsets, 
+ * hashtables or dictionaries, and bags.
  *
  * @{
  */
 
-/** An iterator function.
- *
- * This is a prototype for the functions you can pass into a collection when you're iterating over
- * it's members.
- *
- * IMPORTANT: These functions should not modify the collection they are iterating over, but they
- * can modify the elements in the collection. That is, the values of the element can be changed, but
- * elements should not be added to, removed from, or swapped around in the collection.
- *
- * \param item is the member of the collection that you're iterating over.
- * \param user_data is the same object that will be passed to the function on every call. Think of
- * it as an accumulator.
- *
- * \returns \c true if the iteration should continue and \c false if it should terminate and iterate
- * no more.
- */
-typedef bool (*IterFunc)(void *item, void *user_data);
-
-/** A filter or selection function.
- *
- * This is a prototype for the functions you can pass into a collection when you're filtering or
- * selecting items based on a criteria.
- *
- * IMPORTANT: These functions should not modify the collection they are iterating over or the
- * elements in the collection.
- *
- * \param item is the member of the collection that you're iterating over.
- * \param user_data is the same object that will be passed to the function on every call.
- *
- * \returns \c true or \c false. What exactly that means depends on the context of the function
- * using the \p FilterFunc, and should be documented in the function that receives the
- * \p FilterFunc.
- */
-typedef bool (*FilterFunc)(void const *item, void *user_data);
-
-/** @} */ // end of iterator group
 /*-------------------------------------------------------------------------------------------------
- *                                           List
- *-----------------------------------------------------------------------------------------------*/
-/** \defgroup list List
+ *                                         
+ *                                     Ordered Collections
  *
- * An array backed list that dynamically grows in size as needed.
+ *-----------------------------------------------------------------------------------------------*/
+/** \defgroup ordered_adjacent_collections Ordered and Adjacent Collections
+ *  \ingroup collections
+ *
+ *  Ordered collections are things like arrays (sometimes called vectors), queues, dequeues, and 
+ *  heaps. I'm taking a different approach to how I implement them. They will be implemented in two
+ *  parts, the second of which might not be necessary. 
+ *
+ *  The first part is the ledger, which just does all the bookkeeping about how full the collection 
+ *  is, which elements are valid, and the order of elements. A user can use these with their own 
+ *  supplied buffer for storing objects. The ledger types only track indexes.
+ *
+ *  One advantage of the ledger approach is that the user can manage their own memory, allowing 
+ *  them to use the most efficient allocation strategy. 
+ *
+ *  Another advantage of this is that if you have several parallel collections (e.g. parallel 
+ *  arrays), you can use a single instance of a bookkeeping type (e.g. \ref ElkQueueLedger) to
+ *  track the state of all the arrays that back it. Further, different collections in the parallel 
+ *  collections can have different sized objects.
+ *
+ *  Complicated memory management can be a disadvantage of the ledger approach. For instance, 
+ *  implementing growable collections can require shuffling objects around in the backing buffer 
+ *  during the resize operation. A queue, for instance, is non-trivial to expand because you have 
+ *  to account for wrap-around (assuming it is backed by a circular buffer). So not all the ledger 
+ *  types APIs will directly support resizing, and even those that do will further require the user
+ *  to make sure as they allocate more memory in the backing buffer, then also update the 
+ *  ledger. Finally, if you want to pass the collection as a whole to a function, you'll have to
+ *  pass the ledger and buffer separately or create your own composite type to package them 
+ *  together in.
+ *
+ *  The second part is an implementation that manages memory for the user. This gives the user less
+ *  control over how memory is allocated / freed, but it also burdens them less with the 
+ *  responsibility of doing so. These types can reliably be expanded on demand. These types will
+ *  internally use the ledger types.
+ *
+ *  The more full featured types that manage memory also require the use of \c void pointers for
+ *  adding and retrieving data from the collections. So they are less type safe, whereas when using
+ *  just the ledger types they only deal in indexes, so you can make the backing buffer have any
+ *  type you want.
+ *
+ *  Adjacent just means that the objects are stored adjacently in memory. All of the collection
+ *  ledger types must be backed by an array or a block of contiguous memory.
+ *
+ *  \note The resizable collections may not be implemented unless I need them. I've found that I 
+ *  need dynamically expandable collections much less frequently.
  *
  * @{
  */
 
-/** An array backed list that dynamically grows in size as needed.
- *
- * All the operations on this type assume the system will never run out of memory, so if it does
- * they will abort the program. The list is backed by an array, so it should be cache friendly.
- *
- * This list assumes (and so it is only good for) storing types of constant size that do not require
- * any copy or delete functions. This list stores plain old data types (PODs). Of course you could
- * store pointers or something that contains pointers in the list, but you would be responsible
- * for managing the memory (including any dangling aliases that may be out there after adding it
- * to the list).
- */
-typedef struct ElkList ElkList;
+/** Return from a function on a ledger type that indicates the collection is empty. */
+extern ptrdiff_t const ELK_COLLECTION_LEDGER_EMPTY;
 
-/** Create a new list.
- *
- * \param element_size is the size of each item in bytes.
- *
- * \returns a pointer to the new list. This cannot practically fail unless the system runs out of
- * memory. The out of memory error is checked, and if the system is out of memory this function will
- * exit the process with an error message in both release and debug builds.
- */
-ElkList *elk_list_new(size_t element_size);
+/** Return from a function on a ledger type that indicates the collection is empty. */
+extern ptrdiff_t const ELK_COLLECTION_LEDGER_FULL;
 
-/** Create a new list with an already known capacity.
- *
- * \param capacity is the minimum capacity the list should have when created.
- * \param element_size is the size of each item in bytes.
- *
- * \returns a pointer to the new list. This cannot practically fail unless the system runs out of
- * memory. The out of memory error is checked, and if the system is out of memory this function will
- * exit the process with an error message in both release and debug builds.
- */
-ElkList *elk_list_new_with_capacity(size_t capacity, size_t element_size);
-
-/** Free all memory associated with a list.
- *
- * \param list is the list to free. A \c NULL pointer is acceptable and is ignored.
- *
- * \returns \c NULL, which should be assigned to the original list.
- */
-ElkList *elk_list_free(ElkList *list);
-
-/** Clear out the contents of the list but keep the memory intact for reuse.
- *
- * The length of the list is set to zero without freeing any memory so the list is ready to use
- * again.
- *
- * \param list is the list to clear out. The list must not be \c NULL.
- *
- * \returns a pointer to \p list. Assigning \p list the return value is not strictly necessary,
- * since shrinking an array is not cause for a reallocation, however, the return value is set up
- * this way to maintain consistency with other functions that operate on \ref ElkList items.
- */
-ElkList *elk_list_clear(ElkList *list);
-
-/** Append \p item to the end of the list.
- *
- * \param list is the list to add the \p item too. It must not be \c NULL.
- * \param item is the item to add! The item is copied into place with \c memcpy(). \p item must not
- * be \c NULL.
- *
- * \returns a (possibly different) pointer to \p list. This may be different if a reallocation was
- * needed. As a result, this value should be reassigned to \p list.
- */
-ElkList *elk_list_push_back(ElkList *list, void *item);
-
-/** Remove an item from the back of the list.
- *
- * \param list is the list to remove an item from. This must NOT be \c NULL.
- * \param item is a memory location to move the last item in the list into. If this is \c NULL, then
- * the element is just removed from the list and not copied anywhere. If the list is empty, then
- * this will fill the location pointed to by \p item to all zeroes, so it is the user's
- * responsibility to ensure the list still has values in it before calling this function.
- *
- * \returns a pointer to \p list. Assigning \p list the return value is not strictly necessary,
- * since shrinking an array is not cause for a reallocation, however, the return value is set up
- * this way to maintain consistency with other functions that operate on \ref ElkList items.
- */
-ElkList *elk_list_pop_back(ElkList *list, void *item);
-
-/** Remove an item from the list without preserving order.
- *
- * This will remove an item at the \p index by swapping its position with the element at the end of
- * the list and then decrementing the length of the list.
- *
- * \param list is the list to remove the item from. \p list must NOT be \c NULL.
- * \param index is the position in the list to remove. There is no check to make sure this is in
- * bounds for the list, so the user must be sure the index isn't out of bounds (e.g. by using
- * elk_list_count()).
- * \param item is a memory location that can hold the removed data. It will be copied here if
- * \p item isn't \c NULL.
- *
- * \returns a pointer to \p list. Assigning \p list the return value is not strictly necessary,
- * since shrinking an array is not cause for a reallocation, however, the return value is set up
- * this way to maintain consistency with other functions that operate on \ref ElkList items.
- */
-ElkList *elk_list_swap_remove(ElkList *const list, size_t index, void *item);
-
-/** The number of items currently in the list.
- *
- * \param list must NOT be \c NULL.
- *
- * \returns the number of items in the \p list.
- */
-size_t elk_list_count(ElkList const *const list);
-
-/** Create a copy of this list.
- *
- * Since this list is assumed to hold plain old data (e.g. no pointers), there is no attempt at a
- * deep copy. So if the items in the list do contain pointers, this will create an alias for each of
- * those items.
- *
- * \param list is the list to create a copy of. This must not be \c NULL.
- *
- * \returns a new list that is a copy of \p list. This cannot fail unless the system runs out of
- * memory, and if that happens this function will exit the process.
- */
-ElkList *elk_list_copy(ElkList const *const list);
-
-/** Get an item from the list.
- *
- * This is not bounds checked, so make sure you know your index exists in the array by checking
- * elk_list_count() first.
- *
- * \param list the list is not modified in any way. That is nothing is added or removed, however
- * the returned element may be modified. Must not be \c NULL.
- * \param index is the index of the item you want to get. If the index is out of range, it will
- * invoke undefined behavior, and if you're lucky cause a segmentation fault.
- *
- * \returns a pointer to the item at the given index. You may use this pointer to modify the
- * value at that index, but DO NOT try to free it. You don't own it.
- */
-void *const elk_list_get_alias_at_index(ElkList *const list, size_t index);
-
-/** Apply \p ifunc to each element of \p list.
- *
- * This method assumes that whatever operation \p ifunc does is infallible. If that is not the case
- * then error information of some kind should be returned via the \p user_data.
- *
- * \param list the list of items to iterate over.
- * \param ifunc is the function to apply to each item. If this function returns \c false, this
- * function will abort further evaluations. This function assumes this operation is infallible,
- * if that is not the case then any error information should be returned via \p user_data.
- * \param user_data will be supplied to \p ifunc as the second argument each time it is called.
- */
-void elk_list_foreach(ElkList *const list, IterFunc ifunc, void *user_data);
-
-/** Filter elements out of \p src and put them into \p sink.
- *
- * \param src is the list to potentially remove items from. This list will never be reallocated so
- * the pointer will never move. It must not be \c NULL.
- * \param sink is the list to drop the filtered items into. If this is \c NULL then the items
- * selected to be filtered out will be removed from the list.
- * \param filter, if this returns \c true, the element will be removed from the \p src list.
- * \param user_data is passed through to \p filter on each call.
- *
- * \returns a (potentially new and different) pointer to \p sink since it may have been reallocated.
- * If the passed in \p sink was \c NULL, then \c NULL is returned.
- */
-ElkList *elk_list_filter_out(ElkList *const src, ElkList *sink, FilterFunc filter, void *user_data);
-
-/** @} */ // end of list group
 /*-------------------------------------------------------------------------------------------------
- *                                            Queue
+ *                                         Queue Ledger
  *-----------------------------------------------------------------------------------------------*/
-/** \defgroup queue A simple bounded queue.
+/** \defgroup queueledger Queue Ledger
+ *  \ingroup ordered_collections
+ *
+ * The bookkeeping parts of a queue.
  *
  * @{
  */
 
-/** An array backed bounded queue.
- *
- * This queue stores POD types, and doesn't free any pointers internal to its data members. That
- * can be done by calling a function to free items if necessary through the elk_queue_foreach()
- * function.
- */
-typedef struct ElkQueue ElkQueue;
+/** A bookkeeping type for a queue. */
+typedef struct ElkQueueLedger {
+    /// \cond HIDDEN
+    size_t capacity;
+    size_t length;
+    size_t front;
+    size_t back;
+    /// \endcond HIDDEN
+} ElkQueueLedger;
 
-/** Create a new queue.
- *
- * \param element_size is the size of each item in bytes.
- * \param capacity is the maximum capacity of the queue.
- *
- * \returns a pointer to the new queue.
- */
-ElkQueue *elk_queue_new(size_t element_size, size_t capacity);
+/** Create a ledger for a queue with \p capacity. */
+static inline ElkQueueLedger
+elk_queue_ledger_create(size_t capacity)
+{
+    return (ElkQueueLedger){.capacity = capacity, .length=0, .front=0, .back=0};
+}
 
-/** Free the memory used by this queue.
- *
- * This method does not free any memory pointed to by items in the queue. To do that create an
- * \ref IterFunc and use the elk_queue_foreach() function to free memory pointed to by members.
- *
- * \returns a \c NULL pointer that should be assigned to the orignal \p queue argument.
- */
-ElkQueue *elk_queue_free(ElkQueue *queue);
+/** Is the queue full? */
+static inline bool 
+elk_queue_ledger_full(ElkQueueLedger *queue)
+{ 
+    return queue->length == queue->capacity;
+}
 
-/** Detect if the queue is full.
- *
- * \returns \c true if the \p queue is full and can't take anymore input.
- */
-bool elk_queue_full(ElkQueue *queue);
+/** Is the queue empty? */
+static inline bool
+elk_queue_ledger_empty(ElkQueueLedger *queue)
+{ 
+    return queue->length == 0;
+}
 
-/** Detect if the queue is empty.
+/** Get the index to place the next item to be pushed back. 
  *
- * \returns \c true if the \p queue is empty and has nothing more to give.
+ * This assumes you actually copy/move the item into the buffer, and so on the next call it will 
+ * return the next index position!
+ *
+ * \returns The index of the next position to put something into the queue. If the queue is full,
+ * then it returns \ref ELK_COLLECTION_LEDGER_FULL.
  */
-bool elk_queue_empty(ElkQueue *queue);
+static inline ptrdiff_t
+elk_queue_ledger_push_back_index(ElkQueueLedger *queue)
+{
+    assert(queue);
+    if(elk_queue_ledger_full(queue)) return ELK_COLLECTION_LEDGER_FULL;
 
-/** Add an item to the end of the queue.
+    ptrdiff_t idx = queue->back % queue->capacity;
+    queue->back += 1;
+    queue->length += 1;
+    return idx;
+}
+
+/** Get the index of the next item to take out of the queue.
  *
- * \param queue the queue to add something too. Cannot be \c NULL.
- * \param item the item to add to the queue which will be copied into the queue with \c memcpy
+ * This assumes you actually copy/move the item out of the buffer, and so on the next call it will
+ * return the next index position!
  *
- * \returns \c true if the operation was successful.
+ * \returns The index of the next position to remove something from the queue. If the queue is 
+ * empty it returns \ref ELK_COLLECTION_LEDGER_EMPTY.
  */
-bool elk_queue_enqueue(ElkQueue *queue, void *item);
+static inline ptrdiff_t
+elk_queue_ledger_pop_front_index(ElkQueueLedger *queue)
+{
+    if(elk_queue_ledger_empty(queue)) return ELK_COLLECTION_LEDGER_EMPTY;
 
-/** Take an item from the front of the queue.
+    ptrdiff_t idx = queue->front % queue->capacity;
+    queue->front += 1;
+    queue->length -= 1;
+    return idx;
+}
+
+/** Get the index of the next item to take out of the queue, without advancing it.
  *
- * \param queue the queue to take something from. Cannot be \c NULL.
- * \param output is a location to hold the returned item. The item is moved there with \c memcpy.
+ * This assumes you DO NOT copy/move the item out of the buffer so it remains at the head.
  *
- * \returns \c true if the operation succeeds. If the operation fails, then the contents of
- * \p output are undefined.
+ * \returns The index of the next position to remove something from the queue without removing. If
+ * the queue is empty it returns \ref ELK_COLLECTION_LEDGER_EMPTY.
  */
-bool elk_queue_dequeue(ElkQueue *queue, void *output);
+static inline ptrdiff_t
+elk_queue_ledger_peek_front_index(ElkQueueLedger *queue)
+{
+    if(queue->length == 0) return ELK_COLLECTION_LEDGER_EMPTY;
+    return queue->front % queue->capacity;
+}
 
-/** Peek at the next item in the queue without removing it.
- *
- * \param queue the queue to peek at.
- *
- * \returns a pointer to the element at the front of the queue.
- */
-void const *elk_queue_peek_alias(ElkQueue *queue);
+/** Get the number of items in the queue. */
+static inline size_t
+elk_queue_ledger_len(ElkQueueLedger const *queue)
+{
+    return queue->length;
+}
 
-/** Get the number of items remaining in the queue.
- *
- * \param queue the queue to get the number of remaining items in. Cannot be \c NULL.
- *
- * \returns the number of items in the \p queue.
- */
-size_t elk_queue_count(ElkQueue *queue);
-
-/** Apply a function to every item in the queue while dequeueing them.
- *
- * After this call, the \p queue will be empty.
- *
- * \param queue to empty while applying \p ifunc to each item.
- * \param ifunc the function to apply to each item in the queue.
- * \param user_data is data that is passed to each call of \p ifunc.
- */
-void elk_queue_foreach(ElkQueue *queue, IterFunc ifunc, void *user_data);
-
-/** @} */ // end of queue group
+/** @} */ // end of queueledger group
 /*-------------------------------------------------------------------------------------------------
- *                                    Heap or Priority Queue
+ *                                            Array Ledger
  *-----------------------------------------------------------------------------------------------*/
-/** \defgroup heap A heap or priority queue.
+/** \defgroup arrayledger Array Ledger
+ *  \ingroup ordered_collections
+ *
+ * The bookkeeping parts of an array.
  *
  * @{
  */
 
-/** Function prototype for determining priority in a heap/priority queue.
+/** A bookkeeping type for an array. */
+typedef struct ElkArrayLedger {
+    /// \cond HIDDEN
+    size_t capacity;
+    size_t length;
+    /// \endcond HIDDEN
+} ElkArrayLedger;
+
+/** Create a ledger for an array with \p capacity. */
+static inline ElkArrayLedger
+elk_array_ledger_create(size_t capacity)
+{
+    return (ElkArrayLedger){.capacity = capacity, .length=0};
+}
+
+/** Is the array full? */
+static inline bool 
+elk_array_ledger_full(ElkArrayLedger *array)
+{ 
+    return array->length == array->capacity;
+}
+
+/** Is the array empty? */
+static inline bool
+elk_array_ledger_empty(ElkArrayLedger *array)
+{ 
+    return array->length == 0;
+}
+
+/** Get the index to place the next item to be pushed back. 
  *
- * This implementation assumes a maximum-heap, so larger return values indicate higher priority and
- * will result in an item being placed nearer the top of the queue. If you need a minimum-heap just
- * flip the sign before returning from this function.
+ * This assumes you actually copy/move the item into the buffer, and so on the next call it will 
+ * return the next index position!
  *
- * The use of integers as the return type is intentional to avoid the pitfalls of comparing floating
- * point values with things like NaN or infinity.
+ * \returns The index of the next position to put something into the array. If the array is full,
+ * then it returns \ref ELK_COLLECTION_LEDGER_FULL.
  */
-typedef int (*Priority)(void *item);
+static inline ptrdiff_t
+elk_array_ledger_push_back_index(ElkArrayLedger *array)
+{
+    assert(array);
+    if(elk_array_ledger_full(array)) return ELK_COLLECTION_LEDGER_FULL;
 
-/** A maximum-heap.
- *
- * All the operations on this type assume the system will never run out of memory, so if it does
- * they will abort the program. The heap is backed by an array, so it should be cache friendly.
- *
- * This heap assumes (and so it is only good for) storing types of constant size that do not require
- * any copy or delete functions. This heap stores plain old data types (PODs). Of course you could
- * store pointers or something that contains pointers in the heap, but you would be responsible
- * for managing the memory (including any dangling aliases that may be out there after adding it
- * to the list).
- **/
-typedef struct ElkHeap ElkHeap;
+    ptrdiff_t idx = array->length;
+    array->length += 1;
+    return idx;
+}
 
-/** Create a new unbounded heap.
+/** Get the number of items in the array. */
+static inline size_t
+elk_array_ledger_len(ElkArrayLedger const *array)
+{
+    assert(array);
+    return array->length;
+}
+
+/** Reset the array so it's empty. */
+static inline void
+elk_array_ledger_reset(ElkArrayLedger *array)
+{
+    assert(array);
+    array->length = 0;
+}
+
+/** Change the capcity of the array.
  *
- * This heap will grow as needed to store new elements. Watchout though, this means it can use all
- * of the machine's memory!
- *
- * \param element_size the size of elements stored in the heap.
- * \param pri the function to use to calculate an element's priority in the queue or value in the
- *        heap.
- * \param arity the number of elements per node. Usually this is just 2 for a binary heap, but this
- *        is a "d-ary" heap implementation. Good default values are in the range of 3-5.
- *
- * \returns A newly allocated heap! Upon failure it just aborts the program. If you're that
- * desperate for memory, just give up.
+ * \warning Make sure you adjust the size of the backing buffer before you do this!
  */
-ElkHeap *elk_heap_new(size_t element_size, Priority pri, size_t arity);
+static inline void
+elk_array_ledger_set_capacity(ElkArrayLedger *array, size_t capacity)
+{
+    assert(array);
+    array->capacity = capacity;
+}
 
-/** Create a new bounded heap.
- *
- * All of the necessary memory will be allocated up front.
- *
- * \param element_size the size of elements stored in the heap.
- * \param capacity is the maximum number of values you can store in this heap.
- * \param pri the function to use to calculate an element's priority in the queue or value in the
- *        heap.
- * \param arity the number of elements per node. Usually this is just 2 for a binary heap, but this
- *        is a "d-ary" heap implementation. Good default values are in the range of 3-5.
- *
- * \returns A newly allocated heap! Upon failure it just aborts the program. If you're that
- * desperate for memory, just give up.
- */
-ElkHeap *elk_bounded_heap_new(size_t element_size, size_t capacity, Priority pri, size_t arity);
-
-/** Free a heap.
- *
- * \returns \c NULL, which should be assigned to the original \p heap.
- */
-ElkHeap *elk_heap_free(ElkHeap *heap);
-
-/** Insert an element onto the heap.
- *
- * \param heap the heap to insert into.
- * \param item the object to be stored on the heap. It will be moved via \c memcpy, so the memory
- *        location is copied. User beware if the type uses pointers internally as this could cause
- *        aliasing.
- * \param result returns an \ref ElkCode to indicate success or failure. For unbounded heaps, this
- *        will always be \ref ELK_CODE_SUCCESS, but for bounded heaps it may return
- *        \ref ELK_CODE_FULL. Sending in \c NULL is acceptable but not advised.
- *
- * \returns a pointer to the ElkHeap. This SHOULD be reassigned to the original \p heap, especially
- * for unbounded heaps. If the heap is grown via realloc, then the pointer may change!
- */
-ElkHeap *elk_heap_insert(ElkHeap *heap, void *item, ElkCode *result);
-
-/** Remove an item from the heap.
- *
- * \param heap the heap to remove the next item from.
- * \param item A location to store the removed item into via \c memcpy. If the \p heap is empty,
- *             the memory at this location should be zeroed out.
- * \param result returns an \ref ElkCode to indicate success or failure. This will be
- *        \ref ELK_CODE_SUCCESS if an item is returned, but if the heap is empty it will be
- *        \ref ELK_CODE_EMPTY.
- *
- * \returns a pointer to the ElkHeap. This SHOULD be reassigned to the original \p heap for
- * consistency with other functions that modify heaps.
- */
-ElkHeap *elk_heap_top(ElkHeap *heap, void *item, ElkCode *result);
-
-/** Get the number of items on the heap. */
-size_t elk_heap_count(ElkHeap const *const heap);
-
-/** Peek at the next item on the top of the heap.
- *
- * \param heap the heap to peek!
- *
- * \returns an aliased pointer to the top element on the heap. This value should not be modified!
- * If the heap is empty it returns \c NULL.
- */
-void const *elk_heap_peek(ElkHeap const *const heap);
-
-/** @} */ // end of heap group
-/*-------------------------------------------------------------------------------------------------
- *                                    Coordinates and Rectangles
- *-----------------------------------------------------------------------------------------------*/
-/** \defgroup geom Geometry primitives.
- *
- * @{
- */
-
-/** A simple x-y 2 dimensional coordinate. */
-typedef struct Elk2DCoord {
-    double x; /**< The x coordinate. */
-    double y; /**< The y cooridnate. */
-} Elk2DCoord;
-
-/** A simple x-y 2 dimensional rectangle. */
-typedef struct Elk2DRect {
-    Elk2DCoord ll; /**< The lower left corner of a rectangle (minimum x and minimum y) */
-    Elk2DCoord ur; /**< The upper right corner of a rectangle (maximum x and maximum y) */
-} Elk2DRect;
-
-/** @} */ // end of geom group
-/*-------------------------------------------------------------------------------------------------
- *                                       Hilbert Curves
- *-----------------------------------------------------------------------------------------------*/
-/** \defgroup hilbert Hilbert Curves.
- *
- * Hilbert curves are a type of space filling curve, and were originally implemented in this
- * library to support an 2-dimensional RTree implementation.
- *
- * This might seem really weird to have in a "general" library. However, as a result of goal number
- * 1 for this library, here it is. This didn't really need to be in the public API, but it makes
- * testing easier.
- *
- * I ported this code from an implementation in Python at https://github.com/galtay/hilbertcurve,
- * which is itself an implementation based on the 2004 paper "Programming the Hilbert Curve" by
- * John Skilling (http://adsabs.harvard.edu/abs/2004AIPC..707..381S)(DOI: 10.10631/1.1751381).
- *
- * @{
- */
-
-/** A 2D Hilbert Curve.
- */
-typedef struct ElkHilbertCurve ElkHilbertCurve;
-
-/** A point in the Hilbert space. */
-struct HilbertCoord {
-    uint32_t x;
-    uint32_t y;
-};
-
-/** Create a new Hilbert Curve description.
- *
- * The number of iterations will fill the area covered by the \p domain with and NxN grid of
- * points where N = sqrt(2^(2 * iterations)). The total number of points along the Hilbert curve
- * will be 2^(2 * iterations).
- *
- * So if iterations = 1, then the grid will be 2x2.
- *
- * If iterations = 2 then N = 4, so a 4x4 grid.
- *
- * If iterations = 3 then N = 8, so a 8x8 grid.
- *
- * If iterations = 8 then N = 256, so a 256 x 256 grid.
- *
- * If iterations = 16 then N = 65536, so a 65536 x 65536 grid.
- *
- * And if iterations = 31 then N = 2,147,483,648... so a 2,147,483,648 x 2,147,483,648 grid.
- *
- * \param iterations is a number between 1 and 31 inclusive. If the number is outside that range,
- * the program will exit and print an error message.
- *
- * \param domain is a rectanglular region to map this Hilbert curve onto.
- */
-struct ElkHilbertCurve *elk_hilbert_curve_new(unsigned int iterations, Elk2DRect domain);
-
-/** Free all memory associated with a ElkHilbertCurve
- *
- * \param hc is the object to free. A \c NULL pointer is acceptable and is ignored.
- *
- * \returns \c NULL, which should be assigned to the original object, \p hc.
- */
-struct ElkHilbertCurve *elk_hilbert_curve_free(struct ElkHilbertCurve *hc);
-
-/** Convert the distance along the curve to coordinates in the X-Y plane.
- *
- * In debug mode (no \c NDEBUG macro defined), assertions will check to make sure the distance
- * is within the allowable range for this curve.
- */
-struct HilbertCoord elk_hilbert_integer_to_coords(struct ElkHilbertCurve const *hc, uint64_t hi);
-
-/** Convert the coordinates into a distance along the Hilbert curve.
- *
- * In debug mode (compiled without \c NDEBUG macro defined), assertions will check to make sure
- * the \p coords are the allowable range for this curve.
- */
-uint64_t elk_hilbert_coords_to_integer(struct ElkHilbertCurve const *hc,
-                                       struct HilbertCoord coords);
-
-/** Translate a point into the nearest set of coordinates for this Hilbert curve \p hc.
- *
- * \param hc the Hilbert curve. Must NOT be \c NULL.
- * \param coord the coordinate to translate.
- *
- * \returns the nearest coordinate in the coordinates of the Hilbert curve.
- */
-struct HilbertCoord elk_hilbert_translate_to_curve_coords(struct ElkHilbertCurve *hc,
-                                                          Elk2DCoord coord);
-
-/** Translate a point to the distance along the curve to the nearest set of coordinates for this
- * Hilbert curve \p hc.
- *
- * This is basically a convenience method for calling elk_hilbert_translate_to_curve_coords() and
- * then calling elk_hilbert_coords_to_integer().
- *
- * \param hc the Hilbert curve. Must NOT be \c NULL.
- * \param coord the coordinate to translate.
- *
- * \returns the nearest coordinate in the coordinates of the Hilbert curve.
- */
-uint64_t elk_hilbert_translate_to_curve_distance(struct ElkHilbertCurve *hc, Elk2DCoord coord);
-
-/** @} */ // end of hilbert group
-/*-------------------------------------------------------------------------------------------------
- *                                          2D RTreeView
- *-----------------------------------------------------------------------------------------------*/
-/** \defgroup 2drtree A 2D RTree view of an ElkList
- *
- * The RTree view does not store any data, but it holds pointers into a list, so that you can use
- * RTree algorithms to query the data in the list.
- *
- * @{
- */
-
-/** An R-Tree view into a list.
- *
- * Once the view has been created, the list it was created from should not be modified again as
- * that will invalidate the tree view.
- */
-typedef struct Elk2DRTreeView Elk2DRTreeView;
-
-/** Create a new R-Tree View of the list.
- *
- * The list will not be grown, or shrunk, but it may be reordered.
- *
- * \param list is the list to create a view from.
- * \param centroid is a function that takes an item from the \p list and calculates a centroid for
- * it.
- * \param rect is a function that takes an item from the \p list and calculates a bounding rectangle
- * for it.
- * \param domain is the boundaries of data in the list. If this is \c NULL, then this constructor
- * will do an initial pass over the list and calculate it.
- *
- * \returns A view of the list.
- */
-Elk2DRTreeView *elk_2d_rtree_view_new(ElkList *const list, Elk2DCoord (*centroid)(void *),
-                                      Elk2DRect (*rect)(void *), Elk2DRect *domain);
-
-/** Free an R-Tree view of the list.
- *
- * \returns \c NULL, which should be assigned to the \p tv so there isn't a dangling pointer.
- */
-Elk2DRTreeView *elk_2d_rtree_view_free(Elk2DRTreeView *tv);
-
-/** Print a tree, which is useful for debugging. */
-void elk_2d_rtree_view_print(Elk2DRTreeView *rtree);
-
-/** Search an R-Tree and apply the function to each item that overlaps the provided rectangle.
- *
- * Iterates over any elements in the root list of \p tv that have rectangles that overlap with the
- * provided \p region and applies the function \p update to those items. If \p update returns
- * \c false, then further items will not be processed. This function assumes that \p update is
- * infallible, so if you need to return an error code of some kind you'll have to pass it through
- * the \p user_data argument.
- *
- * \param tv is the tree to search.
- * \param region is the region to search.
- * \param update is a function that will potentially update items in the view and parent list.
- * \param user_data is just passed to each invocation of \p update.
- */
-void elk_2d_rtree_view_foreach(Elk2DRTreeView *tv, Elk2DRect region, IterFunc update,
-                               void *user_data);
-
-/** @} */ // end of 2drtree group
+/** @} */ // end of arrayledger group
+/** @} */ // end of ordered_adjacent_collections.
+/** @} */ // end of collections group
