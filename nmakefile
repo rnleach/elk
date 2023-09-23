@@ -28,22 +28,25 @@ TEST_OBJS = tests/test.obj            \
 			tests/time.obj            \
 			tests/generic_alloc.obj   \
 			tests/queue_ledger.obj    \
-			tests/array_ledger.obj    \
-			src/elk.obj
+			tests/array_ledger.obj
+
+LIB_OBJ = src/elk.obj
 
 all: test.exe test
 
+$(LIB_OBJ): src/elk.h
 {src}.c{src}.obj:
 	@echo -------------------------------------------------------------------------------------------
 	@echo Compiling $*
 	$(CC) $(CFLAGS) /c /Fo$*.obj $*.c 
 
+$(TEST_OBJS): tests/test.h src/elk.h
 {tests}.c{tests}.obj:
 	@echo -------------------------------------------------------------------------------------------
 	@echo Compiling $*
 	$(CC) $(CFLAGS) /c /Fo$*.obj $*.c 
 
-test.exe: $(TEST_OBJS)
+test.exe: $(TEST_OBJS) $(LIB_OBJ) 
 	@echo -------------------------------------------------------------------------------------------
 	@echo Linking $@
 	LINK $**
