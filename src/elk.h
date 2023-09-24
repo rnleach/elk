@@ -6,6 +6,7 @@
  * See the main page for an overall description and the list of goals/non-goals: \ref index
  */
 #include <assert.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -608,6 +609,20 @@ elk_str_strip(ElkStr input)
 
     return (ElkStr){.start = &start[start_offset], .len = end_offset - start_offset + 1};
 }
+
+/** Parse an unsigned integer.
+ *
+ * \returns \c false on failure and \p result is left untouched. \c true on success and \p out is
+ *          the result.
+ */
+bool elk_str_parse_int_64(ElkStr str, int64_t *result);
+
+/** Parse a double (64 bit floating point).
+ *
+ * \returns \c false on failure and \p out is \c NAN. \c true on success and \p out may be a number
+ *             or \c INFINITY or \c -INFINITY or \c NAN.
+ */
+bool elk_str_parse_float_64(ElkStr str, double *out);
 
 /** @} */ // end of str group
 /*-------------------------------------------------------------------------------------------------

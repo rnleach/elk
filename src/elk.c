@@ -53,6 +53,185 @@ extern int elk_str_cmp(ElkStr left, ElkStr right);
 extern bool elk_str_eq(ElkStr left, ElkStr right);
 extern ElkStr elk_str_strip(ElkStr input);
 
+bool
+elk_str_parse_int_64(ElkStr str, int64_t *result)
+{
+    // Empty string is an error
+    if (str.len == 0) {
+        return false;
+    }
+
+    uint64_t parsed = 0;
+    bool neg_flag = false;
+    bool in_digits = false;
+    char const *c = str.start;
+    while (true) {
+        // We've reached the end of the string.
+        if (!*c || c >= (str.start + (uintptr_t)str.len)) {
+            break;
+        }
+
+        // Is a digit?
+        if (*c + 0U - '0' <= 9U) {
+            in_digits = true; // Signal we've passed +/- signs
+
+            // Accumulate digits
+            parsed = parsed * 10 + (*c - '0');
+
+        } else if (*c == '-' && !in_digits) {
+            neg_flag = true;
+        } else if (*c == '+' && !in_digits) {
+            neg_flag = false;
+        } else {
+            return false;
+        }
+
+        // Move to the next character
+        ++c;
+    }
+
+    *result = neg_flag ? -parsed : parsed;
+    return true;
+}
+
+bool
+elk_str_parse_float_64(ElkStr str, double *out)
+{
+    StopIf(str.len == 0, goto ERR_RETURN);
+
+    // clang-format off
+
+    // check for nan/NAN/NaN/Nan inf/INF/Inf
+    if (str.len == 3) {
+        char *c = str.start;
+
+        if (c[0] == 'n' && c[1] == 'a' && c[2] == 'n') { *out = NAN; return true; }
+        if (c[0] == 'N' && c[1] == 'A' && c[2] == 'N') { *out = NAN; return true; }
+        if (c[0] == 'N' && c[1] == 'a' && c[2] == 'N') { *out = NAN; return true; }
+        if (c[0] == 'N' && c[1] == 'a' && c[2] == 'n') { *out = NAN; return true; }
+
+        if (c[0] == 'i' && c[1] == 'n' && c[2] == 'f') { *out = INFINITY; return true; }
+        if (c[0] == 'I' && c[1] == 'n' && c[2] == 'f') { *out = INFINITY; return true; }
+        if (c[0] == 'I' && c[1] == 'N' && c[2] == 'F') { *out = INFINITY; return true; }
+    }
+
+    // check for -inf/-INF/-Inf
+    if (str.len == 4 && str.start[0] == '-') {
+        char *c = str.start;
+
+        if (c[1] == 'i' && c[2] == 'n' && c[3] == 'f') { *out = -INFINITY; return true; }
+        if (c[1] == 'I' && c[2] == 'n' && c[3] == 'f') { *out = -INFINITY; return true; }
+        if (c[1] == 'I' && c[2] == 'N' && c[3] == 'F') { *out = -INFINITY; return true; }
+    }
+
+    // clang-format on
+
+    int8_t sign = 0;     // 0 is positive, 1 is negative
+    int8_t exp_sign = 0; // 0 is positive, 1 is negative
+    int16_t exponent = 0;
+    int64_t mantissa = 0;
+    int64_t extra_exp = 0; // decimal places after the point
+
+    char const *c = str.start;
+    char const *end = str.start + str.len;
+
+    // Check parse a sign
+    if (*c == '-') {
+        sign = 1;
+        ++c;
+    } else if (*c == '+') {
+        sign = 0;
+        ++c;
+    }
+
+    // Parse the mantissa up to the decimal point or exponent part
+    while (c < end && (*c - '0') < 10 && (*c - '0') >= 0) {
+        mantissa = mantissa * 10 + (*c - '0');
+        ++c;
+    }
+
+    // Check for the decimal point
+    if (c < end && *c == '.') {
+        ++c;
+
+        // Parse the mantissa up to the decimal point or exponent part
+        while (c < end && (*c - '0') < 10 && (*c - '0') >= 0) {
+            char val = *c - '0';
+
+            // overflow check
+            if ((INT64_MAX - val) / 10 < mantissa) {
+                goto ERR_RETURN;
+            }
+
+            mantissa = mantissa * 10 + val;
+            extra_exp += 1;
+            ++c;
+        }
+    }
+
+    // Account for negative signs
+    mantissa = sign == 1 ? -mantissa : mantissa;
+
+    // Start the exponent
+    if (c < end && (*c == 'e' || *c == 'E')) {
+        ++c;
+
+        if (*c == '-') {
+            exp_sign = 1;
+            ++c;
+        } else if (*c == '+') {
+            exp_sign = 0;
+            ++c;
+        }
+
+        // Parse the mantissa up to the decimal point or exponent part
+        while (c < end && (*c - '0') < 10 && (*c - '0') >= 0) {
+            char val = *c - '0';
+
+            // Overflow check
+            if ((INT16_MAX - val) / 10 < exponent) {
+                goto ERR_RETURN;
+            }
+
+            exponent = exponent * 10 + val;
+            ++c;
+        }
+
+        // Account for negative signs
+        exponent = exp_sign == 1 ? -exponent : exponent;
+    }
+
+    // Once we get here we're done. Should be end of string.
+    if (c != end) {
+        goto ERR_RETURN;
+    }
+
+    // Account for decimal point location.
+    exponent -= extra_exp;
+
+    // Check for overflow
+    StopIf(exponent < -307 || exponent > 308, goto ERR_RETURN);
+
+    double exp_part = 1.0;
+    for (int i = 0; i < exponent; ++i) {
+        exp_part *= 10.0;
+    }
+    for (int i = 0; i > exponent; --i) {
+        exp_part /= 10.0;
+    }
+
+    double value = (double)mantissa * exp_part;
+    if (isinf(value)) {
+        goto ERR_RETURN;
+    }
+    *out = value;
+    return true;
+
+ERR_RETURN:
+    *out = NAN;
+    return false;
+}
+
 /*-------------------------------------------------------------------------------------------------
  *                                       String Interner
  *-----------------------------------------------------------------------------------------------*/
