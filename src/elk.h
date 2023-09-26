@@ -183,7 +183,8 @@ elk_time_from_unix_timestamp(int64_t unixtime)
  *
  * Useful for constructing or deconstructing \ref ElkTime objects, and doing output.
  */
-typedef struct ElkStructTime {
+typedef struct ElkStructTime 
+{
     int16_t year;
     int8_t month;
     int8_t day;
@@ -196,10 +197,8 @@ typedef struct ElkStructTime {
 inline bool
 elk_is_leap_year(int year)
 {
-    if (year % 4 != 0)
-        return false;
-    if (year % 100 == 0 && year % 400 != 0)
-        return false;
+    if (year % 4 != 0) { return false; }
+    if (year % 100 == 0 && year % 400 != 0) { return false; }
     return true;
 }
 
@@ -281,7 +280,8 @@ elk_make_struct_time(ElkTime time)
     // Calculate the year
     int year = days_since_epoch / (DAYS_PER_YEAR) + 1; // High estimate, but good starting point.
     int64_t test_time = elk_days_since_epoch(year);
-    while (test_time > days_since_epoch) {
+    while (test_time > days_since_epoch) 
+    {
         int step = (test_time - days_since_epoch) / (DAYS_PER_YEAR + 1);
         step = step == 0 ? 1 : step;
         year -= step;
@@ -294,10 +294,9 @@ elk_make_struct_time(ElkTime time)
     // Calculate the month
     int month = 0;
     int leap_year_idx = elk_is_leap_year(year) ? 1 : 0;
-    for (month = 1; month <= 11; month++) {
-        if (sum_days_to_month[leap_year_idx][month + 1] > time) {
-            break;
-        }
+    for (month = 1; month <= 11; month++)
+    {
+        if (sum_days_to_month[leap_year_idx][month + 1] > time) { break; }
     }
     assert(time >= 0 && month > 0 && month <= 12);
     time -= sum_days_to_month[leap_year_idx][month]; // Now in days since start of month
@@ -306,8 +305,15 @@ elk_make_struct_time(ElkTime time)
     int const day = time + 1;
     assert(day > 0 && day <= 31);
 
-    return (ElkStructTime){
-        .year = year, .month = month, .day = day, .hour = hour, .minute = minute, .second = second};
+    return (ElkStructTime)
+    {
+        .year = year,
+        .month = month, 
+        .day = day, 
+        .hour = hour, 
+        .minute = minute, 
+        .second = second
+    };
 }
 
 /** Truncate the minutes and seconds from the \p time argument.
@@ -356,9 +362,7 @@ elk_time_truncate_to_specific_hour(ElkTime time, int hour)
     adjusted -= minutes * SECONDS_PER_MINUTE;
 
     int64_t actual_hour = (adjusted / SECONDS_PER_HOUR) % HOURS_PER_DAY;
-    if (actual_hour < hour) {
-        actual_hour += 24;
-    }
+    if (actual_hour < hour) { actual_hour += 24; }
 
     int64_t change_hours = actual_hour - hour;
     assert(change_hours >= 0);
@@ -374,7 +378,8 @@ elk_time_truncate_to_specific_hour(ElkTime time, int hour)
  * It's not straight forward to add / subtract months or years due to the different days per month
  * and leap years, so those options aren't available.
  */
-typedef enum {
+typedef enum
+{
     ElkSecond = 1,
     ElkMinute = 60,
     ElkHour = 60 * 60,
@@ -440,7 +445,8 @@ elk_fnv1a_hash_accumulate(size_t const n, void const *value, uint64_t const hash
     uint8_t const *data = value;
 
     uint64_t hash = hash_so_far;
-    for (size_t i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i)
+    {
         hash ^= data[i];
         hash *= fnv_prime;
     }
@@ -493,9 +499,10 @@ elk_fnv1a_hash(size_t const n, void const *value)
  *     string slice. If \ref ElkStr.start is \c NULL, then it doesn't refer to anything, it's the
  *     same as a \c NULL pointer in plain C.
  */
-typedef struct ElkStr {
-    char *start; /// points at first character in the string.
-    size_t len;  /// the length of the string (not including a null terminator if it's there).
+typedef struct ElkStr 
+{
+    char *start; // points at first character in the string.
+    size_t len;  // the length of the string (not including a null terminator if it's there).
 } ElkStr;
 
 /** Create an \ref ElkStr from a null terminated C string. */
@@ -505,8 +512,7 @@ elk_str_from_cstring(char *src)
     assert(src);
 
     size_t len;
-    for (len = 0; *(src + len) != '\0'; ++len)
-        ; // intentionally left blank.
+    for (len = 0; *(src + len) != '\0'; ++len) ; // intentionally left blank.
     return (ElkStr){.start = src, .len = len};
 }
 
@@ -550,17 +556,14 @@ elk_str_cmp(ElkStr left, ElkStr right)
 
     size_t len = left.len > right.len ? right.len : left.len;
 
-    for (size_t i = 0; i < len; ++i) {
-        if (left.start[i] < right.start[i])
-            return -1;
-        else if (left.start[i] > right.start[i])
-            return 1;
+    for (size_t i = 0; i < len; ++i) 
+    {
+        if (left.start[i] < right.start[i]) { return -1; }
+        else if (left.start[i] > right.start[i]) { return 1; }
     }
 
-    if (left.len == right.len)
-        return 0;
-    if (left.len > right.len)
-        return 1;
+    if (left.len == right.len) { return 0; }
+    if (left.len > right.len) { return 1; }
     return -1;
 }
 
@@ -577,14 +580,13 @@ elk_str_eq(ElkStr left, ElkStr right)
 {
     assert(left.start && right.start);
 
-    if (left.len != right.len)
-        return false;
+    if (left.len != right.len) { return false; }
 
     size_t len = left.len > right.len ? right.len : left.len;
 
-    for (size_t i = 0; i < len; ++i) {
-        if (left.start[i] != right.start[i])
-            return false;
+    for (size_t i = 0; i < len; ++i)
+    {
+        if (left.start[i] != right.start[i]) { return false; }
     }
 
     return true;
@@ -596,18 +598,22 @@ elk_str_strip(ElkStr input)
 {
     char *const start = input.start;
     int start_offset = 0;
-    for (start_offset = 0; start_offset < input.len; ++start_offset) {
-        if (start[start_offset] > 0x20)
-            break;
+    for (start_offset = 0; start_offset < input.len; ++start_offset)
+    {
+        if (start[start_offset] > 0x20) { break; }
     }
 
     int end_offset = 0;
-    for (end_offset = input.len - 1; end_offset > start_offset; --end_offset) {
-        if (start[end_offset] > 0x20)
-            break;
+    for (end_offset = input.len - 1; end_offset > start_offset; --end_offset)
+    {
+        if (start[end_offset] > 0x20) { break; }
     }
 
-    return (ElkStr){.start = &start[start_offset], .len = end_offset - start_offset + 1};
+    return (ElkStr)
+    {
+        .start = &start[start_offset],
+        .len = end_offset - start_offset + 1
+    };
 }
 
 /** Parse an unsigned integer.
@@ -730,7 +736,8 @@ elk_align_pointer(uintptr_t ptr, size_t align)
     uintptr_t a = (uintptr_t)align;
     uintptr_t mod = ptr & (a - 1); // Same as (ptr % a) but faster as 'a' is a power of 2
 
-    if (mod != 0) {
+    if (mod != 0)
+    {
         // push the address forward to the next value which is aligned
         ptr += a - mod;
     }
@@ -744,10 +751,15 @@ elk_align_pointer(uintptr_t ptr, size_t align)
 inline void
 elk_static_arena_init(ElkStaticArena *arena, size_t buf_size, unsigned char buffer[])
 {
-    assert(arena);
-    assert(buffer);
+    assert(arena && buffer);
 
-    *arena = (ElkStaticArena){.buf_size = buf_size, .buf_offset = 0, .buffer = buffer};
+    *arena = (ElkStaticArena)
+    {
+        .buf_size = buf_size,
+        .buf_offset = 0,
+        .buffer = buffer
+    };
+
     return;
 }
 
@@ -796,14 +808,14 @@ elk_static_arena_alloc(ElkStaticArena *arena, size_t size, size_t alignment)
     offset -= (uintptr_t)arena->buffer; // change to relative offset
 
     // Check to see if there is enough space left
-    if (offset + size <= arena->buf_size) {
+    if (offset + size <= arena->buf_size)
+    {
         void *ptr = &arena->buffer[offset];
         arena->buf_offset = offset + size;
 
         return ptr;
-    } else {
-        return NULL;
     }
+    else { return NULL; }
 }
 
 /** Free an allocation from the arena.
@@ -833,7 +845,8 @@ elk_static_arena_free(ElkStaticArena *arena, void *ptr)
  */
 
 /** An arena allocator that adds blocks as needed. */
-typedef struct ElkArenaAllocator {
+typedef struct ElkArenaAllocator
+{
     /// \cond HIDDEN
     ElkStaticArena head;
     /// \endcond HIDDEN
@@ -855,8 +868,9 @@ elk_arena_add_block(ElkArenaAllocator *arena, size_t block_size)
     elk_static_arena_init(&arena->head, max_block_size, buffer);
     ElkStaticArena *next_ptr =
         elk_static_arena_alloc(&arena->head, sizeof(ElkStaticArena), _Alignof(ElkStaticArena));
-    assert(next_ptr);
+
     *next_ptr = next;
+    return;
 }
 
 inline void
@@ -865,7 +879,8 @@ elk_arena_free_blocks(ElkArenaAllocator *arena)
     unsigned char *curr_buffer = arena->head.buffer;
 
     // Relies on the first block's buffer being initialized to NULL
-    while (curr_buffer) {
+    while (curr_buffer) 
+    {
         // Copy next into head.
         arena->head = *(ElkStaticArena *)&curr_buffer[0];
 
@@ -875,6 +890,8 @@ elk_arena_free_blocks(ElkArenaAllocator *arena)
         // Update to point to the next buffer
         curr_buffer = arena->head.buffer;
     }
+
+    return;
 }
 
 /// \endcond HIDDEN
@@ -897,10 +914,18 @@ elk_arena_init(ElkArenaAllocator *arena, size_t starting_block_size)
 
     // Zero everything out - important for the intrusive linked list used to keep track of how
     // many blocks have been added. The NULL buffer signals the end of the list.
-    *arena = (ElkArenaAllocator){
-        .head = (ElkStaticArena){.buffer = NULL, .buf_size = 0, .buf_offset = 0}};
+    *arena = (ElkArenaAllocator)
+    {
+        .head = (ElkStaticArena)
+        {
+            .buffer = NULL, 
+            .buf_size = 0, .buf_offset = 0
+        }
+    };
 
     elk_arena_add_block(arena, starting_block_size);
+
+    return;
 }
 
 /** Reset the arena.
@@ -928,18 +953,22 @@ elk_arena_reset(ElkArenaAllocator *arena)
     ElkStaticArena *next = (ElkStaticArena *)&arena->head.buffer[0];
 
     // Relies on the first block's buffer being initialized to NULL in the arena initialization.
-    while (next->buffer) {
+    while (next->buffer) 
+    {
         sum_block_sizes += next->buf_size;
         next = (ElkStaticArena *)&next->buffer[0];
     }
 
-    if (sum_block_sizes > arena->head.buf_size) {
+    if (sum_block_sizes > arena->head.buf_size)
+    {
         // Free the blocks
         elk_arena_free_blocks(arena);
 
         // Re-initialize with a larger block size.
         elk_arena_init(arena, sum_block_sizes);
-    } else {
+    }
+    else
+    {
         // We only have one block, no reaseon to free and reallocate, but we need to maintain
         // the header describing the "next" block.
         arena->head.buf_offset = sizeof(ElkStaticArena);
@@ -998,7 +1027,8 @@ elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment)
 
     void *ptr = elk_static_arena_alloc(&arena->head, bytes, alignment);
 
-    if (!ptr) {
+    if (!ptr)
+    {
         // add a new block of at least the required size
         elk_arena_add_block(arena, bytes + sizeof(ElkStaticArena) + alignment);
         ptr = elk_static_arena_alloc(&arena->head, bytes, alignment);
@@ -1023,7 +1053,8 @@ elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment)
  * A pool stores objects all of the same size and alignment. This pool implementation does NOT
  * automatically expand if it runs out of space; it is statically sized at runtime.
  */
-typedef struct ElkStaticPool {
+typedef struct ElkStaticPool
+{
     /// \cond HIDDEN
     size_t object_size;    // The size of each object.
     size_t num_objects;    // The capacity, or number of objects storable in the pool.
@@ -1047,13 +1078,16 @@ elk_static_pool_initialize_linked_list(unsigned char *buffer, size_t object_size
     *ptr = (uintptr_t)NULL;
 
     // Then work backwards to the front of the list.
-    while (offset) {
+    while (offset) 
+    {
         size_t next_offset = offset;
         offset -= object_size;
         ptr = (uintptr_t *)&buffer[offset];
         uintptr_t next = (uintptr_t)&buffer[next_offset];
         *ptr = next;
     }
+
+    return;
 }
 
 /// \endcond HIDDEN
@@ -1148,7 +1182,9 @@ elk_static_pool_alloc(ElkStaticPool *pool)
 
     void *ptr = pool->free;
     uintptr_t *next = pool->free;
-    if (ptr) {
+
+    if (ptr) 
+    {
         pool->free = (void *)*next;
     }
 
@@ -1156,6 +1192,7 @@ elk_static_pool_alloc(ElkStaticPool *pool)
 }
 
 /// \cond HIDDEN
+
 // Just a stub so that it will work in the generic macros.
 static inline void *
 elk_static_pool_alloc_aligned(ElkStaticPool *pool, size_t size, size_t alignment)
@@ -1163,6 +1200,7 @@ elk_static_pool_alloc_aligned(ElkStaticPool *pool, size_t size, size_t alignment
     assert(pool && pool->object_size == size);
     return elk_static_pool_alloc(pool);
 }
+
 /// \endcond HIDDEN
 /** @} */ // end of static_pool group
 /*-------------------------------------------------------------------------------------------------
@@ -1208,8 +1246,6 @@ elk_panic_allocator_alloc_aligned(void *arena, size_t size, size_t alignment)
 }
 
 /// \endcond HIDDEN
-
-// clang-format off
 
 /** Allocate an item.
  *
@@ -1268,8 +1304,6 @@ elk_panic_allocator_alloc_aligned(void *arena, size_t size, size_t alignment)
         ElkArenaAllocator*: elk_arena_destroy,                                                     \
         ElkStaticPool*: elk_static_pool_destroy,                                                   \
         default: elk_panic_allocator_destroy)(alloc)
-
-// clang-format off
 
 /** @} */ // end of generic_alloc group
 /** @} */ // end of memory group
@@ -1361,7 +1395,8 @@ extern ptrdiff_t const ELK_COLLECTION_LEDGER_FULL;
  */
 
 /** A bookkeeping type for a queue. */
-typedef struct ElkQueueLedger {
+typedef struct ElkQueueLedger
+{
     /// \cond HIDDEN
     size_t capacity;
     size_t length;
@@ -1374,7 +1409,13 @@ typedef struct ElkQueueLedger {
 static inline ElkQueueLedger
 elk_queue_ledger_create(size_t capacity)
 {
-    return (ElkQueueLedger){.capacity = capacity, .length=0, .front=0, .back=0};
+    return (ElkQueueLedger)
+    {
+        .capacity = capacity, 
+        .length = 0,
+        .front = 0, 
+        .back = 0
+    };
 }
 
 /** Is the queue full? */
@@ -1403,7 +1444,7 @@ static inline ptrdiff_t
 elk_queue_ledger_push_back_index(ElkQueueLedger *queue)
 {
     assert(queue);
-    if(elk_queue_ledger_full(queue)) return ELK_COLLECTION_LEDGER_FULL;
+    if(elk_queue_ledger_full(queue)) { return ELK_COLLECTION_LEDGER_FULL; }
 
     ptrdiff_t idx = queue->back % queue->capacity;
     queue->back += 1;
@@ -1422,7 +1463,7 @@ elk_queue_ledger_push_back_index(ElkQueueLedger *queue)
 static inline ptrdiff_t
 elk_queue_ledger_pop_front_index(ElkQueueLedger *queue)
 {
-    if(elk_queue_ledger_empty(queue)) return ELK_COLLECTION_LEDGER_EMPTY;
+    if(elk_queue_ledger_empty(queue)) { return ELK_COLLECTION_LEDGER_EMPTY; }
 
     ptrdiff_t idx = queue->front % queue->capacity;
     queue->front += 1;
@@ -1440,7 +1481,7 @@ elk_queue_ledger_pop_front_index(ElkQueueLedger *queue)
 static inline ptrdiff_t
 elk_queue_ledger_peek_front_index(ElkQueueLedger *queue)
 {
-    if(queue->length == 0) return ELK_COLLECTION_LEDGER_EMPTY;
+    if(queue->length == 0) { return ELK_COLLECTION_LEDGER_EMPTY; }
     return queue->front % queue->capacity;
 }
 
@@ -1464,7 +1505,8 @@ elk_queue_ledger_len(ElkQueueLedger const *queue)
  */
 
 /** A bookkeeping type for an array. */
-typedef struct ElkArrayLedger {
+typedef struct ElkArrayLedger 
+{
     /// \cond HIDDEN
     size_t capacity;
     size_t length;
@@ -1475,7 +1517,11 @@ typedef struct ElkArrayLedger {
 static inline ElkArrayLedger
 elk_array_ledger_create(size_t capacity)
 {
-    return (ElkArrayLedger){.capacity = capacity, .length=0};
+    return (ElkArrayLedger)
+    {
+        .capacity = capacity,
+        .length = 0
+    };
 }
 
 /** Is the array full? */
@@ -1504,7 +1550,7 @@ static inline ptrdiff_t
 elk_array_ledger_push_back_index(ElkArrayLedger *array)
 {
     assert(array);
-    if(elk_array_ledger_full(array)) return ELK_COLLECTION_LEDGER_FULL;
+    if(elk_array_ledger_full(array)) { return ELK_COLLECTION_LEDGER_FULL; }
 
     ptrdiff_t idx = array->length;
     array->length += 1;
