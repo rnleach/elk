@@ -20,14 +20,16 @@ test_empty_full_queue(void)
     // It should be empty now - for as many calls as I make.
     assert(elk_queue_ledger_empty(qp));
     assert(!elk_queue_ledger_full(qp));
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 5; ++i) 
+    {
         assert(elk_queue_ledger_empty(qp));
         assert(!elk_queue_ledger_full(qp));
         assert(elk_queue_ledger_pop_front_index(qp) == ELK_COLLECTION_LEDGER_EMPTY);
     }
 
     // Let's fill it up!
-    for (int i = 0; i < TEST_BUF_COUNT; ++i) {
+    for (int i = 0; i < TEST_BUF_COUNT; ++i) 
+    {
         assert(!elk_queue_ledger_full(qp)); // Should never be full in this loop
 
         size_t push_idx = elk_queue_ledger_push_back_index(qp);
@@ -39,14 +41,16 @@ test_empty_full_queue(void)
     assert(elk_queue_ledger_full(qp));
 
     // All the rest of these should fail
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 5; ++i) 
+    {
         assert(elk_queue_ledger_full(qp));
         assert(!elk_queue_ledger_empty(qp));
         assert(elk_queue_ledger_push_back_index(qp) == ELK_COLLECTION_LEDGER_FULL);
     }
 
     // Let's empty it out.
-    for (int i = 0; i < TEST_BUF_COUNT; ++i) {
+    for (int i = 0; i < TEST_BUF_COUNT; ++i) 
+    {
         assert(!elk_queue_ledger_empty(qp)); // Should never be empty at the start of this loop.
 
         size_t pop_idx = elk_queue_ledger_pop_front_index(qp);
@@ -58,7 +62,8 @@ test_empty_full_queue(void)
     // It should be empty now - for as many calls as I make.
     assert(elk_queue_ledger_empty(qp));
     assert(!elk_queue_ledger_full(qp));
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 5; ++i) 
+    {
         assert(elk_queue_ledger_empty(qp));
         assert(!elk_queue_ledger_full(qp));
         assert(elk_queue_ledger_pop_front_index(qp) == ELK_COLLECTION_LEDGER_EMPTY);
@@ -76,7 +81,8 @@ test_lots_of_throughput(void)
     ElkQueueLedger *qp = &queue;
 
     // Let's put a few in there.
-    for (int i = 0; i < TEST_BUF_COUNT / 2; ++i) {
+    for (int i = 0; i < TEST_BUF_COUNT / 2; ++i) 
+    {
         assert(!elk_queue_ledger_full(qp)); // Should never be full in this loop
 
         size_t push_idx = elk_queue_ledger_push_back_index(qp);
@@ -87,10 +93,12 @@ test_lots_of_throughput(void)
 
     // Cycle through adding and removing from the queue
     int const reps = 100;
-    for (int i = 0; i < reps; ++i) {
+    for (int i = 0; i < reps; ++i) 
+    {
 
         // Let's put a few more in there.
-        for (int i = 0; i < TEST_BUF_COUNT / 2; ++i) {
+        for (int i = 0; i < TEST_BUF_COUNT / 2; ++i) 
+        {
             assert(!elk_queue_ledger_full(qp)); // Should never be full in this loop
 
             size_t push_idx = elk_queue_ledger_push_back_index(qp);
@@ -100,7 +108,8 @@ test_lots_of_throughput(void)
         }
 
         // Let's pull a few out.
-        for (int i = 0; i < TEST_BUF_COUNT / 2; ++i) {
+        for (int i = 0; i < TEST_BUF_COUNT / 2; ++i) 
+        {
             assert(!elk_queue_ledger_empty(qp)); // Should never be empty in this loop
 
             size_t pop_idx = elk_queue_ledger_pop_front_index(qp);
@@ -129,7 +138,8 @@ test_test_peek(void)
     }
 
     // Let's fill it up!
-    for (int i = 0; i < TEST_BUF_COUNT; ++i) {
+    for (int i = 0; i < TEST_BUF_COUNT; ++i) 
+    {
         assert(!elk_queue_ledger_full(qp)); // Should never be full in this loop
 
         size_t push_idx = elk_queue_ledger_push_back_index(qp);
@@ -139,7 +149,8 @@ test_test_peek(void)
     }
 
     // Let's empty it out.
-    for (int i = 0; i < TEST_BUF_COUNT; ++i) {
+    for (int i = 0; i < TEST_BUF_COUNT; ++i) 
+    {
         assert(!elk_queue_ledger_empty(qp)); // Should never be empty at the start of this loop.
 
         size_t peek_idx = elk_queue_ledger_peek_front_index(qp);

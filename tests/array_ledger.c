@@ -21,14 +21,16 @@ test_empty_full_array(void)
     assert(elk_array_ledger_empty(ap));
     assert(!elk_array_ledger_full(ap));
     assert(elk_array_ledger_len(ap) == 0);
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 5; ++i) 
+    {
         assert(elk_array_ledger_empty(ap));
         assert(!elk_array_ledger_full(ap));
         assert(elk_array_ledger_len(ap) == 0);
     }
 
     // Let's fill it up!
-    for (int i = 0; i < TEST_BUF_COUNT; ++i) {
+    for (int i = 0; i < TEST_BUF_COUNT; ++i) 
+    {
         assert(!elk_array_ledger_full(ap)); // Should never be full in this loop
 
         size_t push_idx = elk_array_ledger_push_back_index(ap);
@@ -41,7 +43,8 @@ test_empty_full_array(void)
     assert(elk_array_ledger_len(ap) == TEST_BUF_COUNT);
 
     // All the rest of the pushes should fail
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 5; ++i) 
+    {
         assert(elk_array_ledger_full(ap));
         assert(!elk_array_ledger_empty(ap));
         assert(elk_array_ledger_len(ap) == TEST_BUF_COUNT);

@@ -20,19 +20,22 @@ test_full_pool(void)
 
     double *dubs[TEST_BUF_COUNT] = {0};
 
-    for (int i = 0; i < TEST_BUF_COUNT; ++i) {
+    for (int i = 0; i < TEST_BUF_COUNT; ++i) 
+    {
         dubs[i] = elk_allocator_malloc(pool, double);
         assert(dubs[i]);
 
         *dubs[i] = (double)i;
     }
 
-    for (int i = 0; i < TEST_BUF_COUNT; ++i) {
+    for (int i = 0; i < TEST_BUF_COUNT; ++i) 
+    {
         assert(*dubs[i] == (double)i);
     }
 
     // Test that it's full!
-    for (int i = TEST_BUF_COUNT; i < 2 * TEST_BUF_COUNT; i++) {
+    for (int i = TEST_BUF_COUNT; i < 2 * TEST_BUF_COUNT; i++) 
+    {
         double *no_dub = elk_allocator_malloc(pool, double);
         assert(!no_dub);
     }
@@ -51,31 +54,36 @@ test_pool_freeing(void)
 
     double *dubs[TEST_BUF_COUNT] = {0};
 
-    for (int i = 0; i < TEST_BUF_COUNT; ++i) {
+    for (int i = 0; i < TEST_BUF_COUNT; ++i) 
+    {
         dubs[i] = elk_allocator_malloc(pool, double);
         assert(dubs[i]);
 
         *dubs[i] = (double)i;
     }
 
-    for (int i = 0; i < TEST_BUF_COUNT; ++i) {
+    for (int i = 0; i < TEST_BUF_COUNT; ++i) 
+    {
         assert(*dubs[i] == (double)i);
     }
 
     // Half empty it!
-    for (int i = 0; i < TEST_BUF_COUNT / 2; i++) {
+    for (int i = 0; i < TEST_BUF_COUNT / 2; i++) 
+    {
         elk_allocator_free(pool, dubs[2 * i]);
         dubs[2 * i] = NULL;
     }
 
-    for (int i = 0; i < TEST_BUF_COUNT / 2; i++) {
+    for (int i = 0; i < TEST_BUF_COUNT / 2; i++) 
+    {
         dubs[2 * i] = elk_allocator_malloc(pool, double);
         assert(dubs[2 * i]);
 
         *dubs[2 * i] = (double)i;
     }
 
-    for (int i = 0; i < TEST_BUF_COUNT / 2; i++) {
+    for (int i = 0; i < TEST_BUF_COUNT / 2; i++) 
+    {
         assert(*dubs[2 * i] == (double)i);
     }
 
@@ -97,7 +105,8 @@ elk_pool_via_generic_api_tests(void)
  *                                  Tests for the Memory Arena
  *
  *-----------------------------------------------------------------------------------------------*/
-static char *tst_strings[6] = {
+static char *tst_strings[6] = 
+{
     "test string 1",
     "peanut butter jelly time",
     "eat good food! not peanut butter jelly",
@@ -118,10 +127,12 @@ copy_string_to_arena(ElkArenaAllocator *arena, char const *str)
     return dest;
 }
 
-static char test_chars[18] = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h',  'I',
-                              'J', 'K', '1', '2', '$', '^', '&', '\t', '\0'};
+static char test_chars[18] =
+{
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h',  'I', 'J', 'K', '1', '2', '$', '^', '&', '\t', '\0'
+};
 
-static double test_doubles[6] = {0.0, 1.0, 2.17, 3.14159, 9.81, 1.6666};
+static double test_doubles[6] = { 0.0, 1.0, 2.17, 3.14159, 9.81, 1.6666 };
 
 static void
 test_arena(void)
@@ -131,15 +142,16 @@ test_arena(void)
     ElkArenaAllocator *arena = &arena_i;
     elk_arena_init(arena, 50);
 
-    for (int trip_num = 1; trip_num <= 5; trip_num++) {
-
+    for (int trip_num = 1; trip_num <= 5; trip_num++) 
+    {
         char *arena_strs[6] = {0};
         char *arena_chars[18] = {0};
         double *arena_doubles[6] = {0};
         int *arena_ints[6] = {0};
 
         // Fill the arena
-        for (int j = 0; j < 6; j++) {
+        for (int j = 0; j < 6; j++) 
+        {
             arena_chars[j * 3 + 0] = elk_allocator_malloc(arena, char);
             *arena_chars[j * 3 + 0] = test_chars[j * 3 + 0];
 
@@ -159,7 +171,8 @@ test_arena(void)
         }
 
         // Test the values!
-        for (int j = 0; j < 6; j++) {
+        for (int j = 0; j < 6; j++) 
+        {
             assert(*arena_chars[j * 3 + 0] == test_chars[j * 3 + 0]);
             assert(*arena_doubles[j] == test_doubles[j]);
             assert(*arena_chars[j * 3 + 1] == test_chars[j * 3 + 1]);

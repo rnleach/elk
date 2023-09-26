@@ -8,7 +8,8 @@
  *
  *-----------------------------------------------------------------------------------------------*/
 
-char *some_strings[] = {
+char *some_strings[] = 
+{
     "vegemite", "cantaloupe",    "poutine",    "cottonwood trees", "x",
     "y",        "peanut butter", "jelly time", "strawberries",     "and cream",
     "raining",  "cats and dogs", "sushi",      "date night",       "sour",
@@ -26,13 +27,15 @@ test_string_interner(void)
     assert(interner);
 
     // Fill the interner with strings!
-    for (size_t i = 0; i < NUM_TEST_STRINGS; ++i) {
+    for (size_t i = 0; i < NUM_TEST_STRINGS; ++i) 
+    {
         char *str = some_strings[i];
         strs[i] = elk_string_interner_intern_cstring(interner, str);
     }
 
     // Now see if we get the right ones back out!
-    for (size_t i = 0; i < NUM_TEST_STRINGS; ++i) {
+    for (size_t i = 0; i < NUM_TEST_STRINGS; ++i) 
+    {
         char *str = some_strings[i];
         ElkStr interned_str = elk_string_interner_intern_cstring(interner, str);
         assert(strcmp(str, interned_str.start) == 0);

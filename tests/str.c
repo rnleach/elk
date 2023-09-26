@@ -140,15 +140,15 @@ test_str_copy(void)
     ElkStr dest_str = elk_str_copy(sizeof(dest), dest, str);
     ElkStr too_short_str = elk_str_copy(sizeof(too_short), too_short, str);
 
-    assert(dest_str.len == str.len);     // They're the same size
-    assert(dest_str.start != str.start); // They're not the same location in memory
-    assert(elk_str_eq(dest_str, str));   // They should compare as equals
+    assert(dest_str.len == str.len);           // They're the same size
+    assert(dest_str.start != str.start);       // They're not the same location in memory
+    assert(elk_str_eq(dest_str, str));         // They should compare as equals
     assert(dest[14] == 'g');
     assert(dest[15] == '\0');
 
-    assert(too_short_str.len < str.len);      // Too short is smaller!
-    assert(too_short_str.start != str.start); // They're not the same location in memory
-    assert(!elk_str_eq(too_short_str, str));  // They NOT should compare as equals
+    assert(too_short_str.len < str.len);       // Too short is smaller!
+    assert(too_short_str.start != str.start);  // They're not the same location in memory
+    assert(!elk_str_eq(too_short_str, str));   // They NOT should compare as equals
     assert(too_short[8] == ' ');
     assert(too_short[9] == '\0');
 
@@ -168,12 +168,11 @@ test_str_copy(void)
 static void
 test_parse_int64(void)
 {
-    // clang-format off
     char *valid_num_strs[]     = {"0", "1", "-1", "+2", "65356", "700", "50", "50000000000"};
     int64_t const valid_nums[] = { 0 ,  1 ,  -1 ,  +2 ,  65356 ,  700 ,  50 ,  50000000000 };
-    // clang-format on
 
-    for (int i = 0; i < sizeof(valid_nums) / sizeof(valid_nums[0]); ++i) {
+    for (int i = 0; i < sizeof(valid_nums) / sizeof(valid_nums[0]); ++i)
+    {
         ElkStr str = elk_str_from_cstring(valid_num_strs[i]);
         int64_t parsed = INT64_MAX;
         bool success = elk_str_parse_int_64(str, &parsed);
@@ -185,7 +184,8 @@ test_parse_int64(void)
 
     char *invalid_num_strs[] = {"0a", "*1", "65356.020", "700U", "50L", "0x5000"};
 
-    for (int i = 0; i < sizeof(invalid_num_strs) / sizeof(invalid_num_strs[0]); ++i) {
+    for (int i = 0; i < sizeof(invalid_num_strs) / sizeof(invalid_num_strs[0]); ++i)
+    {
         ElkStr str = elk_str_from_cstring(invalid_num_strs[i]);
         int64_t parsed = INT64_MAX;
         bool success = elk_str_parse_int_64(str, &parsed);
@@ -198,12 +198,11 @@ test_parse_double(void)
 {
     double const precision = 1.0e-15;
 
-    // clang-format off
     char *valid_num_strs[] =    {"1.0", "-1.0", "3.14159", "2.345e5", "-2.345e-5", "+500.23e2", "1.7876931348623157e308"};
     double const valid_nums[] = { 1.0 ,  -1.0 ,  3.14159 ,  2.345e5 ,  -2.345e-5 ,  +500.23e2 ,  1.7876931348623157e308 };
-    // clang-format on
 
-    for (int i = 0; i < sizeof(valid_nums) / sizeof(valid_nums[0]); ++i) {
+    for (int i = 0; i < sizeof(valid_nums) / sizeof(valid_nums[0]); ++i) 
+    {
         ElkStr str = elk_str_from_cstring(valid_num_strs[i]);
         double parsed = NAN;
         bool success = elk_str_parse_float_64(str, &parsed);
@@ -217,7 +216,8 @@ test_parse_double(void)
 
     char *invalid_num_strs[] = {"1.0x", " -1.0", "3.1415999999999999999", "1.0e500", "1.8e308"};
 
-    for (int i = 0; i < sizeof(invalid_num_strs) / sizeof(invalid_num_strs[0]); ++i) {
+    for (int i = 0; i < sizeof(invalid_num_strs) / sizeof(invalid_num_strs[0]); ++i) 
+    {
         ElkStr str = elk_str_from_cstring(invalid_num_strs[i]);
         double parsed = 0.0;
         bool success = elk_str_parse_float_64(str, &parsed);
@@ -226,7 +226,8 @@ test_parse_double(void)
     }
 
     char *inf_str[] = {"inf", "Inf", "INF", "-inf", "-Inf", "-INF"};
-    for (int i = 0; i < sizeof(inf_str) / sizeof(inf_str[0]); ++i) {
+    for (int i = 0; i < sizeof(inf_str) / sizeof(inf_str[0]); ++i) 
+    {
         ElkStr str = elk_str_from_cstring(inf_str[i]);
         double val = 0.0;
         bool success = elk_str_parse_float_64(str, &val);
@@ -234,7 +235,8 @@ test_parse_double(void)
     }
 
     char *nan_str[] = {"nan", "NaN", "NAN", "Nan"};
-    for (int i = 0; i < sizeof(nan_str) / sizeof(nan_str[0]); ++i) {
+    for (int i = 0; i < sizeof(nan_str) / sizeof(nan_str[0]); ++i) 
+    {
         ElkStr str = elk_str_from_cstring(nan_str[i]);
         double val = 0.0;
         bool success = elk_str_parse_float_64(str, &val);
