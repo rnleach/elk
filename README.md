@@ -45,7 +45,7 @@
   stack and enable as much inlining as possible. So I've let alot of my implementation go into the
   header. I've given most of the inline functions (except the smallest) external linkage so they
   only get compiled into the final executable once, but have the best opportunities to get inlined.
-  Some of the smallest functions are just \c static \c inline. This makes it hard to know what's
+  Some of the smallest functions are just `c` static `c` inline. This makes it hard to know what's
   intended as public API and what isn't from the library. But if you can read comments formatted for
   Doxygen, then you can follow along. If you have Doxygen, just use it to create the documentation
   and read that.
