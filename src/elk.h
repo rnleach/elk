@@ -1,16 +1,23 @@
-#pragma once
+#ifndef ELK_HEADER
+#define ELK_HEADER
 /**
  * \file elk.h
  * \brief A source library of useful code.
  *
  * See the main page for an overall description and the list of goals/non-goals: \ref index
  */
-#include <assert.h>
-#include <math.h>
-#include <stdbool.h>
-#include <stddef.h>
+
+#ifndef false
+#define false 0
+#endif
+#ifndef true
+#define true 1
+#endif
+#ifndef bool
+#define bool int
+#endif
+
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -22,38 +29,17 @@
  * @{
  */
 
-/// \cond HIDDEN
-#ifdef ELK_PANIC_CRASH
-#    define HARD_EXIT (fprintf(0, "CRASH"))
-#else
-#    define HARD_EXIT (exit(EXIT_FAILURE))
-#endif
-/// \endcond HIDDEN
-
-/** Clean error handling not removed in release builds, always prints a message to \c stderr.
+/** Dereference a \c NULL ptr causing the program to crash.
  *
- * Unlike \c assert, this macro isn't compiled out if \c NDEBUG is defined. Error checking that is
- * always on. This macro will do an error action, which could be a \c goto, \c continue, \c return
- * or \c break, or any code snippet you put in there. But it will always print a message to
- * \c stderr when it is triggered.
+ * When running under a debugger, this should stop exactly at the point the error occurred.
  */
-#define ErrorIf(assertion, error_action, ...)                                                      \
-    {                                                                                              \
-        if (assertion) {                                                                           \
-            fprintf(stderr, "[%s %d]: ", __FILE__, __LINE__);                                      \
-            fprintf(stderr, __VA_ARGS__);                                                          \
-            fprintf(stderr, "\n");                                                                 \
-            {                                                                                      \
-                error_action;                                                                      \
-            }                                                                                      \
-        }                                                                                          \
-    }
+#define HARD_EXIT (*(int volatile*)0)
 
 /** Clean and quiet error handling not removed in release builds.
  *
  * Unlike \c assert, this macro isn't compiled out if \c NDEBUG is defined. Error checking that is
  * always on. This macro will do an error action, which could be a \c goto, \c return, \c continue,
- * or \c break, or any code snippet you put in there. It's called quiet because nothing is printed.
+ * or \c break, or any code snippet you put in there. 
  */
 #define StopIf(assertion, error_action)                                                            \
     {                                                                                              \
@@ -62,39 +48,43 @@
         }                                                                                          \
     }
 
-/** If the assertion fails, cleanly abort the program with an error message.
+/** If the assertion fails, abort the program in a harsh way.
  *
  * Unlike \c assert, this macro isn't compiled out if \c NDEBUG is defined. This is useful for
  * checking errors that should never happen, like running out of memory.
- *
- * If \c ELK_PANIC_CRASH is defined, then this will print to \c NULL and cause a crash that any
- * good debugger should catch so you can investigate the stack trace and the cause of the crash.
  */
-#define PanicIf(assertion, ...)                                                                    \
+#define PanicIf(assertion)                                                                         \
     {                                                                                              \
         if (assertion) {                                                                           \
-            fprintf(stderr, "[%s %d]: ", __FILE__, __LINE__);                                      \
-            fprintf(stderr, __VA_ARGS__);                                                          \
-            fprintf(stderr, "\n");                                                                 \
             HARD_EXIT;                                                                             \
         }                                                                                          \
     }
 
-/** Cleanly abort the program with an error message.
+/** Abort the program.
  *
  * Unlike \c assert, this macro isn't compiled out if \c NDEBUG is defined. Useful for checking
  * unreachable code like the default statement in a \c switch statement.
- *
- * If \c ELK_PANIC_CRASH is defined, then this will print to \c NULL and cause a crash that any
- * good debugger should catch so you can investigate the stack trace and the cause of the crash.
  */
-#define Panic(...)                                                                                 \
+#define Panic()                                                                                    \
     {                                                                                              \
-        fprintf(stderr, "[%s %d]: ", __FILE__, __LINE__);                                          \
-        fprintf(stderr, __VA_ARGS__);                                                              \
-        fprintf(stderr, "\n");                                                                     \
         HARD_EXIT;                                                                                 \
     }
+
+/** Abort the program if a test condition is false.
+ *
+ * Like \c assert, this macro is compiled out if \c NDEBUG is defined. Useful for debug build only
+ * checking of constraints. 
+ */
+#ifndef NDEBUG
+#define Assert(assertion)                                                                          \
+    {                                                                                              \
+        if (!(assertion)) {                                                                        \
+            HARD_EXIT;                                                                             \
+        }                                                                                          \
+    }
+#else
+#define Assert(assertion)
+#endif
 
 /** @} */ // end of errors group
 
@@ -115,7 +105,6 @@
  *  - Given the restrictions above, I'm going to make the code as simple and fast as I can.
  *  - The end result covers the time ranging from midnight January 1st, 1 ADE to the last second of
  *    the day on December 31st, 32767.
- *
  * @{
  */
 
@@ -134,7 +123,7 @@ extern int64_t const sum_days_to_month[2][13];
 inline int64_t
 elk_num_leap_years_since_epoch(int64_t year)
 {
-    assert(year >= 1);
+    Assert(year >= 1);
 
     year -= 1;
     return year / 4 - year / 100 + year / 400;
@@ -217,12 +206,12 @@ elk_is_leap_year(int year)
 inline ElkTime
 elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, int seconds)
 {
-    assert(year >= 1 && year <= INT16_MAX);
-    assert(day >= 1 && day <= 31);
-    assert(month >= 1 && month <= 12);
-    assert(hour >= 0 && hour <= 23);
-    assert(minutes >= 0 && minutes <= 59);
-    assert(seconds >= 0 && seconds <= 59);
+    Assert(year >= 1 && year <= INT16_MAX);
+    Assert(day >= 1 && day <= 31);
+    Assert(month >= 1 && month <= 12);
+    Assert(hour >= 0 && hour <= 23);
+    Assert(minutes >= 0 && minutes <= 59);
+    Assert(seconds >= 0 && seconds <= 59);
 
     // Seconds in the years up to now.
     int64_t const num_leap_years_since_epoch = elk_num_leap_years_since_epoch(year);
@@ -241,7 +230,7 @@ elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, i
     ts += minutes * SECONDS_PER_MINUTE;
     ts += seconds;
 
-    assert(ts >= 0);
+    Assert(ts >= 0);
 
     return ts;
 }
@@ -254,67 +243,7 @@ elk_make_time(ElkStructTime tm)
 }
 
 /** Convert from \ref ElkTime to \ref ElkRefTime. */
-inline ElkStructTime
-elk_make_struct_time(ElkTime time)
-{
-    assert(time >= 0);
-
-    // Get the seconds part and then trim it off and convert to minutes
-    int const second = time % SECONDS_PER_MINUTE;
-    time = (time - second) / SECONDS_PER_MINUTE;
-    assert(time >= 0 && second >= 0 && second <= 59);
-
-    // Get the minutes part, trim it off and convert to hours.
-    int const minute = time % MINUTES_PER_HOUR;
-    time = (time - minute) / MINUTES_PER_HOUR;
-    assert(time >= 0 && minute >= 0 && minute <= 59);
-
-    // Get the hours part, trim it off and convert to days.
-    int const hour = time % HOURS_PER_DAY;
-    time = (time - hour) / HOURS_PER_DAY;
-    assert(time >= 0 && hour >= 0 && hour <= 23);
-
-    // Rename variable for clarity
-    int64_t const days_since_epoch = time;
-
-    // Calculate the year
-    int year = days_since_epoch / (DAYS_PER_YEAR) + 1; // High estimate, but good starting point.
-    int64_t test_time = elk_days_since_epoch(year);
-    while (test_time > days_since_epoch) 
-    {
-        int step = (test_time - days_since_epoch) / (DAYS_PER_YEAR + 1);
-        step = step == 0 ? 1 : step;
-        year -= step;
-        test_time = elk_days_since_epoch(year);
-    }
-    assert(test_time <= elk_days_since_epoch(year));
-    time -= elk_days_since_epoch(year); // Now it's days since start of the year.
-    assert(time >= 0);
-
-    // Calculate the month
-    int month = 0;
-    int leap_year_idx = elk_is_leap_year(year) ? 1 : 0;
-    for (month = 1; month <= 11; month++)
-    {
-        if (sum_days_to_month[leap_year_idx][month + 1] > time) { break; }
-    }
-    assert(time >= 0 && month > 0 && month <= 12);
-    time -= sum_days_to_month[leap_year_idx][month]; // Now in days since start of month
-
-    // Calculate the day
-    int const day = time + 1;
-    assert(day > 0 && day <= 31);
-
-    return (ElkStructTime)
-    {
-        .year = year,
-        .month = month, 
-        .day = day, 
-        .hour = hour, 
-        .minute = minute, 
-        .second = second
-    };
-}
+extern ElkStructTime elk_make_struct_time(ElkTime time);
 
 /** Truncate the minutes and seconds from the \p time argument.
  *
@@ -333,7 +262,7 @@ elk_time_truncate_to_hour(ElkTime time)
     int64_t const minutes = (adjusted / SECONDS_PER_MINUTE) % MINUTES_PER_HOUR;
     adjusted -= minutes * SECONDS_PER_MINUTE;
 
-    assert(adjusted >= 0);
+    Assert(adjusted >= 0);
 
     return adjusted;
 }
@@ -351,7 +280,7 @@ elk_time_truncate_to_hour(ElkTime time)
 inline ElkTime
 elk_time_truncate_to_specific_hour(ElkTime time, int hour)
 {
-    assert(hour >= 0 && hour <= 23 && time >= 0);
+    Assert(hour >= 0 && hour <= 23 && time >= 0);
 
     ElkTime adjusted = time;
 
@@ -365,10 +294,10 @@ elk_time_truncate_to_specific_hour(ElkTime time, int hour)
     if (actual_hour < hour) { actual_hour += 24; }
 
     int64_t change_hours = actual_hour - hour;
-    assert(change_hours >= 0);
+    Assert(change_hours >= 0);
     adjusted -= change_hours * SECONDS_PER_HOUR;
 
-    assert(adjusted >= 0);
+    Assert(adjusted >= 0);
 
     return adjusted;
 }
@@ -396,7 +325,7 @@ inline ElkTime
 elk_time_add(ElkTime time, int change_in_time)
 {
     ElkTime result = time + change_in_time;
-    assert(result >= 0);
+    Assert(result >= 0);
     return result;
 }
 
@@ -509,7 +438,7 @@ typedef struct ElkStr
 inline ElkStr
 elk_str_from_cstring(char *src)
 {
-    assert(src);
+    Assert(src);
 
     size_t len;
     for (len = 0; *(src + len) != '\0'; ++len) ; // intentionally left blank.
@@ -528,7 +457,7 @@ elk_str_from_cstring(char *src)
 inline ElkStr
 elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src)
 {
-    assert(dest);
+    Assert(dest);
 
     size_t const src_len = src.len;
     size_t const copy_len = src_len < dst_len ? src_len : dst_len;
@@ -552,7 +481,7 @@ elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src)
 inline int
 elk_str_cmp(ElkStr left, ElkStr right)
 {
-    assert(left.start && right.start);
+    Assert(left.start && right.start);
 
     size_t len = left.len > right.len ? right.len : left.len;
 
@@ -578,7 +507,7 @@ elk_str_cmp(ElkStr left, ElkStr right)
 inline bool
 elk_str_eq(ElkStr left, ElkStr right)
 {
-    assert(left.start && right.start);
+    Assert(left.start && right.start);
 
     if (left.len != right.len) { return false; }
 
@@ -731,7 +660,7 @@ inline uintptr_t
 elk_align_pointer(uintptr_t ptr, size_t align)
 {
 
-    assert(elk_is_power_of_2(align));
+    Assert(elk_is_power_of_2(align));
 
     uintptr_t a = (uintptr_t)align;
     uintptr_t mod = ptr & (a - 1); // Same as (ptr % a) but faster as 'a' is a power of 2
@@ -751,7 +680,7 @@ elk_align_pointer(uintptr_t ptr, size_t align)
 inline void
 elk_static_arena_init(ElkStaticArena *arena, size_t buf_size, unsigned char buffer[])
 {
-    assert(arena && buffer);
+    Assert(arena && buffer);
 
     *arena = (ElkStaticArena)
     {
@@ -783,7 +712,7 @@ elk_static_arena_destroy(ElkStaticArena *arena)
 static inline void
 elk_static_arena_reset(ElkStaticArena *arena)
 {
-    assert(arena && arena->buffer);
+    Assert(arena && arena->buffer);
     arena->buf_offset = 0;
     return;
 }
@@ -799,8 +728,8 @@ elk_static_arena_reset(ElkStaticArena *arena)
 inline void *
 elk_static_arena_alloc(ElkStaticArena *arena, size_t size, size_t alignment)
 {
-    assert(arena);
-    assert(size > 0);
+    Assert(arena);
+    Assert(size > 0);
 
     // Align 'curr_offset' forward to the specified alignment
     uintptr_t curr_ptr = (uintptr_t)arena->buffer + (uintptr_t)arena->buf_offset;
@@ -858,10 +787,10 @@ inline void
 elk_arena_add_block(ElkArenaAllocator *arena, size_t block_size)
 {
     uint32_t max_block_size = arena->head.buf_size > block_size ? arena->head.buf_size : block_size;
-    assert(max_block_size > sizeof(ElkStaticArena));
+    Assert(max_block_size > sizeof(ElkStaticArena));
 
     unsigned char *buffer = calloc(max_block_size, 1);
-    PanicIf(!buffer, "out of memory");
+    PanicIf(!buffer);
 
     ElkStaticArena next = arena->head;
 
@@ -907,7 +836,7 @@ elk_arena_free_blocks(ElkArenaAllocator *arena)
 inline void
 elk_arena_init(ElkArenaAllocator *arena, size_t starting_block_size)
 {
-    assert(arena);
+    Assert(arena);
 
     size_t const min_size = sizeof(arena->head) + 8;
     starting_block_size = starting_block_size > min_size ? starting_block_size : min_size;
@@ -944,7 +873,7 @@ elk_arena_init(ElkArenaAllocator *arena, size_t starting_block_size)
 inline void
 elk_arena_reset(ElkArenaAllocator *arena)
 {
-    assert(arena);
+    Assert(arena);
 
     // Get the total size in all the blocks
     size_t sum_block_sizes = arena->head.buf_size;
@@ -987,7 +916,7 @@ elk_arena_reset(ElkArenaAllocator *arena)
 inline void
 elk_arena_destroy(ElkArenaAllocator *arena)
 {
-    assert(arena);
+    Assert(arena);
     elk_arena_free_blocks(arena);
     arena->head.buf_size = 0;
     arena->head.buf_offset = 0;
@@ -1023,7 +952,7 @@ elk_arena_free(ElkStaticArena *arena, void *ptr)
 inline void *
 elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment)
 {
-    assert(arena && arena->head.buffer);
+    Assert(arena && arena->head.buffer);
 
     void *ptr = elk_static_arena_alloc(&arena->head, bytes, alignment);
 
@@ -1100,7 +1029,7 @@ elk_static_pool_initialize_linked_list(unsigned char *buffer, size_t object_size
 inline void
 elk_static_pool_reset(ElkStaticPool *pool)
 {
-    assert(pool && pool->buffer && pool->num_objects && pool->object_size);
+    Assert(pool && pool->buffer && pool->num_objects && pool->object_size);
 
     // Initialize the free list to a linked list.
     elk_static_pool_initialize_linked_list(pool->buffer, pool->object_size, pool->num_objects);
@@ -1135,10 +1064,10 @@ inline void
 elk_static_pool_init(ElkStaticPool *pool, size_t object_size, size_t num_objects,
                      unsigned char *buffer)
 {
-    assert(pool);
-    assert(object_size >= sizeof(void *));       // Need to be able to fit at least a pointer!
-    assert(object_size % _Alignof(void *) == 0); // Need for alignment of pointers.
-    assert(num_objects > 0);
+    Assert(pool);
+    Assert(object_size >= sizeof(void *));       // Need to be able to fit at least a pointer!
+    Assert(object_size % _Alignof(void *) == 0); // Need for alignment of pointers.
+    Assert(num_objects > 0);
 
     pool->buffer = buffer;
     pool->object_size = object_size;
@@ -1156,7 +1085,7 @@ elk_static_pool_init(ElkStaticPool *pool, size_t object_size, size_t num_objects
 inline void
 elk_static_pool_destroy(ElkStaticPool *pool)
 {
-    assert(pool);
+    Assert(pool);
     memset(pool, 0, sizeof(*pool));
 }
 
@@ -1164,7 +1093,7 @@ elk_static_pool_destroy(ElkStaticPool *pool)
 inline void
 elk_static_pool_free(ElkStaticPool *pool, void *ptr)
 {
-    assert(pool && ptr);
+    Assert(pool && ptr);
 
     uintptr_t *next = ptr;
     *next = (uintptr_t)pool->free;
@@ -1178,7 +1107,7 @@ elk_static_pool_free(ElkStaticPool *pool, void *ptr)
 inline void *
 elk_static_pool_alloc(ElkStaticPool *pool)
 {
-    assert(pool);
+    Assert(pool);
 
     void *ptr = pool->free;
     uintptr_t *next = pool->free;
@@ -1197,7 +1126,7 @@ elk_static_pool_alloc(ElkStaticPool *pool)
 static inline void *
 elk_static_pool_alloc_aligned(ElkStaticPool *pool, size_t size, size_t alignment)
 {
-    assert(pool && pool->object_size == size);
+    Assert(pool && pool->object_size == size);
     return elk_static_pool_alloc(pool);
 }
 
@@ -1224,25 +1153,25 @@ elk_static_pool_alloc_aligned(ElkStaticPool *pool, size_t size, size_t alignment
 static inline void
 elk_panic_allocator_reset(void *alloc)
 {
-    Panic("allocator not configured: %s", __FUNCTION__);
+    Panic();
 }
 
 static inline void
 elk_panic_allocator_destroy(void *arena)
 {
-    Panic("allocator not configured: %s", __FUNCTION__);
+    Panic();
 }
 
 static inline void
 elk_panic_allocator_free(void *arena, void *ptr)
 {
-    Panic("allocator not configured: %s", __FUNCTION__);
+    Panic();
 }
 
 static inline void
 elk_panic_allocator_alloc_aligned(void *arena, size_t size, size_t alignment)
 {
-    Panic("allocator not configured: %s", __FUNCTION__);
+    Panic();
 }
 
 /// \endcond HIDDEN
@@ -1378,10 +1307,10 @@ elk_panic_allocator_alloc_aligned(void *arena, size_t size, size_t alignment)
  */
 
 /** Return from a function on a ledger type that indicates the collection is empty. */
-extern ptrdiff_t const ELK_COLLECTION_LEDGER_EMPTY;
+extern int64_t const ELK_COLLECTION_LEDGER_EMPTY;
 
 /** Return from a function on a ledger type that indicates the collection is empty. */
-extern ptrdiff_t const ELK_COLLECTION_LEDGER_FULL;
+extern int64_t const ELK_COLLECTION_LEDGER_FULL;
 
 /*-------------------------------------------------------------------------------------------------
  *                                         Queue Ledger
@@ -1440,13 +1369,13 @@ elk_queue_ledger_empty(ElkQueueLedger *queue)
  * \returns The index of the next position to put something into the queue. If the queue is full,
  * then it returns \ref ELK_COLLECTION_LEDGER_FULL.
  */
-static inline ptrdiff_t
+static inline int64_t
 elk_queue_ledger_push_back_index(ElkQueueLedger *queue)
 {
-    assert(queue);
+    Assert(queue);
     if(elk_queue_ledger_full(queue)) { return ELK_COLLECTION_LEDGER_FULL; }
 
-    ptrdiff_t idx = queue->back % queue->capacity;
+    int64_t idx = queue->back % queue->capacity;
     queue->back += 1;
     queue->length += 1;
     return idx;
@@ -1460,12 +1389,12 @@ elk_queue_ledger_push_back_index(ElkQueueLedger *queue)
  * \returns The index of the next position to remove something from the queue. If the queue is 
  * empty it returns \ref ELK_COLLECTION_LEDGER_EMPTY.
  */
-static inline ptrdiff_t
+static inline int64_t
 elk_queue_ledger_pop_front_index(ElkQueueLedger *queue)
 {
     if(elk_queue_ledger_empty(queue)) { return ELK_COLLECTION_LEDGER_EMPTY; }
 
-    ptrdiff_t idx = queue->front % queue->capacity;
+    int64_t idx = queue->front % queue->capacity;
     queue->front += 1;
     queue->length -= 1;
     return idx;
@@ -1478,7 +1407,7 @@ elk_queue_ledger_pop_front_index(ElkQueueLedger *queue)
  * \returns The index of the next position to remove something from the queue without removing. If
  * the queue is empty it returns \ref ELK_COLLECTION_LEDGER_EMPTY.
  */
-static inline ptrdiff_t
+static inline int64_t
 elk_queue_ledger_peek_front_index(ElkQueueLedger *queue)
 {
     if(queue->length == 0) { return ELK_COLLECTION_LEDGER_EMPTY; }
@@ -1546,13 +1475,13 @@ elk_array_ledger_empty(ElkArrayLedger *array)
  * \returns The index of the next position to put something into the array. If the array is full,
  * then it returns \ref ELK_COLLECTION_LEDGER_FULL.
  */
-static inline ptrdiff_t
+static inline int64_t
 elk_array_ledger_push_back_index(ElkArrayLedger *array)
 {
-    assert(array);
+    Assert(array);
     if(elk_array_ledger_full(array)) { return ELK_COLLECTION_LEDGER_FULL; }
 
-    ptrdiff_t idx = array->length;
+    int64_t idx = array->length;
     array->length += 1;
     return idx;
 }
@@ -1561,7 +1490,7 @@ elk_array_ledger_push_back_index(ElkArrayLedger *array)
 static inline size_t
 elk_array_ledger_len(ElkArrayLedger const *array)
 {
-    assert(array);
+    Assert(array);
     return array->length;
 }
 
@@ -1569,7 +1498,7 @@ elk_array_ledger_len(ElkArrayLedger const *array)
 static inline void
 elk_array_ledger_reset(ElkArrayLedger *array)
 {
-    assert(array);
+    Assert(array);
     array->length = 0;
 }
 
@@ -1580,10 +1509,12 @@ elk_array_ledger_reset(ElkArrayLedger *array)
 static inline void
 elk_array_ledger_set_capacity(ElkArrayLedger *array, size_t capacity)
 {
-    assert(array);
+    Assert(array);
     array->capacity = capacity;
 }
 
 /** @} */ // end of arrayledger group
 /** @} */ // end of ordered_adjacent_collections.
 /** @} */ // end of collections group
+
+#endif

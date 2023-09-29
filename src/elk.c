@@ -28,7 +28,69 @@ extern bool elk_is_leap_year(int year);
 extern ElkTime elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes,
                                          int seconds);
 extern ElkTime elk_make_time(ElkStructTime tm);
-extern ElkStructTime elk_make_struct_time(ElkTime time);
+
+ElkStructTime 
+elk_make_struct_time(ElkTime time)
+{
+    Assert(time >= 0);
+
+    // Get the seconds part and then trim it off and convert to minutes
+    int const second = time % SECONDS_PER_MINUTE;
+    time = (time - second) / SECONDS_PER_MINUTE;
+    Assert(time >= 0 && second >= 0 && second <= 59);
+
+    // Get the minutes part, trim it off and convert to hours.
+    int const minute = time % MINUTES_PER_HOUR;
+    time = (time - minute) / MINUTES_PER_HOUR;
+    Assert(time >= 0 && minute >= 0 && minute <= 59);
+
+    // Get the hours part, trim it off and convert to days.
+    int const hour = time % HOURS_PER_DAY;
+    time = (time - hour) / HOURS_PER_DAY;
+    Assert(time >= 0 && hour >= 0 && hour <= 23);
+
+    // Rename variable for clarity
+    int64_t const days_since_epoch = time;
+
+    // Calculate the year
+    int year = days_since_epoch / (DAYS_PER_YEAR) + 1; // High estimate, but good starting point.
+    int64_t test_time = elk_days_since_epoch(year);
+    while (test_time > days_since_epoch) 
+    {
+        int step = (test_time - days_since_epoch) / (DAYS_PER_YEAR + 1);
+        step = step == 0 ? 1 : step;
+        year -= step;
+        test_time = elk_days_since_epoch(year);
+    }
+    Assert(test_time <= elk_days_since_epoch(year));
+    time -= elk_days_since_epoch(year); // Now it's days since start of the year.
+    Assert(time >= 0);
+
+    // Calculate the month
+    int month = 0;
+    int leap_year_idx = elk_is_leap_year(year) ? 1 : 0;
+    for (month = 1; month <= 11; month++)
+    {
+        if (sum_days_to_month[leap_year_idx][month + 1] > time) { break; }
+    }
+    Assert(time >= 0 && month > 0 && month <= 12);
+    time -= sum_days_to_month[leap_year_idx][month]; // Now in days since start of month
+
+    // Calculate the day
+    int const day = time + 1;
+    Assert(day > 0 && day <= 31);
+
+    return (ElkStructTime)
+    {
+        .year = year,
+        .month = month, 
+        .day = day, 
+        .hour = hour, 
+        .minute = minute, 
+        .second = second
+    };
+}
+
 extern ElkTime elk_time_truncate_to_specific_hour(ElkTime time, int hour);
 extern ElkTime elk_time_truncate_to_hour(ElkTime time);
 extern ElkTime elk_time_add(ElkTime time, int change_in_time);
@@ -90,6 +152,10 @@ elk_str_parse_int_64(ElkStr str, int64_t *result)
 bool
 elk_str_parse_float_64(ElkStr str, double *out)
 {
+#define ELK_NAN (0.0 / 0.0)
+#define ELK_INF (1.0 / 0.0 )
+#define ELK_NEG_INF (-1.0 / 0.0)
+
     StopIf(str.len == 0, goto ERR_RETURN);
 
     char const *c = str.start;
@@ -111,12 +177,12 @@ elk_str_parse_float_64(ElkStr str, double *out)
     {
         if(memcmp(c, "nan", 3) == 0 || memcmp(c, "NAN", 3) == 0 ||
                 memcmp(c, "NaN", 3) == 0 || memcmp(c, "Nan", 3) == 0) 
-        { *out = NAN; return true; }
+        { *out = ELK_NAN; return true; }
 
         if(memcmp(c, "inf", 3) == 0 || memcmp(c, "Inf", 3) == 0 || memcmp(c, "INF", 3) == 0)
         {
-            if(sign == 0) *out = INFINITY;
-            else if(sign == 1) *out = -INFINITY;
+            if(sign == 0) *out = ELK_INF;
+            else if(sign == 1) *out = ELK_NEG_INF;
             return true; 
         }
     }
@@ -127,8 +193,8 @@ elk_str_parse_float_64(ElkStr str, double *out)
         if(memcmp(c, "infinity", 8) == 0 ||
                 memcmp(c, "Infinity", 8) == 0 || memcmp(c, "INFINITY", 8) == 0)
         {
-            if(sign == 0) *out = INFINITY;
-            else if(sign == 1) *out = -INFINITY;
+            if(sign == 0) *out = ELK_INF;
+            else if(sign == 1) *out = ELK_NEG_INF;
             return true; 
         }
     }
@@ -204,14 +270,18 @@ elk_str_parse_float_64(ElkStr str, double *out)
     for (int i = 0; i > exponent; --i) { exp_part /= 10.0; }
 
     double value = (double)mantissa * exp_part;
-    StopIf(isinf(value), goto ERR_RETURN);
+    StopIf(value == ELK_INF || value == ELK_NEG_INF, goto ERR_RETURN);
 
     *out = value;
     return true;
 
 ERR_RETURN:
-    *out = NAN;
+    *out = ELK_NAN;
     return false;
+
+#undef ELK_NAN
+#undef ELK_INF
+#undef ELK_NEG_INF
 }
 
 /*-------------------------------------------------------------------------------------------------
@@ -235,12 +305,12 @@ struct ElkStringInterner
 ElkStringInterner *
 elk_string_interner_create(int8_t size_exp, int avg_string_size)
 {
-    assert(size_exp > 0 && size_exp <= 31);                 // Come on, 31 is HUGE
-    assert(avg_string_size > 0 && avg_string_size <= 1000); // Come on, 1000 is a really big string.
+    Assert(size_exp > 0 && size_exp <= 31);                 // Come on, 31 is HUGE
+    Assert(avg_string_size > 0 && avg_string_size <= 1000); // Come on, 1000 is a really big string.
 
     size_t const handles_len = 1 << size_exp;
     ElkStringInternerHandle *handles = calloc(handles_len, sizeof(*handles));
-    assert(handles);
+    Assert(handles);
 
     size_t const storage_len = avg_string_size * (handles_len / 4);
     ElkArenaAllocator storage = {0};
@@ -299,7 +369,7 @@ elk_string_interner_expand_table(ElkStringInterner *interner)
     size_t const new_handles_len = 1 << new_size_exp;
 
     ElkStringInternerHandle *new_handles = calloc(new_handles_len, sizeof(*new_handles));
-    assert(new_handles);
+    Assert(new_handles);
 
     for (uint32_t i = 0; i < handles_len; i++) 
     {
@@ -336,7 +406,7 @@ elk_string_interner_expand_table(ElkStringInterner *interner)
 ElkStr
 elk_string_interner_intern_cstring(ElkStringInterner *interner, char *string)
 {
-    assert(interner && string);
+    Assert(interner && string);
 
     ElkStr str = elk_str_from_cstring(string);
     return elk_string_interner_intern(interner, str);
@@ -345,7 +415,7 @@ elk_string_interner_intern_cstring(ElkStringInterner *interner, char *string)
 ElkStr
 elk_string_interner_intern(ElkStringInterner *interner, ElkStr str)
 {
-    assert(interner);
+    Assert(interner);
 
     // Inspired by https://nullprogram.com/blog/2022/08/08
     // All code & writing on this blog is in the public domain.
@@ -443,8 +513,8 @@ extern void elk_static_pool_free(ElkStaticPool *pool, void *ptr);
  *
  *-----------------------------------------------------------------------------------------------*/
 
-ptrdiff_t const ELK_COLLECTION_LEDGER_EMPTY = -1;
-ptrdiff_t const ELK_COLLECTION_LEDGER_FULL = -2;
+int64_t const ELK_COLLECTION_LEDGER_EMPTY = -1;
+int64_t const ELK_COLLECTION_LEDGER_FULL = -2;
 
 /*-------------------------------------------------------------------------------------------------
  *                                         Queue Ledger
