@@ -5,7 +5,6 @@ VERBOSE = FALSE
 PROJDIR := $(realpath $(CURDIR)/)
 SOURCEDIR := $(PROJDIR)/src
 TESTDIR := $(PROJDIR)/tests
-DOCDIR := $(PROJDIR)/doc
 
 RELEASEDIR := $(PROJDIR)/release
 DEBUGDIR := $(PROJDIR)/debug
@@ -79,7 +78,7 @@ else
 	HIDE = @
 endif
 
-.PHONY: all clean directories test doc
+.PHONY: all clean directories test
 
 all: makefile directories $(TEST_TARGET)
 
@@ -107,13 +106,8 @@ test: directories makefile $(TEST_OBJS) $(OBJS)
 	$(HIDE)$(CC)  $(TEST_OBJS) $(OBJS) $(LDLIBS) -o $(TEST_TARGET)
 	$(HIDE) $(TEST_TARGET)
 
-doc: Doxyfile makefile $(SOURCES) $(HEADERS)
-	@echo
-	@echo Building documentation.
-	$(HIDE) doxygen 2>/dev/null
-
 clean:
-	-$(HIDE)rm -rf $(DEBUGDIR) $(RELEASEDIR) $(DOCDIR) 2>/dev/null
+	-$(HIDE)rm -rf $(DEBUGDIR) $(RELEASEDIR) 2>/dev/null
 	@echo
 	@echo Cleaning done!
 

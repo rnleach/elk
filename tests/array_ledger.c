@@ -48,7 +48,7 @@ test_empty_full_array(void)
         assert(elk_array_ledger_full(ap));
         assert(!elk_array_ledger_empty(ap));
         assert(elk_array_ledger_len(ap) == TEST_BUF_COUNT);
-        assert(elk_array_ledger_push_back_index(ap) == ELK_COLLECTION_LEDGER_FULL);
+        assert(elk_array_ledger_push_back_index(ap) == ELK_COLLECTION_FULL);
     }
 }
 

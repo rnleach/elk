@@ -24,7 +24,7 @@ test_empty_full_queue(void)
     {
         assert(elk_queue_ledger_empty(qp));
         assert(!elk_queue_ledger_full(qp));
-        assert(elk_queue_ledger_pop_front_index(qp) == ELK_COLLECTION_LEDGER_EMPTY);
+        assert(elk_queue_ledger_pop_front_index(qp) == ELK_COLLECTION_EMPTY);
     }
 
     // Let's fill it up!
@@ -45,7 +45,7 @@ test_empty_full_queue(void)
     {
         assert(elk_queue_ledger_full(qp));
         assert(!elk_queue_ledger_empty(qp));
-        assert(elk_queue_ledger_push_back_index(qp) == ELK_COLLECTION_LEDGER_FULL);
+        assert(elk_queue_ledger_push_back_index(qp) == ELK_COLLECTION_FULL);
     }
 
     // Let's empty it out.
@@ -66,7 +66,7 @@ test_empty_full_queue(void)
     {
         assert(elk_queue_ledger_empty(qp));
         assert(!elk_queue_ledger_full(qp));
-        assert(elk_queue_ledger_pop_front_index(qp) == ELK_COLLECTION_LEDGER_EMPTY);
+        assert(elk_queue_ledger_pop_front_index(qp) == ELK_COLLECTION_EMPTY);
     }
 }
 
@@ -134,7 +134,7 @@ test_test_peek(void)
     assert(elk_queue_ledger_empty(qp));
     assert(!elk_queue_ledger_full(qp));
     for (int i = 0; i < 5; ++i) {
-        assert(elk_queue_ledger_peek_front_index(qp) == ELK_COLLECTION_LEDGER_EMPTY);
+        assert(elk_queue_ledger_peek_front_index(qp) == ELK_COLLECTION_EMPTY);
     }
 
     // Let's fill it up!

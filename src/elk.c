@@ -1,8 +1,8 @@
 #include "elk.h"
 
-/*-------------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------------------------------------
  *                                        Date and Time Handling
- *-----------------------------------------------------------------------------------------------*/
+ *-------------------------------------------------------------------------------------------------------------------------*/
 int64_t const SECONDS_PER_MINUTE = INT64_C(60);
 int64_t const MINUTES_PER_HOUR = INT64_C(60);
 int64_t const HOURS_PER_DAY = INT64_C(24);
@@ -25,9 +25,39 @@ extern int64_t elk_days_since_epoch(int year);
 extern int64_t elk_time_to_unix_epoch(ElkTime time);
 extern ElkTime elk_time_from_unix_timestamp(int64_t unixtime);
 extern bool elk_is_leap_year(int year);
-extern ElkTime elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes,
-                                         int seconds);
 extern ElkTime elk_make_time(ElkStructTime tm);
+
+ElkTime
+elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, int seconds)
+{
+    Assert(year >= 1 && year <= INT16_MAX);
+    Assert(day >= 1 && day <= 31);
+    Assert(month >= 1 && month <= 12);
+    Assert(hour >= 0 && hour <= 23);
+    Assert(minutes >= 0 && minutes <= 59);
+    Assert(seconds >= 0 && seconds <= 59);
+
+    // Seconds in the years up to now.
+    int64_t const num_leap_years_since_epoch = elk_num_leap_years_since_epoch(year);
+    ElkTime ts = (year - 1) * SECONDS_PER_YEAR + num_leap_years_since_epoch * SECONDS_PER_DAY;
+
+    // Seconds in the months up to the start of this month
+    int64_t const days_until_start_of_month =
+        elk_is_leap_year(year) ? sum_days_to_month[1][month] : sum_days_to_month[0][month];
+    ts += days_until_start_of_month * SECONDS_PER_DAY;
+
+    // Seconds in the days of the month up to this one.
+    ts += (day - 1) * SECONDS_PER_DAY;
+
+    // Seconds in the hours, minutes, & seconds so far this day.
+    ts += hour * SECONDS_PER_HOUR;
+    ts += minutes * SECONDS_PER_MINUTE;
+    ts += seconds;
+
+    Assert(ts >= 0);
+
+    return ts;
+}
 
 ElkStructTime 
 elk_make_struct_time(ElkTime time)
@@ -95,16 +125,19 @@ extern ElkTime elk_time_truncate_to_specific_hour(ElkTime time, int hour);
 extern ElkTime elk_time_truncate_to_hour(ElkTime time);
 extern ElkTime elk_time_add(ElkTime time, int change_in_time);
 
-/*-------------------------------------------------------------------------------------------------
- *                                         Hashes
- *-----------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                      Hashes
+ *-------------------------------------------------------------------------------------------------------------------------*/
 
-uint64_t elk_fnv1a_hash_accumulate(size_t const n, void const *value, uint64_t const hash_so_far);
-uint64_t elk_fnv1a_hash(size_t const n, void const *value);
+uint64_t const fnv_offset_bias = 0xcbf29ce484222325;
+uint64_t const fnv_prime = 0x00000100000001b3;
 
-/*-------------------------------------------------------------------------------------------------
- *                                       String Slice
- *-----------------------------------------------------------------------------------------------*/
+extern uint64_t elk_fnv1a_hash(size_t const n, void const *value);
+extern uint64_t elk_fnv1a_hash_accumulate(size_t const n, void const *value, uint64_t const hash_so_far);
+
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                      String Slice
+ *-------------------------------------------------------------------------------------------------------------------------*/
 
 _Static_assert(sizeof(size_t) == sizeof(uintptr_t), "size_t and uintptr_t aren't the same size?!");
 _Static_assert(UINTPTR_MAX == SIZE_MAX, "sizt_t and uintptr_t dont' have same max?!");
@@ -284,9 +317,9 @@ ERR_RETURN:
 #undef ELK_NEG_INF
 }
 
-/*-------------------------------------------------------------------------------------------------
- *                                       String Interner
- *-----------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                     String Interner
+ *-------------------------------------------------------------------------------------------------------------------------*/
 typedef struct ElkStringInternerHandle 
 {
     uint64_t hash;
@@ -459,67 +492,88 @@ elk_string_interner_intern(ElkStringInterner *interner, ElkStr str)
     }
 }
 
-/*-------------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------------------------------------
  *
- *                                          Memory
+ *                                                         Memory
  *
- *-----------------------------------------------------------------------------------------------*/
+ *-------------------------------------------------------------------------------------------------------------------------*/
 
-/*-------------------------------------------------------------------------------------------------
- *                                    Static Arena Allocator
- *-----------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                 Static Arena Allocator
+ *-------------------------------------------------------------------------------------------------------------------------*/
 #ifndef NDEBUG
 extern bool elk_is_power_of_2(uintptr_t p);
 #endif
 
 extern void elk_static_arena_init(ElkStaticArena *arena, size_t buf_size, unsigned char buffer[]);
+extern void elk_static_arena_destroy(ElkStaticArena *arena);
+extern void elk_static_arena_reset(ElkStaticArena *arena);
 extern uintptr_t elk_align_pointer(uintptr_t ptr, size_t align);
 extern void *elk_static_arena_alloc(ElkStaticArena *arena, size_t size, size_t alignment);
+extern void elk_static_arena_free(ElkStaticArena *arena, void *ptr);
 
-/*-------------------------------------------------------------------------------------------------
- *                                     Growable Arena Allocator
- *-----------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                Growable Arena Allocator
+ *-------------------------------------------------------------------------------------------------------------------------*/
 
 extern void elk_arena_add_block(ElkArenaAllocator *arena, size_t block_size);
 extern void elk_arena_free_blocks(ElkArenaAllocator *arena);
 extern void elk_arena_init(ElkArenaAllocator *arena, size_t starting_block_size);
 extern void elk_arena_reset(ElkArenaAllocator *arena);
 extern void elk_arena_destroy(ElkArenaAllocator *arena);
+inline void elk_arena_free(ElkStaticArena *arena, void *ptr);
 extern void *elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment);
 
-/*-------------------------------------------------------------------------------------------------
- *                                       Pool Allocator
- *-----------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                  Static Pool Allocator
+ *-------------------------------------------------------------------------------------------------------------------------*/
 extern void elk_static_pool_initialize_linked_list(unsigned char *buffer, size_t object_size,
                                                    size_t num_objects);
-extern void elk_static_pool_init(ElkStaticPool *pool, size_t object_size, size_t num_objects,
-                                 unsigned char buffer[]);
+extern void elk_static_pool_init(ElkStaticPool *pool, size_t object_size, size_t num_objects, unsigned char buffer[]);
 extern void elk_static_pool_reset(ElkStaticPool *pool);
 extern void elk_static_pool_destroy(ElkStaticPool *pool);
 extern void *elk_static_pool_alloc(ElkStaticPool *pool);
 extern void elk_static_pool_free(ElkStaticPool *pool, void *ptr);
 
-/*-------------------------------------------------------------------------------------------------
- *
- *
- *                                         Collections
- *
- *
- *-----------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                  Generic Allocator API
+ *-------------------------------------------------------------------------------------------------------------------------*/
 
-/*-------------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------------------------------------
  *
- *                                     Ordered Collections
+ *                                         
+ *                                                       Collections
  *
- *-----------------------------------------------------------------------------------------------*/
+ *
+ *-------------------------------------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                         
+ *                                                   Ordered Collections
+ *
+ *-------------------------------------------------------------------------------------------------------------------------*/
 
-int64_t const ELK_COLLECTION_LEDGER_EMPTY = -1;
-int64_t const ELK_COLLECTION_LEDGER_FULL = -2;
+int64_t const ELK_COLLECTION_EMPTY = -1;
+int64_t const ELK_COLLECTION_FULL = -2;
 
-/*-------------------------------------------------------------------------------------------------
- *                                         Queue Ledger
- *-----------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                      Queue Ledger
+ *-------------------------------------------------------------------------------------------------------------------------*/
+extern ElkQueueLedger elk_queue_ledger_create(size_t capacity);
+extern bool elk_queue_ledger_full(ElkQueueLedger *queue);
+extern bool elk_queue_ledger_empty(ElkQueueLedger *queue);
+extern int64_t elk_queue_ledger_push_back_index(ElkQueueLedger *queue);
+extern int64_t elk_queue_ledger_pop_front_index(ElkQueueLedger *queue);
+extern int64_t elk_queue_ledger_peek_front_index(ElkQueueLedger *queue);
+extern size_t elk_queue_ledger_len(ElkQueueLedger const *queue);
 
-/*-------------------------------------------------------------------------------------------------
- *                                            Array Ledger
- *-----------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                      Array Ledger
+ *-------------------------------------------------------------------------------------------------------------------------*/
+extern ElkArrayLedger elk_array_ledger_create(size_t capacity);
+extern bool elk_array_ledger_full(ElkArrayLedger *array);
+extern bool elk_array_ledger_empty(ElkArrayLedger *array);
+extern int64_t elk_array_ledger_push_back_index(ElkArrayLedger *array);
+extern size_t elk_array_ledger_len(ElkArrayLedger const *array);
+extern void elk_array_ledger_reset(ElkArrayLedger *array);
+extern void elk_array_ledger_set_capacity(ElkArrayLedger *array, size_t capacity);
+

@@ -56,6 +56,7 @@
   - (XXXX-XX-XX) NOTES ON REVISIONS
   - Added functions to parse string into int64_t or double values.
   - Trimmed down dependencies on the standard library.
+  - Remove Doxygen, just read the header file.
 
 ### Version 2.0.0
   - (2023-09-23) Major revision.
