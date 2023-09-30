@@ -7,16 +7,7 @@
  * See the main page for an overall description and the list of goals/non-goals: \ref index
  */
 
-#ifndef false
-#define false 0
-#endif
-#ifndef true
-#define true 1
-#endif
-#ifndef bool
-#define bool int
-#endif
-
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
