@@ -54,7 +54,9 @@
 
 ### Version 2.1.0 - IN PROGRESS
   - (XXXX-XX-XX) NOTES ON REVISIONS
-  - Added functions to parse string into int64_t or double values.
+  - Added functions to parse string into int64_t, double, or ElkTime values.
+  - Added substring function.
+  - Added function to create ElkTime from year, day of year, hours, minutes, and seconds.
   - Trimmed down dependencies on the standard library.
   - Remove Doxygen, just read the header file.
 

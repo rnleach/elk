@@ -1,4 +1,5 @@
-#pragma once
+#ifndef ELK_TESTS
+#define ELK_TESTS
 //
 // For testing, ensure we have some debugging tools activated.
 //
@@ -16,9 +17,12 @@
 void elk_time_tests(void);
 void elk_fnv1a_tests(void);
 void elk_str_tests(void);
+void elk_parse_tests(void);
 void elk_arena_tests(void);
 void elk_pool_tests(void);
 void elk_allocator_generic_api_tests(void);
 void elk_string_interner_tests(void);
 void elk_queue_ledger_tests(void);
 void elk_array_ledger_tests(void);
+
+#endif

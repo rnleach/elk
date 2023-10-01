@@ -79,6 +79,7 @@ inline ElkTime elk_time_truncate_to_specific_hour(ElkTime time, int hour);
 inline ElkTime elk_time_add(ElkTime time, int change_in_time);
 
 extern ElkTime elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, int seconds);
+extern ElkTime elk_time_from_yd_and_hms(int year, int day_of_year, int hour, int minutes, int seconds);
 extern ElkStructTime elk_make_struct_time(ElkTime time);
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                      Hashes
@@ -127,12 +128,24 @@ typedef struct ElkStr
 
 inline ElkStr elk_str_from_cstring(char *src);
 inline ElkStr elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src);
-inline int elk_str_cmp(ElkStr left, ElkStr right);  // returns 0 if equal, -1 if left is first, 1 otherwise. Case sensitive.
-inline bool elk_str_eq(ElkStr left, ElkStr right);  // Faster than elk_str_cmp because it checks length first.
-inline ElkStr elk_str_strip(ElkStr input);          // Strips leading and trailing whitespace.
+inline ElkStr elk_str_strip(ElkStr input);                        // Strips leading and trailing whitespace.
+inline ElkStr elk_str_substr(ElkStr str, int start, int len);     // Create a substring from a longer string.
+inline int elk_str_case_sensitive_cmp(ElkStr left, ElkStr right); // returns 0 if equal, -1 if left is first, 1 otherwise.
+inline bool elk_str_eq(ElkStr left, ElkStr right);                // Faster than elk_str_cmp because it checks length first.
 
-extern bool elk_str_parse_int_64(ElkStr str, int64_t *result); // returns false on failure and result is untouched.
-extern bool elk_str_parse_float_64(ElkStr str, double *out);   // returns false on failure and out is untouched.
+/* Parsing values from strings.
+ *
+ * In all cases the input string is assumed to be stripped of leading and trailing whitespace. Any suffixes that are non-
+ * numeric will cause a parse error for the number parsing cases.
+ *
+ * Parsing datetimes assumes a format YYYY-MM-DD HH:MM:SS, YYYY-MM-DDTHH:MM:SS, YYYYDDDHHMMSS. The latter format is the 
+ * year, day of the year, hours, minutes, and seconds.
+ *
+ * In general, these functions return true on success and false on failure. On falure the out argument is left untouched.
+ */
+extern bool elk_str_parse_int_64(ElkStr str, int64_t *result);
+extern bool elk_str_parse_float_64(ElkStr str, double *out);
+extern bool elk_str_parse_datetime(ElkStr str, ElkTime *out);
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                     String Interner
@@ -265,8 +278,7 @@ inline void * elk_static_pool_alloc(ElkStaticPool *pool); // returns NULL if the
         ElkStaticArena*: elk_static_arena_alloc,                                                                            \
         ElkArenaAllocator*: elk_arena_alloc,                                                                                \
         ElkStaticPool*: elk_static_pool_alloc_aligned,                                                                      \
-        default:                                                                                                            \
-            elk_panic_allocator_alloc_aligned)(alloc, count * sizeof(type), _Alignof(type))
+        default: elk_panic_allocator_alloc_aligned)(alloc, count * sizeof(type), _Alignof(type))
 
 #define elk_allocator_free(alloc, ptr) _Generic((alloc),                                                                    \
         ElkStaticArena*: elk_static_arena_free,                                                                             \
@@ -534,6 +546,37 @@ elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src)
     return (ElkStr){.start = dest, .len = end};
 }
 
+inline ElkStr
+elk_str_strip(ElkStr input)
+{
+    char *const start = input.start;
+    int start_offset = 0;
+    for (start_offset = 0; start_offset < input.len; ++start_offset)
+    {
+        if (start[start_offset] > 0x20) { break; }
+    }
+
+    int end_offset = 0;
+    for (end_offset = input.len - 1; end_offset > start_offset; --end_offset)
+    {
+        if (start[end_offset] > 0x20) { break; }
+    }
+
+    return (ElkStr)
+    {
+        .start = &start[start_offset],
+        .len = end_offset - start_offset + 1
+    };
+}
+
+inline 
+ElkStr elk_str_substr(ElkStr str, int start, int len)
+{
+    Assert(start >= 0 && len > 0 && start + len <= str.len);
+    char *ptr_start = (char *)((uintptr_t)str.start + start);
+    return (ElkStr) {.start = ptr_start, .len = len};
+}
+
 inline int
 elk_str_cmp(ElkStr left, ElkStr right)
 {
@@ -567,29 +610,6 @@ elk_str_eq(ElkStr left, ElkStr right)
     }
 
     return true;
-}
-
-inline ElkStr
-elk_str_strip(ElkStr input)
-{
-    char *const start = input.start;
-    int start_offset = 0;
-    for (start_offset = 0; start_offset < input.len; ++start_offset)
-    {
-        if (start[start_offset] > 0x20) { break; }
-    }
-
-    int end_offset = 0;
-    for (end_offset = input.len - 1; end_offset > start_offset; --end_offset)
-    {
-        if (start[end_offset] > 0x20) { break; }
-    }
-
-    return (ElkStr)
-    {
-        .start = &start[start_offset],
-        .len = end_offset - start_offset + 1
-    };
 }
 
 #ifndef NDEBUG

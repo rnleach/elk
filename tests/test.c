@@ -12,6 +12,7 @@ main(void)
     elk_time_tests();
     elk_fnv1a_tests();
     elk_str_tests();
+    elk_parse_tests();
     elk_arena_tests();
     elk_pool_tests();
     elk_allocator_generic_api_tests();

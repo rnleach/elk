@@ -59,6 +59,32 @@ elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, i
     return ts;
 }
 
+ElkTime 
+elk_time_from_yd_and_hms(int year, int day_of_year, int hour, int minutes, int seconds)
+{
+    Assert(year >= 1 && year <= INT16_MAX);
+    Assert(day_of_year >= 1 && day_of_year <= 366);
+    Assert(hour >= 0 && hour <= 23);
+    Assert(minutes >= 0 && minutes <= 59);
+    Assert(seconds >= 0 && seconds <= 59);
+
+    // Seconds in the years up to now.
+    int64_t const num_leap_years_since_epoch = elk_num_leap_years_since_epoch(year);
+    ElkTime ts = (year - 1) * SECONDS_PER_YEAR + num_leap_years_since_epoch * SECONDS_PER_DAY;
+
+    // Seconds in the days up to now.
+    ts += (day_of_year - 1) * SECONDS_PER_DAY;
+
+    // Seconds in the hours, minutes, & seconds so far this day.
+    ts += hour * SECONDS_PER_HOUR;
+    ts += minutes * SECONDS_PER_MINUTE;
+    ts += seconds;
+
+    Assert(ts >= 0);
+
+    return ts;
+}
+
 ElkStructTime 
 elk_make_struct_time(ElkTime time)
 {
@@ -144,6 +170,7 @@ _Static_assert(UINTPTR_MAX == SIZE_MAX, "sizt_t and uintptr_t dont' have same ma
 
 extern ElkStr elk_str_from_cstring(char *src);
 extern ElkStr elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src);
+extern ElkStr elk_str_substr(ElkStr str, int start, int len);
 extern int elk_str_cmp(ElkStr left, ElkStr right);
 extern bool elk_str_eq(ElkStr left, ElkStr right);
 extern ElkStr elk_str_strip(ElkStr input);
@@ -315,6 +342,59 @@ ERR_RETURN:
 #undef ELK_NAN
 #undef ELK_INF
 #undef ELK_NEG_INF
+}
+
+bool
+elk_str_parse_datetime(ElkStr str, ElkTime *out)
+{
+    // Check the length to find out what type of string we are parsing.
+    if(str.len == 19)
+    {
+        // YYYY-MM-DD HH:MM:SS and YYYY-MM-DDTHH:MM:SS formats
+        int64_t year = INT64_MIN;
+        int64_t month = INT64_MIN;
+        int64_t day = INT64_MIN;
+        int64_t hour = INT64_MIN;
+        int64_t minutes = INT64_MIN;
+        int64_t seconds = INT64_MIN;
+
+        if(
+            elk_str_parse_int_64(elk_str_substr(str,  0, 4), &year    ) && 
+            elk_str_parse_int_64(elk_str_substr(str,  5, 2), &month   ) &&
+            elk_str_parse_int_64(elk_str_substr(str,  8, 2), &day     ) &&
+            elk_str_parse_int_64(elk_str_substr(str, 11, 2), &hour    ) &&
+            elk_str_parse_int_64(elk_str_substr(str, 14, 2), &minutes ) &&
+            elk_str_parse_int_64(elk_str_substr(str, 17, 2), &seconds ))
+        {
+            *out = elk_time_from_ymd_and_hms(year, month, day, hour, minutes, seconds);
+            return true;
+        }
+
+        return false;
+    }
+    else if(str.len == 13)
+    {
+        // YYYYDDDHHMMSS format
+        int64_t year = INT64_MIN;
+        int64_t day_of_year = INT64_MIN;
+        int64_t hour = INT64_MIN;
+        int64_t minutes = INT64_MIN;
+        int64_t seconds = INT64_MIN;
+
+        if(
+            elk_str_parse_int_64(elk_str_substr(str,  0, 4), &year        ) && 
+            elk_str_parse_int_64(elk_str_substr(str,  4, 3), &day_of_year ) &&
+            elk_str_parse_int_64(elk_str_substr(str,  7, 2), &hour        ) &&
+            elk_str_parse_int_64(elk_str_substr(str,  9, 2), &minutes     ) &&
+            elk_str_parse_int_64(elk_str_substr(str, 11, 2), &seconds     ))
+        {
+            *out = elk_time_from_yd_and_hms(year, day_of_year, hour, minutes, seconds);
+            return true;
+        }
+
+        return false;
+    }
+    return false;
 }
 
 /*---------------------------------------------------------------------------------------------------------------------------
