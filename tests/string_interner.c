@@ -2,11 +2,11 @@
 
 #include <string.h>
 
-/*-------------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------------------------------------
  *
- *                                    Test String Interner
+ *                                                 Test String Interner
  *
- *-----------------------------------------------------------------------------------------------*/
+ *-------------------------------------------------------------------------------------------------------------------------*/
 
 char *some_strings[] = 
 {
@@ -24,7 +24,7 @@ test_string_interner(void)
     ElkStr strs[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
 
     ElkStringInterner *interner = elk_string_interner_create(3, 3);
-    assert(interner);
+    Assert(interner);
 
     // Fill the interner with strings!
     for (size_t i = 0; i < NUM_TEST_STRINGS; ++i) 
@@ -38,18 +38,18 @@ test_string_interner(void)
     {
         char *str = some_strings[i];
         ElkStr interned_str = elk_string_interner_intern_cstring(interner, str);
-        assert(strcmp(str, interned_str.start) == 0);
-        assert(strcmp(str, strs[i].start) == 0);
-        assert(interned_str.len == strs[i].len);
-        assert(interned_str.start == strs[i].start);
+        Assert(strcmp(str, interned_str.start) == 0);
+        Assert(strcmp(str, strs[i].start) == 0);
+        Assert(interned_str.len == strs[i].len);
+        Assert(interned_str.start == strs[i].start);
     }
 
     elk_string_interner_destroy(interner);
 }
 
-/*-------------------------------------------------------------------------------------------------
- *                                           All tests
- *-----------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                       All tests
+ *-------------------------------------------------------------------------------------------------------------------------*/
 void
 elk_string_interner_tests()
 {

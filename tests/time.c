@@ -4,11 +4,11 @@
 
 #define TEST_EVERY_1_SEC_INTERVAL 0
 #define TEST_EVERY_SECOND 0
-/*------------------------------------------------------------------------------------------------
+/*--------------------------------------------------------------------------------------------------------------------------
  *
- *                                       Tests for Time
+ *                                                    Tests for Time
  *
- *-----------------------------------------------------------------------------------------------*/
+ *-------------------------------------------------------------------------------------------------------------------------*/
 static bool
 is_in_array(int val, size_t items, int const array[])
 {
@@ -55,36 +55,36 @@ test_leap_years(void)
     // Divisible by 400 rule
     for (int i = 0; i < years_400_len; ++i) 
     {
-        assert(elk_is_leap_year(years_400_rule[i]));
+        Assert(elk_is_leap_year(years_400_rule[i]));
     }
 
     // Divisible by 100 rule
     for (int i = 0; i < years_100_len; ++i) 
     {
-        assert(!elk_is_leap_year(years_100_rule[i]));
+        Assert(!elk_is_leap_year(years_100_rule[i]));
     }
 
     // Divisible by 4 or not
-    assert(elk_is_leap_year(1984));
-    assert(elk_is_leap_year(1988));
-    assert(elk_is_leap_year(1992));
-    assert(elk_is_leap_year(1996));
+    Assert(elk_is_leap_year(1984));
+    Assert(elk_is_leap_year(1988));
+    Assert(elk_is_leap_year(1992));
+    Assert(elk_is_leap_year(1996));
 
-    assert(!elk_is_leap_year(1985));
-    assert(!elk_is_leap_year(1989));
-    assert(!elk_is_leap_year(1993));
-    assert(!elk_is_leap_year(1997));
+    Assert(!elk_is_leap_year(1985));
+    Assert(!elk_is_leap_year(1989));
+    Assert(!elk_is_leap_year(1993));
+    Assert(!elk_is_leap_year(1997));
 
-    assert(!elk_is_leap_year(INT16_MAX));
+    Assert(!elk_is_leap_year(INT16_MAX));
 
     for (int i = 0; i < 11199; ++i) 
     {
         if (i % 4 == 0 && !is_in_array(i, years_100_len, years_100_rule)) {
-            assert(elk_is_leap_year(i));
+            Assert(elk_is_leap_year(i));
         }
         else
         {
-            assert(!elk_is_leap_year(i));
+            Assert(!elk_is_leap_year(i));
         }
     }
 }
@@ -93,7 +93,7 @@ static void
 test_time_epoch(void)
 {
     ElkTime epoch = elk_time_from_ymd_and_hms(1, 1, 1, 0, 0, 0);
-    assert(epoch == 0);
+    Assert(epoch == 0);
 }
 
 static void
@@ -102,7 +102,7 @@ test_time_time_t_is_seconds(void)
     ElkTime epoch = elk_time_from_ymd_and_hms(1, 1, 1, 0, 0, 0);
     ElkTime day1 = elk_time_from_ymd_and_hms(1, 1, 2, 0, 0, 0);
 
-    assert((day1 - epoch) == (60 * 60 * 24));
+    Assert((day1 - epoch) == (60 * 60 * 24));
 }
 
 #if TEST_EVERY_1_SEC_INTERVAL || TEST_EVERY_SECOND
@@ -122,11 +122,11 @@ test_increments_are_1_second(void)
     // This one exposed a leap year related bug
     ElkTime first = elk_time_from_ymd_and_hms(3, 12, 31, 23, 59, 59);
     ElkTime second = elk_time_from_ymd_and_hms(4, 1, 1, 0, 0, 0);
-    assert(second - first == 1);
+    Assert(second - first == 1);
 
     first = elk_time_from_ymd_and_hms(32767, 12, 31, 23, 59, 58);
     second = elk_time_from_ymd_and_hms(32767, 12, 31, 23, 59, 59);
-    assert(second - first == 1);
+    Assert(second - first == 1);
 
 #if TEST_EVERY_1_SEC_INTERVAL // Loop takes a long time to run; only do it to find trouble spots.
     printf("\tIn \"test_increments_are_1_second()\".\n");
@@ -155,7 +155,7 @@ test_increments_are_1_second(void)
                                        ", year=%d, month=%d, day=%d, hour=%d, "
                                        "minute=%d, second=%d\n",
                                        current - previous, year, month, day, hour, minute, second);
-                                assert(current - previous == 1);
+                                Assert(current - previous == 1);
                             }
                             previous = current;
                         }
@@ -200,7 +200,7 @@ test_time_struct(void)
                    forward.year, forward.month, forward.day, forward.hour, forward.minute,
                    forward.second, middle, back.year, back.month, back.day, back.hour, back.minute,
                    back.second);
-            assert(struct_times_equal(forward, back));
+            Assert(struct_times_equal(forward, back));
         }
     }
 
@@ -237,7 +237,7 @@ test_time_struct(void)
                                        forward.minute, forward.second, middle, back.year,
                                        back.month, back.day, back.hour, back.minute, back.second);
 
-                                assert(struct_times_equal(forward, back));
+                                Assert(struct_times_equal(forward, back));
                             }
                         }
                     }
@@ -258,9 +258,9 @@ test_time_linux_timestamp(void)
     ElkTime t0 = elk_time_from_ymd_and_hms(1970, 1, 1, 0, 0, 0);
     int64_t unix_t0 = elk_time_to_unix_epoch(t0);
 
-    assert(unix_t0 == 0);
+    Assert(unix_t0 == 0);
 
-    assert(elk_time_from_unix_timestamp(0) == elk_unix_epoch_timestamp);
+    Assert(elk_time_from_unix_timestamp(0) == elk_unix_epoch_timestamp);
 }
 
 static void
@@ -269,7 +269,7 @@ test_time_truncate_to_hour()
     ElkTime t0 = elk_time_from_ymd_and_hms(1970, 1, 1, 0, 0, 0);
     ElkTime t1 = elk_time_from_ymd_and_hms(1970, 1, 1, 0, 14, 39);
 
-    assert(elk_time_truncate_to_hour(t1) == t0);
+    Assert(elk_time_truncate_to_hour(t1) == t0);
 }
 
 static void
@@ -279,8 +279,8 @@ test_time_truncate_to_specific_hour()
     ElkTime target1 = elk_time_from_ymd_and_hms(2022, 6, 20, 12, 0, 0);
     ElkTime target2 = elk_time_from_ymd_and_hms(2022, 6, 19, 21, 0, 0);
 
-    assert(elk_time_truncate_to_specific_hour(start, 12) == target1);
-    assert(elk_time_truncate_to_specific_hour(start, 21) == target2);
+    Assert(elk_time_truncate_to_specific_hour(start, 12) == target1);
+    Assert(elk_time_truncate_to_specific_hour(start, 21) == target2);
 }
 
 static void
@@ -289,13 +289,13 @@ test_time_addition()
     ElkTime epoch = elk_time_from_ymd_and_hms(1970, 1, 1, 0, 0, 0);
     ElkTime t1 = elk_time_from_ymd_and_hms(1970, 1, 1, 0, 14, 39);
 
-    assert((epoch + 14 * ElkMinute + 39 * ElkSecond) == t1);
-    assert(elk_time_add(epoch, 14 * ElkMinute + 39 * ElkSecond) == t1);
+    Assert((epoch + 14 * ElkMinute + 39 * ElkSecond) == t1);
+    Assert(elk_time_add(epoch, 14 * ElkMinute + 39 * ElkSecond) == t1);
 }
 
-/*-------------------------------------------------------------------------------------------------
- *                                      All time tests
- *-----------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                     All time tests
+ *-------------------------------------------------------------------------------------------------------------------------*/
 void
 elk_time_tests(void)
 {

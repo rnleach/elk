@@ -2,11 +2,11 @@
 
 #include <string.h>
 
-/*------------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------------------------------------
  *
- *                                  Tests for the Memory Arena
+ *                                              Tests for the Memory Arena
  *
- *-----------------------------------------------------------------------------------------------*/
+ *--------------------------------------------------------------------------------------------------------------------------*/
 static char *tst_strings[6] = 
 {
     "test string 1",
@@ -22,7 +22,7 @@ copy_string_to_arena(ElkArenaAllocator *arena, char const *str)
 {
     size_t len = strlen(str) + 1;
     char *dest = elk_allocator_nmalloc(arena, len, char);
-    assert(dest);
+    Assert(dest);
 
     strcpy(dest, str);
 
@@ -76,12 +76,12 @@ test_arena(void)
         // Test the values!
         for (int j = 0; j < 6; j++) 
         {
-            assert(*arena_chars[j * 3 + 0] == test_chars[j * 3 + 0]);
-            assert(*arena_doubles[j] == test_doubles[j]);
-            assert(*arena_chars[j * 3 + 1] == test_chars[j * 3 + 1]);
-            assert(strcmp(tst_strings[j], arena_strs[j]) == 0);
-            assert(*arena_chars[j * 3 + 2] == test_chars[j * 3 + 2]);
-            assert(*arena_ints[j] == 2 * trip_num + 3 * j);
+            Assert(*arena_chars[j * 3 + 0] == test_chars[j * 3 + 0]);
+            Assert(*arena_doubles[j] == test_doubles[j]);
+            Assert(*arena_chars[j * 3 + 1] == test_chars[j * 3 + 1]);
+            Assert(strcmp(tst_strings[j], arena_strs[j]) == 0);
+            Assert(*arena_chars[j * 3 + 2] == test_chars[j * 3 + 2]);
+            Assert(*arena_ints[j] == 2 * trip_num + 3 * j);
         }
 
         elk_arena_reset(arena);
@@ -90,9 +90,9 @@ test_arena(void)
     elk_arena_destroy(arena);
 }
 
-/*-------------------------------------------------------------------------------------------------
- *                                      All Memory Arena Tests
- *-----------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                All Memory Arena Tests
+ *-------------------------------------------------------------------------------------------------------------------------*/
 void
 elk_arena_tests(void)
 {

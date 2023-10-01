@@ -9,9 +9,7 @@
 #    undef NDEBUG
 #endif
 
-#include <assert.h>
 #include <stdio.h>
-
 #include "../src/elk.h"
 
 void elk_time_tests(void);

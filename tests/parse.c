@@ -17,10 +17,10 @@ test_parse_int64(void)
         ElkStr str = elk_str_from_cstring(valid_num_strs[i]);
         int64_t parsed = INT64_MAX;
         bool success = elk_str_parse_int_64(str, &parsed);
-        assert(success);
+        Assert(success);
 
         int64_t tval = valid_nums[i];
-        assert(tval == parsed);
+        Assert(tval == parsed);
     }
 
     char *invalid_num_strs[] = {"0a", "*1", "65356.020", "700U", "50L", "0x5000"};
@@ -30,7 +30,7 @@ test_parse_int64(void)
         ElkStr str = elk_str_from_cstring(invalid_num_strs[i]);
         int64_t parsed = INT64_MAX;
         bool success = elk_str_parse_int_64(str, &parsed);
-        assert(!success);
+        Assert(!success);
     }
 }
 
@@ -47,12 +47,12 @@ test_parse_double(void)
         ElkStr str = elk_str_from_cstring(valid_num_strs[i]);
         double parsed = NAN;
         bool success = elk_str_parse_float_64(str, &parsed);
-        assert(success);
+        Assert(success);
 
         double tval = valid_nums[i];
         // printf("success = %d str = %s parsed = %g actual = %g difference = %g\n",
         //         success, valid_num_strs[i], parsed, tval, (tval-parsed)/tval);
-        assert(fabs((tval - parsed) / tval) < precision);
+        Assert(fabs((tval - parsed) / tval) < precision);
     }
 
     char *invalid_num_strs[] = {"1.0x", " -1.0", "3.1415999999999999999", "1.0e500", "1.8e308"};
@@ -62,7 +62,7 @@ test_parse_double(void)
         ElkStr str = elk_str_from_cstring(invalid_num_strs[i]);
         double parsed = 0.0;
         bool success = elk_str_parse_float_64(str, &parsed);
-        assert(!success);
+        Assert(!success);
     }
 
     char *inf_str[] = {"inf", "Inf", "INF", "-inf", "-Inf", "-INF"};
@@ -71,7 +71,7 @@ test_parse_double(void)
         ElkStr str = elk_str_from_cstring(inf_str[i]);
         double val = 0.0;
         bool success = elk_str_parse_float_64(str, &val);
-        assert(success && isinf(val));
+        Assert(success && isinf(val));
     }
 
     char *nan_str[] = {"nan", "NaN", "NAN", "Nan"};
@@ -80,7 +80,7 @@ test_parse_double(void)
         ElkStr str = elk_str_from_cstring(nan_str[i]);
         double val = 0.0;
         bool success = elk_str_parse_float_64(str, &val);
-        assert(success && isnan(val));
+        Assert(success && isnan(val));
     }
 }
 

@@ -2,11 +2,11 @@
 
 #include <string.h>
 
-/*------------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------------------------------------
  *
- *                             Tests for the Generic Memory API
+ *                                           Tests for the Generic Memory API
  *
- *-----------------------------------------------------------------------------------------------*/
+ *--------------------------------------------------------------------------------------------------------------------------*/
 #define TEST_BUF_COUNT 10
 
 static void
@@ -23,21 +23,21 @@ test_full_pool(void)
     for (int i = 0; i < TEST_BUF_COUNT; ++i) 
     {
         dubs[i] = elk_allocator_malloc(pool, double);
-        assert(dubs[i]);
+        Assert(dubs[i]);
 
         *dubs[i] = (double)i;
     }
 
     for (int i = 0; i < TEST_BUF_COUNT; ++i) 
     {
-        assert(*dubs[i] == (double)i);
+        Assert(*dubs[i] == (double)i);
     }
 
     // Test that it's full!
     for (int i = TEST_BUF_COUNT; i < 2 * TEST_BUF_COUNT; i++) 
     {
         double *no_dub = elk_allocator_malloc(pool, double);
-        assert(!no_dub);
+        Assert(!no_dub);
     }
 
     elk_allocator_destroy(pool);
@@ -57,14 +57,14 @@ test_pool_freeing(void)
     for (int i = 0; i < TEST_BUF_COUNT; ++i) 
     {
         dubs[i] = elk_allocator_malloc(pool, double);
-        assert(dubs[i]);
+        Assert(dubs[i]);
 
         *dubs[i] = (double)i;
     }
 
     for (int i = 0; i < TEST_BUF_COUNT; ++i) 
     {
-        assert(*dubs[i] == (double)i);
+        Assert(*dubs[i] == (double)i);
     }
 
     // Half empty it!
@@ -77,22 +77,22 @@ test_pool_freeing(void)
     for (int i = 0; i < TEST_BUF_COUNT / 2; i++) 
     {
         dubs[2 * i] = elk_allocator_malloc(pool, double);
-        assert(dubs[2 * i]);
+        Assert(dubs[2 * i]);
 
         *dubs[2 * i] = (double)i;
     }
 
     for (int i = 0; i < TEST_BUF_COUNT / 2; i++) 
     {
-        assert(*dubs[2 * i] == (double)i);
+        Assert(*dubs[2 * i] == (double)i);
     }
 
     elk_allocator_destroy(pool);
 }
 
-/*-------------------------------------------------------------------------------------------------
- *                                      All Memory Pool Tests
- *-----------------------------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------------------------------------------------------
+ *                                                 All Memory Pool Tests
+ *--------------------------------------------------------------------------------------------------------------------------*/
 static void
 elk_pool_via_generic_api_tests(void)
 {
@@ -100,11 +100,11 @@ elk_pool_via_generic_api_tests(void)
     test_pool_freeing();
 }
 
-/*------------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------------------------------------
  *
- *                                  Tests for the Memory Arena
+ *                                               Tests for the Memory Arena
  *
- *-----------------------------------------------------------------------------------------------*/
+ *--------------------------------------------------------------------------------------------------------------------------*/
 static char *tst_strings[6] = 
 {
     "test string 1",
@@ -120,7 +120,7 @@ copy_string_to_arena(ElkArenaAllocator *arena, char const *str)
 {
     size_t len = strlen(str) + 1;
     char *dest = elk_allocator_nmalloc(arena, len, char);
-    assert(dest);
+    Assert(dest);
 
     strcpy(dest, str);
 
@@ -173,12 +173,12 @@ test_arena(void)
         // Test the values!
         for (int j = 0; j < 6; j++) 
         {
-            assert(*arena_chars[j * 3 + 0] == test_chars[j * 3 + 0]);
-            assert(*arena_doubles[j] == test_doubles[j]);
-            assert(*arena_chars[j * 3 + 1] == test_chars[j * 3 + 1]);
-            assert(strcmp(tst_strings[j], arena_strs[j]) == 0);
-            assert(*arena_chars[j * 3 + 2] == test_chars[j * 3 + 2]);
-            assert(*arena_ints[j] == 2 * trip_num + 3 * j);
+            Assert(*arena_chars[j * 3 + 0] == test_chars[j * 3 + 0]);
+            Assert(*arena_doubles[j] == test_doubles[j]);
+            Assert(*arena_chars[j * 3 + 1] == test_chars[j * 3 + 1]);
+            Assert(strcmp(tst_strings[j], arena_strs[j]) == 0);
+            Assert(*arena_chars[j * 3 + 2] == test_chars[j * 3 + 2]);
+            Assert(*arena_ints[j] == 2 * trip_num + 3 * j);
         }
 
         elk_allocator_reset(arena);
@@ -187,18 +187,18 @@ test_arena(void)
     elk_allocator_destroy(arena);
 }
 
-/*-------------------------------------------------------------------------------------------------
- *                                      All Memory Arena Tests
- *-----------------------------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------------------------------------------------------
+ *                                                All Memory Arena Tests
+ *--------------------------------------------------------------------------------------------------------------------------*/
 static void
 elk_arena_via_generic_api_tests(void)
 {
     test_arena();
 }
 
-/*-------------------------------------------------------------------------------------------------
- *                                   All Memory Generic API Tests
- *-----------------------------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------------------------------------------------------
+ *                                             All Memory Generic API Tests
+ *--------------------------------------------------------------------------------------------------------------------------*/
 void
 elk_allocator_generic_api_tests(void)
 {

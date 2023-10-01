@@ -2,11 +2,11 @@
 
 #include <string.h>
 
-/*------------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------------------------------------
  *
- *                               Tests for the Memory Pool
+ *                                               Tests for the Memory Pool
  *
- *-----------------------------------------------------------------------------------------------*/
+ *--------------------------------------------------------------------------------------------------------------------------*/
 #define TEST_BUF_COUNT 10
 
 static void
@@ -23,21 +23,21 @@ test_full_pool(void)
     for (int i = 0; i < TEST_BUF_COUNT; ++i) 
     {
         dubs[i] = elk_static_pool_alloc(pool);
-        assert(dubs[i]);
+        Assert(dubs[i]);
 
         *dubs[i] = (double)i;
     }
 
     for (int i = 0; i < TEST_BUF_COUNT; ++i) 
     {
-        assert(*dubs[i] == (double)i);
+        Assert(*dubs[i] == (double)i);
     }
 
     // Test that it's full!
     for (int i = TEST_BUF_COUNT; i < 2 * TEST_BUF_COUNT; i++) 
     {
         double *no_dub = elk_static_pool_alloc(pool);
-        assert(!no_dub);
+        Assert(!no_dub);
     }
 
     elk_static_pool_destroy(pool);
@@ -57,14 +57,14 @@ test_pool_freeing(void)
     for (int i = 0; i < TEST_BUF_COUNT; ++i) 
     {
         dubs[i] = elk_static_pool_alloc(pool);
-        assert(dubs[i]);
+        Assert(dubs[i]);
 
         *dubs[i] = (double)i;
     }
 
     for (int i = 0; i < TEST_BUF_COUNT; ++i) 
     {
-        assert(*dubs[i] == (double)i);
+        Assert(*dubs[i] == (double)i);
     }
 
     // Half empty it!
@@ -77,22 +77,22 @@ test_pool_freeing(void)
     for (int i = 0; i < TEST_BUF_COUNT / 2; i++) 
     {
         dubs[2 * i] = elk_static_pool_alloc(pool);
-        assert(dubs[2 * i]);
+        Assert(dubs[2 * i]);
 
         *dubs[2 * i] = (double)i;
     }
 
     for (int i = 0; i < TEST_BUF_COUNT / 2; i++) 
     {
-        assert(*dubs[2 * i] == (double)i);
+        Assert(*dubs[2 * i] == (double)i);
     }
 
     elk_static_pool_destroy(pool);
 }
 
-/*-------------------------------------------------------------------------------------------------
- *                                      All Memory Pool Tests
- *-----------------------------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------------------------------------------------------
+ *                                                 All Memory Pool Tests
+ *--------------------------------------------------------------------------------------------------------------------------*/
 void
 elk_pool_tests(void)
 {
