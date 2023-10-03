@@ -709,8 +709,7 @@ elk_arena_add_block(ElkArenaAllocator *arena, size_t block_size)
     ElkStaticArena next = arena->head;
 
     elk_static_arena_init(&arena->head, max_block_size, buffer);
-    ElkStaticArena *next_ptr =
-        elk_static_arena_alloc(&arena->head, sizeof(ElkStaticArena), _Alignof(ElkStaticArena));
+    ElkStaticArena *next_ptr = elk_static_arena_alloc(&arena->head, sizeof(ElkStaticArena), _Alignof(ElkStaticArena));
 
     *next_ptr = next;
     return;
