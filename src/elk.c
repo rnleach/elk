@@ -166,7 +166,7 @@ extern uint64_t elk_fnv1a_hash_accumulate(size_t const n, void const *value, uin
  *-------------------------------------------------------------------------------------------------------------------------*/
 
 _Static_assert(sizeof(size_t) == sizeof(uintptr_t), "size_t and uintptr_t aren't the same size?!");
-_Static_assert(UINTPTR_MAX == SIZE_MAX, "sizt_t and uintptr_t dont' have same max?!");
+_Static_assert(UINTPTR_MAX == SIZE_MAX, "size_t and uintptr_t dont' have same max?!");
 
 extern ElkStr elk_str_from_cstring(char *src);
 extern ElkStr elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src);
@@ -238,9 +238,10 @@ elk_str_parse_float_64(ElkStr str, double *out)
     // check for nan/NAN/NaN/Nan inf/INF/Inf
     if (len_remaining == 3) 
     {
-        if(memcmp(c, "nan", 3) == 0 || memcmp(c, "NAN", 3) == 0 ||
-                memcmp(c, "NaN", 3) == 0 || memcmp(c, "Nan", 3) == 0) 
-        { *out = ELK_NAN; return true; }
+        if(memcmp(c, "nan", 3) == 0 || memcmp(c, "NAN", 3) == 0 || memcmp(c, "NaN", 3) == 0 || memcmp(c, "Nan", 3) == 0) 
+        { 
+            *out = ELK_NAN; return true;
+        }
 
         if(memcmp(c, "inf", 3) == 0 || memcmp(c, "Inf", 3) == 0 || memcmp(c, "INF", 3) == 0)
         {
@@ -253,8 +254,7 @@ elk_str_parse_float_64(ElkStr str, double *out)
     // check for infinity/INFINITY/Infinity
     if (len_remaining == 8) 
     {
-        if(memcmp(c, "infinity", 8) == 0 ||
-                memcmp(c, "Infinity", 8) == 0 || memcmp(c, "INFINITY", 8) == 0)
+        if(memcmp(c, "infinity", 8) == 0 || memcmp(c, "Infinity", 8) == 0 || memcmp(c, "INFINITY", 8) == 0)
         {
             if(sign == 0) *out = ELK_INF;
             else if(sign == 1) *out = ELK_NEG_INF;
@@ -606,8 +606,7 @@ extern void *elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alig
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                  Static Pool Allocator
  *-------------------------------------------------------------------------------------------------------------------------*/
-extern void elk_static_pool_initialize_linked_list(unsigned char *buffer, size_t object_size,
-                                                   size_t num_objects);
+extern void elk_static_pool_initialize_linked_list(unsigned char *buffer, size_t object_size, size_t num_objects);
 extern void elk_static_pool_init(ElkStaticPool *pool, size_t object_size, size_t num_objects, unsigned char buffer[]);
 extern void elk_static_pool_reset(ElkStaticPool *pool);
 extern void elk_static_pool_destroy(ElkStaticPool *pool);
