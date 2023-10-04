@@ -212,9 +212,12 @@ elk_str_parse_int_64(ElkStr str, int64_t *result)
 bool
 elk_str_parse_float_64(ElkStr str, double *out)
 {
-#define ELK_NAN (0.0 / 0.0)
-#define ELK_INF (1.0 / 0.0 )
-#define ELK_NEG_INF (-1.0 / 0.0)
+	// The following block is required to create NAN/INF witnout using math.h on MSVC Using
+	// #define NAN (0.0/0.0) doesn't work either on MSVC, which gives C2124 divide by zero error.
+	static double const ELK_ZERO = 0.0;
+	double const ELK_INF = 1.0 / ELK_ZERO;
+	double const ELK_NEG_INF = -1.0 / ELK_ZERO;
+	double const ELK_NAN = 0.0 / ELK_ZERO;
 
     StopIf(str.len == 0, goto ERR_RETURN);
 
@@ -338,10 +341,6 @@ elk_str_parse_float_64(ElkStr str, double *out)
 ERR_RETURN:
     *out = ELK_NAN;
     return false;
-
-#undef ELK_NAN
-#undef ELK_INF
-#undef ELK_NEG_INF
 }
 
 bool
