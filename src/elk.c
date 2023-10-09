@@ -589,6 +589,7 @@ extern void elk_static_arena_destroy(ElkStaticArena *arena);
 extern void elk_static_arena_reset(ElkStaticArena *arena);
 extern uintptr_t elk_align_pointer(uintptr_t ptr, size_t align);
 extern void *elk_static_arena_alloc(ElkStaticArena *arena, size_t size, size_t alignment);
+extern void * elk_static_arena_realloc(ElkStaticArena *arena, void *ptr, size_t size);
 extern void elk_static_arena_free(ElkStaticArena *arena, void *ptr);
 
 /*---------------------------------------------------------------------------------------------------------------------------
@@ -600,7 +601,7 @@ extern void elk_arena_free_blocks(ElkArenaAllocator *arena);
 extern void elk_arena_init(ElkArenaAllocator *arena, size_t starting_block_size);
 extern void elk_arena_reset(ElkArenaAllocator *arena);
 extern void elk_arena_destroy(ElkArenaAllocator *arena);
-inline void elk_arena_free(ElkStaticArena *arena, void *ptr);
+inline void elk_arena_free(ElkArenaAllocator *arena, void *ptr);
 extern void *elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment);
 
 /*---------------------------------------------------------------------------------------------------------------------------

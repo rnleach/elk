@@ -193,13 +193,19 @@ typedef struct ElkStaticArena
     size_t buf_size;
     size_t buf_offset;
     unsigned char *buffer;
+    void *prev_ptr;
+    size_t prev_offset;
 } ElkStaticArena;
 
 inline void elk_static_arena_init(ElkStaticArena *arena, size_t buf_size, unsigned char buffer[]);
 inline void elk_static_arena_destroy(ElkStaticArena *arena);
-inline void elk_static_arena_reset(ElkStaticArena *arena);  // Set the offset to zero, all previous allocations now invalid.
-inline void * elk_static_arena_alloc(ElkStaticArena *arena, size_t size, size_t alignment); // returns NULL if not enough room.
-inline void elk_static_arena_free(ElkStaticArena *arena, void *ptr); // No-op for now
+inline void elk_static_arena_reset(ElkStaticArena *arena);  // Set the offset to zero, all previous allocations now invalid
+inline void * elk_static_arena_alloc(ElkStaticArena *arena, size_t size, size_t alignment); // ret NULL if not enough room
+inline void * elk_static_arena_realloc(ElkStaticArena *arena, void *ptr, size_t size); // ret NULL if ptr not last allocation
+inline void elk_static_arena_free(ElkStaticArena *arena, void *ptr); // Undo if it was last allocation, otherwise no-op
+
+#define elk_static_arena_nrealloc(arena, ptr, count, type)                                                                  \
+    (type *) elk_static_arena_realloc((arena), (ptr), sizeof(type) * (count))
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                Growable Arena Allocator
@@ -222,10 +228,11 @@ typedef struct ElkArenaAllocator
 } ElkArenaAllocator;
 
 inline void elk_arena_init(ElkArenaAllocator *arena, size_t starting_block_size);
-inline void elk_arena_reset(ElkArenaAllocator *arena);
 inline void elk_arena_destroy(ElkArenaAllocator *arena);
-inline void elk_arena_free(ElkStaticArena *arena, void *ptr);  // No-op for now.
-inline void * elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment); // returns NULL when out of space.
+inline void elk_arena_reset(ElkArenaAllocator *arena);
+inline void * elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment);  // returns NULL when out of space
+inline void elk_arena_free(ElkArenaAllocator *arena, void *ptr);         // Undo if it was last allocation, otherwise no-op
+// no elk_arena_realloc because cannot ensure pointer stability & consistent behavior w.r.t. returning NULL
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                  Static Pool Allocator
@@ -257,6 +264,7 @@ inline void elk_static_pool_init(ElkStaticPool *pool, size_t object_size, size_t
 inline void elk_static_pool_destroy(ElkStaticPool *pool);
 inline void elk_static_pool_free(ElkStaticPool *pool, void *ptr);
 inline void * elk_static_pool_alloc(ElkStaticPool *pool); // returns NULL if there's no more space available.
+// no elk_static_pool_realloc because that doesn't make sense!
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                  Generic Allocator API
@@ -647,7 +655,9 @@ elk_static_arena_init(ElkStaticArena *arena, size_t buf_size, unsigned char buff
     {
         .buf_size = buf_size,
         .buf_offset = 0,
-        .buffer = buffer
+        .buffer = buffer,
+        .prev_ptr = NULL,
+        .prev_offset = 0,
     };
 
     return;
@@ -665,6 +675,8 @@ elk_static_arena_reset(ElkStaticArena *arena)
 {
     Assert(arena && arena->buffer);
     arena->buf_offset = 0;
+    arena->prev_ptr = NULL;
+    arena->prev_offset = 0;
     return;
 }
 
@@ -683,17 +695,42 @@ elk_static_arena_alloc(ElkStaticArena *arena, size_t size, size_t alignment)
     if (offset + size <= arena->buf_size)
     {
         void *ptr = &arena->buffer[offset];
+        arena->prev_offset = arena->buf_offset;
         arena->buf_offset = offset + size;
+        arena->prev_ptr = ptr;
 
         return ptr;
     }
     else { return NULL; }
 }
 
+inline void * 
+elk_static_arena_realloc(ElkStaticArena *arena, void *ptr, size_t size)
+{
+    if(ptr == arena->prev_ptr)
+    {
+        // Get previous extra offset due to alignment
+        uintptr_t offset = (uintptr_t)ptr - (uintptr_t)arena->buffer; // relative offset accounting for alignment
+
+        // Check to see if there is enough space left
+        if (offset + size <= arena->buf_size)
+        {
+            arena->buf_offset = offset + size;
+            return ptr;
+        }
+    }
+
+    return NULL;
+}
+
 inline void
 elk_static_arena_free(ElkStaticArena *arena, void *ptr)
 {
-    // no-op - we don't own the buffer!
+    if(ptr == arena->prev_ptr)
+    {
+        arena->buf_offset = arena->prev_offset;
+    }
+
     return;
 }
 
@@ -751,7 +788,10 @@ elk_arena_init(ElkArenaAllocator *arena, size_t starting_block_size)
         .head = (ElkStaticArena)
         {
             .buffer = NULL, 
-            .buf_size = 0, .buf_offset = 0
+            .buf_size = 0,
+            .buf_offset = 0,
+            .prev_ptr = NULL,
+            .prev_offset = 0
         }
     };
 
@@ -799,16 +839,16 @@ elk_arena_reset(ElkArenaAllocator *arena)
 inline void
 elk_arena_destroy(ElkArenaAllocator *arena)
 {
-    Assert(arena);
     elk_arena_free_blocks(arena);
     arena->head.buf_size = 0;
     arena->head.buf_offset = 0;
 }
 
 inline void
-elk_arena_free(ElkStaticArena *arena, void *ptr)
+elk_arena_free(ElkArenaAllocator *arena, void *ptr)
 {
-    // no-op
+    elk_static_arena_free(&arena->head, ptr);
+
     return;
 }
 

@@ -90,6 +90,84 @@ test_arena(void)
     elk_arena_destroy(arena);
 }
 
+static void
+test_static_arena_realloc(void)
+{
+    _Alignas(_Alignof(double)) unsigned char buffer[100 * sizeof(double)];
+    ElkStaticArena arena_instance = {};
+    ElkStaticArena *arena = &arena_instance;
+
+    elk_static_arena_init(arena, sizeof(buffer), buffer);
+
+    double *ten_dubs = elk_allocator_nmalloc(arena, 10, double);
+    Assert(ten_dubs);
+
+    for(int i = 0; i < 10; ++i)
+    {
+        ten_dubs[i] = (double)i;
+    }
+
+    double *hundred_dubs = elk_static_arena_nrealloc(arena, ten_dubs, 100, double);
+
+    Assert(hundred_dubs);
+    Assert(hundred_dubs == ten_dubs);
+
+    for(int i = 0; i < 10; ++i)
+    {
+        Assert(hundred_dubs[i] == (double)i);
+    }
+
+    for(int i = 10; i < 100; ++i)
+    {
+        hundred_dubs[i] = (double)i;
+    }
+
+    for(int i = 10; i < 100; ++i)
+    {
+        Assert(hundred_dubs[i] == (double)i);
+    }
+
+    double *million_dubs = elk_static_arena_realloc(arena, hundred_dubs, 1000000 * sizeof *ten_dubs);
+    Assert(!million_dubs);
+
+    elk_static_arena_destroy(arena);
+}
+
+static void
+test_static_arena_free(void)
+{
+    unsigned char buffer[10 * sizeof(double)];
+    ElkStaticArena arena_instance = {};
+    ElkStaticArena *arena = &arena_instance;
+
+    elk_static_arena_init(arena, sizeof(buffer), buffer);
+
+    double *first = elk_allocator_malloc(arena, double);
+    Assert(first);
+    *first = 2.0;
+
+    elk_allocator_free(arena, first);
+
+    double *second = elk_allocator_malloc(arena, double);
+    Assert(second);
+    Assert(first == second); // Since we freed 'first', that's what we should get back this time.
+
+    double *third = elk_allocator_malloc(arena, double);
+    Assert(third);
+
+    size_t offset_before = arena->buf_offset;
+    elk_allocator_free(arena, second); // should be a no op
+    double *fourth = elk_allocator_malloc(arena, double);
+    Assert(fourth);
+
+    size_t offset_after = arena->buf_offset;
+
+    Assert(offset_before != offset_after);
+    Assert(offset_before < offset_after);
+
+    elk_static_arena_destroy(arena);
+}
+
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                All Memory Arena Tests
  *-------------------------------------------------------------------------------------------------------------------------*/
@@ -97,4 +175,6 @@ void
 elk_arena_tests(void)
 {
     test_arena();
+    test_static_arena_realloc();
+    test_static_arena_free();
 }
