@@ -162,6 +162,9 @@ extern bool elk_str_parse_datetime(ElkStr str, ElkTime *out);
  *     necessary.
  *
  * NOTE: A cstring is a null terminated string of unknown length.
+ *
+ * NOTE: The interner copies any successfully interned string, so once it has been interned you can reclaim the memory that 
+ * was holding it before.
  */
 typedef struct ElkStringInterner ElkStringInterner;
 
@@ -548,8 +551,9 @@ elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src)
     size_t const copy_len = src_len < dst_len ? src_len : dst_len;
     memcpy(dest, src.start, copy_len);
 
-    size_t end = copy_len < dst_len ? copy_len : dst_len - 1;
-    dest[end] = '\0';
+    if(copy_len < dst_len) { dest[copy_len] = '\0'; }
+
+    size_t end = copy_len < dst_len ? copy_len : dst_len;
 
     return (ElkStr){.start = dest, .len = end};
 }
