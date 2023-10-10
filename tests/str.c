@@ -117,6 +117,8 @@ test_str_cmp(void)
 static void
 test_str_copy(void)
 {
+	//                        111111
+	//              0123456789012345
     char *sample = "a sample string";
     ElkStr str = elk_str_from_cstring(sample);
 
@@ -136,7 +138,7 @@ test_str_copy(void)
     Assert(too_short_str.start != str.start);  // They're not the same location in memory
     Assert(!elk_str_eq(too_short_str, str));   // They NOT should compare as equals
     Assert(too_short[8] == ' ');
-    Assert(too_short[9] == '\0');
+    Assert(too_short[9] == 's');               // NOT a '\0' because we had no extra room.
 
     // Test an empty string
     char *empty = "";
