@@ -7,11 +7,13 @@
 # > nmake /f nmakefile test
 #
 
-CFLAGS= /std:c11 /TC /utf-8 /nologo
+CFLAGS = /std:c11 /TC /utf-8 /nologo
+LDFLAGS = /NOLOGO
 
 !IF "$(DEBUG)" == "1"
 
 CFLAGS = $(CFLAGS) /Od /Zi 
+LDFLAGS = $(LDFLAGS) /DEBUG
 
 !ELSE
 
@@ -44,7 +46,7 @@ $(TEST_OBJS): tests/test.h src/elk.h
 	@$(CC) $(CFLAGS) /c /Fo$*.obj $*.c 
 
 test.exe: $(TEST_OBJS) $(LIB_OBJ) 
-	@LINK /nologo $**
+	@LINK $(LDFLAGS) $**
 
 test: test.exe
 	@echo -------------------------------------------------------------------------------------------
@@ -52,5 +54,5 @@ test: test.exe
 
 clean:
 	@echo -------------------------------------------------------------------------------------------
-	@del tests\*.obj src\*.obj *.pdb *.exe
+	@del tests\*.obj src\*.obj *.pdb *.exe *.ilk
 
