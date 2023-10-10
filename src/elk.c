@@ -152,16 +152,6 @@ extern ElkTime elk_time_truncate_to_hour(ElkTime time);
 extern ElkTime elk_time_add(ElkTime time, int change_in_time);
 
 /*---------------------------------------------------------------------------------------------------------------------------
- *                                                      Hashes
- *-------------------------------------------------------------------------------------------------------------------------*/
-
-uint64_t const fnv_offset_bias = 0xcbf29ce484222325;
-uint64_t const fnv_prime = 0x00000100000001b3;
-
-extern uint64_t elk_fnv1a_hash(size_t const n, void const *value);
-extern uint64_t elk_fnv1a_hash_accumulate(size_t const n, void const *value, uint64_t const hash_so_far);
-
-/*---------------------------------------------------------------------------------------------------------------------------
  *                                                      String Slice
  *-------------------------------------------------------------------------------------------------------------------------*/
 
@@ -397,6 +387,17 @@ elk_str_parse_datetime(ElkStr str, ElkTime *out)
 }
 
 /*---------------------------------------------------------------------------------------------------------------------------
+ *                                                      Hashes
+ *-------------------------------------------------------------------------------------------------------------------------*/
+
+uint64_t const fnv_offset_bias = 0xcbf29ce484222325;
+uint64_t const fnv_prime = 0x00000100000001b3;
+
+extern uint64_t elk_fnv1a_hash(size_t const n, void const *value);
+extern uint64_t elk_fnv1a_hash_accumulate(size_t const n, void const *value, uint64_t const hash_so_far);
+extern uint64_t elk_fnv1a_hash_str(ElkStr str);
+
+/*---------------------------------------------------------------------------------------------------------------------------
  *                                                     String Interner
  *-------------------------------------------------------------------------------------------------------------------------*/
 typedef struct ElkStringInternerHandle 
@@ -532,7 +533,7 @@ elk_string_interner_intern(ElkStringInterner *interner, ElkStr str)
     // Inspired by https://nullprogram.com/blog/2022/08/08
     // All code & writing on this blog is in the public domain.
 
-    uint64_t const hash = elk_fnv1a_hash(str.len, str.start);
+    uint64_t const hash = elk_fnv1a_hash_str(str);
     uint32_t i = hash; // I know it truncates, but it's OK, the *_lookup function takes care of it.
     while (true)
     {
@@ -848,20 +849,16 @@ struct ElkStrMap
 	int8_t size_exp;
 	ElkStrMapHandle *handles;
     size_t num_handles;
-    ElkHashFunction hasher;
 };
 
 ElkStrMap *
-elk_str_map_create(int8_t size_exp, ElkHashFunction key_hash)
+elk_str_map_create(int8_t size_exp)
 {
     Assert(size_exp > 0 && size_exp <= 31);                 // Come on, 31 is HUGE
 
     size_t const handles_len = 1 << size_exp;
     ElkStrMapHandle *handles = calloc(handles_len, sizeof(*handles));
     Assert(handles);
-
-    ElkHashFunction hasher = elk_fnv1a_hash;
-    if(key_hash) { hasher = key_hash; }
 
     ElkStrMap *map = malloc(sizeof(*map));
 
@@ -870,7 +867,6 @@ elk_str_map_create(int8_t size_exp, ElkHashFunction key_hash)
         .size_exp = size_exp,
         .handles = handles,
         .num_handles = 0, 
-        .hasher = hasher
     };
 
     return map;
@@ -938,7 +934,7 @@ elk_str_map_insert(ElkStrMap *map, ElkStr key, void *value)
     // Inspired by https://nullprogram.com/blog/2022/08/08
     // All code & writing on this blog is in the public domain.
 
-    uint64_t const hash = map->hasher(key.len, key.start);
+    uint64_t const hash = elk_fnv1a_hash_str(key);
     uint32_t i = hash; // I know it truncates, but it's OK, the *_lookup function takes care of it.
     while (true)
     {
@@ -982,7 +978,7 @@ elk_str_map_lookup(ElkStrMap *map, ElkStr key)
     // Inspired by https://nullprogram.com/blog/2022/08/08
     // All code & writing on this blog is in the public domain.
 
-    uint64_t const hash = map->hasher(key.len, key.start);
+    uint64_t const hash = elk_fnv1a_hash_str(key);
     uint32_t i = hash; // I know it truncates, but it's OK, the *_lookup function takes care of it.
     while (true)
     {

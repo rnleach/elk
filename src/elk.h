@@ -82,30 +82,6 @@ extern ElkTime elk_time_from_ymd_and_hms(int year, int month, int day, int hour,
 extern ElkTime elk_time_from_yd_and_hms(int year, int day_of_year, int hour, int minutes, int seconds);
 extern ElkStructTime elk_make_struct_time(ElkTime time);
 /*---------------------------------------------------------------------------------------------------------------------------
- *                                                      Hashes
- *---------------------------------------------------------------------------------------------------------------------------
- *
- * Non-cryptographically secure hash functions.
- *
- * If you're passing user supplied data to this, it's possible that a nefarious actor could send
- * data specifically designed to jam up one of these functions. So don't use them to write a web
- * browser or server, or banking software. They should be good and fast though for data munging.
- *
- * To build a custom "fnv1a" hash function just follow the example of the implementation below of elk_fnv1a_hash below. For
- * the first member of a struct, call the accumulate function with the fnv_offset_bias, then call the accumulate function
- * for each remaining member of the struct. This will leave the padding out of the calculation, which is good because we
- * cannot guarantee what is in the padding.
- */
-
-typedef uint64_t (*ElkHashFunction)(size_t const size_bytes, void const *value);
-
-extern uint64_t const fnv_offset_bias;
-extern uint64_t const fnv_prime;
-
-inline uint64_t elk_fnv1a_hash(size_t const n, void const *value);
-inline uint64_t elk_fnv1a_hash_accumulate(size_t const size_bytes, void const *value, uint64_t const hash_so_far);
-
-/*---------------------------------------------------------------------------------------------------------------------------
  *                                                      String Slice
  *---------------------------------------------------------------------------------------------------------------------------
  *
@@ -149,6 +125,33 @@ extern bool elk_str_parse_float_64(ElkStr str, double *out);
 extern bool elk_str_parse_datetime(ElkStr str, ElkTime *out);
 
 /*---------------------------------------------------------------------------------------------------------------------------
+ *                                                      Hashes
+ *---------------------------------------------------------------------------------------------------------------------------
+ *
+ * Non-cryptographically secure hash functions.
+ *
+ * If you're passing user supplied data to this, it's possible that a nefarious actor could send
+ * data specifically designed to jam up one of these functions. So don't use them to write a web
+ * browser or server, or banking software. They should be good and fast though for data munging.
+ *
+ * To build a custom "fnv1a" hash function just follow the example of the implementation below of elk_fnv1a_hash below. For
+ * the first member of a struct, call the accumulate function with the fnv_offset_bias, then call the accumulate function
+ * for each remaining member of the struct. This will leave the padding out of the calculation, which is good because we
+ * cannot guarantee what is in the padding.
+ */
+typedef bool (*ElkEqFunction)(void *left, void *right);
+
+typedef uint64_t (*ElkHashFunction)(size_t const size_bytes, void const *value);
+typedef uint64_t (*ElkSimpleHash)(void const *object); // Already knows the size of the object to be hashed!
+
+extern uint64_t const fnv_offset_bias;
+extern uint64_t const fnv_prime;
+
+inline uint64_t elk_fnv1a_hash(size_t const n, void const *value);
+inline uint64_t elk_fnv1a_hash_accumulate(size_t const size_bytes, void const *value, uint64_t const hash_so_far);
+inline uint64_t elk_fnv1a_hash_str(ElkStr str);
+
+/*---------------------------------------------------------------------------------------------------------------------------
  *                                                     String Interner
  *---------------------------------------------------------------------------------------------------------------------------
  *
@@ -171,8 +174,8 @@ typedef struct ElkStringInterner ElkStringInterner;
 
 extern ElkStringInterner *elk_string_interner_create(int8_t size_exp, int avg_string_size);
 extern void elk_string_interner_destroy(ElkStringInterner *interner);
-ElkStr elk_string_interner_intern_cstring(ElkStringInterner *interner, char *string);
-ElkStr elk_string_interner_intern(ElkStringInterner *interner, ElkStr str);
+extern ElkStr elk_string_interner_intern_cstring(ElkStringInterner *interner, char *string);
+extern ElkStr elk_string_interner_intern(ElkStringInterner *interner, ElkStr str);
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *
@@ -425,9 +428,6 @@ inline void elk_array_ledger_set_capacity(ElkArrayLedger *array, size_t capacity
  */
 typedef struct ElkHashMap ElkHashMap;
 
-typedef bool (*ElkEqFunction)(void *left, void *right);
-typedef uint64_t (*ElkSimpleHash)(void const *object); // Already knows the size of the object to be hashed!
-
 extern ElkHashMap *elk_hash_map_create(int8_t size_exp, ElkSimpleHash key_hash, ElkEqFunction key_eq);
 extern void elk_hash_map_destroy(ElkHashMap *map);
 extern void *elk_hash_map_insert(ElkHashMap *map, void *key, void *value); // if return != value, key was already in the map
@@ -439,10 +439,12 @@ extern void *elk_hash_map_lookup(ElkHashMap *map, void *key); // return NULL if 
  * Designed for use when keys are strings. If the key_hash is NULL, it just uses the fnv1a has function.
  *
  * Values are not copied, they are stored as pointers, so the user must manage memory.
+ *
+ * Uses fnv1a hash.
  */
 typedef struct ElkStrMap ElkStrMap;
 
-extern ElkStrMap *elk_str_map_create(int8_t size_exp, ElkHashFunction key_hash); // if key_hash is NULL, uses fnv1a
+extern ElkStrMap *elk_str_map_create(int8_t size_exp);
 extern void elk_str_map_destroy(ElkStrMap *map);
 extern void *elk_str_map_insert(ElkStrMap *map, ElkStr key, void *value); // if return != value, key was already in the map
 extern void *elk_str_map_lookup(ElkStrMap *map, ElkStr key); // return NULL if not in map, otherwise return pointer to value
@@ -551,27 +553,6 @@ elk_time_add(ElkTime time, int change_in_time)
 }
 
 
-inline uint64_t
-elk_fnv1a_hash_accumulate(size_t const size_bytes, void const *value, uint64_t const hash_so_far)
-{
-    uint8_t const *data = value;
-
-    uint64_t hash = hash_so_far;
-    for (size_t i = 0; i < size_bytes; ++i)
-    {
-        hash ^= data[i];
-        hash *= fnv_prime;
-    }
-
-    return hash;
-}
-
-inline uint64_t
-elk_fnv1a_hash(size_t const n, void const *value)
-{
-    return elk_fnv1a_hash_accumulate(n, value, fnv_offset_bias);
-}
-
 inline ElkStr
 elk_str_from_cstring(char *src)
 {
@@ -665,6 +646,33 @@ elk_str_eq(ElkStr left, ElkStr right)
     }
 
     return true;
+}
+
+inline uint64_t
+elk_fnv1a_hash_accumulate(size_t const size_bytes, void const *value, uint64_t const hash_so_far)
+{
+    uint8_t const *data = value;
+
+    uint64_t hash = hash_so_far;
+    for (size_t i = 0; i < size_bytes; ++i)
+    {
+        hash ^= data[i];
+        hash *= fnv_prime;
+    }
+
+    return hash;
+}
+
+inline uint64_t
+elk_fnv1a_hash(size_t const n, void const *value)
+{
+    return elk_fnv1a_hash_accumulate(n, value, fnv_offset_bias);
+}
+
+inline uint64_t
+elk_fnv1a_hash_str(ElkStr str)
+{
+    return elk_fnv1a_hash(str.len, str.start);
 }
 
 #ifndef NDEBUG

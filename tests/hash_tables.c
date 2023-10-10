@@ -25,7 +25,7 @@ test_elk_str_table(void)
 	int64_t values[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
 	int64_t values2[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
 
-	ElkStrMap *map = elk_str_map_create(2, NULL); // Use a crazy small size_exp to force it to grow, this IS a test!
+	ElkStrMap *map = elk_str_map_create(2); // Use a crazy small size_exp to force it to grow, this IS a test!
     Assert(map);
 
     // Fill the map
