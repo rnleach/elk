@@ -110,8 +110,9 @@ inline uint64_t elk_fnv1a_hash_accumulate(size_t const size_bytes, void const *v
  *---------------------------------------------------------------------------------------------------------------------------
  *
  * An altenrate implementation of strings with "fat pointers" that are pointers to the start and the length of the string.
- * When strings are copied or moved, every effort is made to keep them null terminated so they play nice with the standard
- * C string implementation.
+ * When strings are copied or moved, every effort is made to keep them null terminated so they MIGHT play nice with the
+ * standard C string implementation, but you can't count on this. If there isn't enough room when a string is copied for the
+ * null terminator, it won't be there.
  *
  * WARNING: Slices are only meant to alias into larger strings and so have no built in memory management functions. It's
  * unadvised to have an ElkStr that is the only thing that contains a pointer from malloc(). A seperate pointer to any 
@@ -128,10 +129,10 @@ typedef struct ElkStr
 
 inline ElkStr elk_str_from_cstring(char *src);
 inline ElkStr elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src);
-inline ElkStr elk_str_strip(ElkStr input);                        // Strips leading and trailing whitespace.
-inline ElkStr elk_str_substr(ElkStr str, int start, int len);     // Create a substring from a longer string.
-inline int elk_str_case_sensitive_cmp(ElkStr left, ElkStr right); // returns 0 if equal, -1 if left is first, 1 otherwise.
-inline bool elk_str_eq(ElkStr left, ElkStr right);                // Faster than elk_str_cmp because it checks length first.
+inline ElkStr elk_str_strip(ElkStr input);                        // Strips leading and trailing whitespace
+inline ElkStr elk_str_substr(ElkStr str, int start, int len);     // Create a substring from a longer string
+inline int elk_str_case_sensitive_cmp(ElkStr left, ElkStr right); // returns 0 if equal, -1 if left is first, 1 otherwise
+inline bool elk_str_eq(ElkStr left, ElkStr right);                // Faster than elk_str_cmp because it checks length first
 
 /* Parsing values from strings.
  *
@@ -179,7 +180,7 @@ ElkStr elk_string_interner_intern(ElkStringInterner *interner, ElkStr str);
  *
  *---------------------------------------------------------------------------------------------------------------------------
  *
- * Utilities for managing memory. The recommended approach is to create an allocator by declaring it and using its init
+ * Utilities for managing memory. The recommended approach is to create an allocator by declaring it and using its create
  * function, and then from there on out use the generic_alloc functions for allocating and freeing memory on the allocator,
  * and for destroying the allocator. That means if you ever want to change your allocation strategy for a section of code,
  * you can just swap out the code that sets up the allocator and the rest should just work.
@@ -200,7 +201,7 @@ typedef struct ElkStaticArena
     size_t prev_offset;
 } ElkStaticArena;
 
-inline void elk_static_arena_init(ElkStaticArena *arena, size_t buf_size, unsigned char buffer[]);
+inline void elk_static_arena_create(ElkStaticArena *arena, size_t buf_size, unsigned char buffer[]);
 inline void elk_static_arena_destroy(ElkStaticArena *arena);
 inline void elk_static_arena_reset(ElkStaticArena *arena);  // Set the offset to zero, all previous allocations now invalid
 inline void * elk_static_arena_alloc(ElkStaticArena *arena, size_t size, size_t alignment); // ret NULL if not enough room
@@ -219,8 +220,8 @@ inline void elk_static_arena_free(ElkStaticArena *arena, void *ptr); // Undo if 
  *
  * WARNING: When using the reset function If there are multiple blocks allocated in the arena, they will be freed and a new
  * block the same size as the sum of all the previous blocks will be allocated in their place. If you want the memory to
- * shrink, then use elk_arena_destroy() followed by a call to elk_arena_init() to ensure that it doesn't remain larger than
- * needed.
+ * shrink, then use elk_arena_destroy() followed by a call to elk_arena_create() to ensure that it doesn't remain larger
+ * than needed.
  *
  * The alloc function returns NULL when it's out of space, but that should never happen unless the computer runs out of 
  * space.
@@ -230,7 +231,7 @@ typedef struct ElkArenaAllocator
     ElkStaticArena head;
 } ElkArenaAllocator;
 
-inline void elk_arena_init(ElkArenaAllocator *arena, size_t starting_block_size);
+inline void elk_arena_create(ElkArenaAllocator *arena, size_t starting_block_size);
 inline void elk_arena_destroy(ElkArenaAllocator *arena);
 inline void elk_arena_reset(ElkArenaAllocator *arena);
 inline void * elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alignment);  // returns NULL when out of space
@@ -256,15 +257,15 @@ inline void elk_arena_free(ElkArenaAllocator *arena, void *ptr);         // Undo
  */
 typedef struct ElkStaticPool
 {
-    size_t object_size;    // The size of each object.
-    size_t num_objects;    // The capacity, or number of objects storable in the pool.
-    void *free;            // The head of a free list of available slots for objects.
-    unsigned char *buffer; // The buffer we actually store the data in.
+    size_t object_size;    // The size of each object
+    size_t num_objects;    // The capacity, or number of objects storable in the pool
+    void *free;            // The head of a free list of available slots for objects
+    unsigned char *buffer; // The buffer we actually store the data in
 } ElkStaticPool;
 
-inline void elk_static_pool_reset(ElkStaticPool *pool);
-inline void elk_static_pool_init(ElkStaticPool *pool, size_t object_size, size_t num_objects, unsigned char buffer[]);
+inline void elk_static_pool_create(ElkStaticPool *pool, size_t object_size, size_t num_objects, unsigned char buffer[]);
 inline void elk_static_pool_destroy(ElkStaticPool *pool);
+inline void elk_static_pool_reset(ElkStaticPool *pool);
 inline void elk_static_pool_free(ElkStaticPool *pool, void *ptr);
 inline void * elk_static_pool_alloc(ElkStaticPool *pool); // returns NULL if there's no more space available.
 // no elk_static_pool_realloc because that doesn't make sense!
@@ -382,8 +383,8 @@ typedef struct ElkQueueLedger
 inline ElkQueueLedger elk_queue_ledger_create(size_t capacity);
 inline bool elk_queue_ledger_full(ElkQueueLedger *queue);
 inline bool elk_queue_ledger_empty(ElkQueueLedger *queue);
-inline int64_t elk_queue_ledger_push_back_index(ElkQueueLedger *queue); // returns index of next location to put an object.
-inline int64_t elk_queue_ledger_pop_front_index(ElkQueueLedger *queue); // returns index of next location to take object.
+inline int64_t elk_queue_ledger_push_back_index(ElkQueueLedger *queue);  // returns index of next location to put an object
+inline int64_t elk_queue_ledger_pop_front_index(ElkQueueLedger *queue);  // returns index of next location to take object
 inline int64_t elk_queue_ledger_peek_front_index(ElkQueueLedger *queue); // index of next object, but not incremented
 inline size_t elk_queue_ledger_len(ElkQueueLedger const *queue);
 
@@ -551,6 +552,7 @@ elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src)
     size_t const copy_len = src_len < dst_len ? src_len : dst_len;
     memcpy(dest, src.start, copy_len);
 
+	// Add a terminating zero IFF we can.
     if(copy_len < dst_len) { dest[copy_len] = '\0'; }
 
     size_t end = copy_len < dst_len ? copy_len : dst_len;
@@ -651,7 +653,7 @@ elk_align_pointer(uintptr_t ptr, size_t align)
 }
 
 inline void
-elk_static_arena_init(ElkStaticArena *arena, size_t buf_size, unsigned char buffer[])
+elk_static_arena_create(ElkStaticArena *arena, size_t buf_size, unsigned char buffer[])
 {
     Assert(arena && buffer);
 
@@ -749,7 +751,7 @@ elk_arena_add_block(ElkArenaAllocator *arena, size_t block_size)
 
     ElkStaticArena next = arena->head;
 
-    elk_static_arena_init(&arena->head, max_block_size, buffer);
+    elk_static_arena_create(&arena->head, max_block_size, buffer);
     ElkStaticArena *next_ptr = elk_static_arena_alloc(&arena->head, sizeof(ElkStaticArena), _Alignof(ElkStaticArena));
 
     *next_ptr = next;
@@ -778,7 +780,7 @@ elk_arena_free_blocks(ElkArenaAllocator *arena)
 }
 
 inline void
-elk_arena_init(ElkArenaAllocator *arena, size_t starting_block_size)
+elk_arena_create(ElkArenaAllocator *arena, size_t starting_block_size)
 {
     Assert(arena);
 
@@ -815,7 +817,7 @@ elk_arena_reset(ElkArenaAllocator *arena)
     // It's always placed at the very beginning of the buffer.
     ElkStaticArena *next = (ElkStaticArena *)&arena->head.buffer[0];
 
-    // Relies on the first block's buffer being initialized to NULL in the arena initialization.
+    // Relies on the first block's buffer being initialized to NULL in the arena creation.
     while (next->buffer) 
     {
         sum_block_sizes += next->buf_size;
@@ -828,7 +830,7 @@ elk_arena_reset(ElkArenaAllocator *arena)
         elk_arena_free_blocks(arena);
 
         // Re-initialize with a larger block size.
-        elk_arena_init(arena, sum_block_sizes);
+        elk_arena_create(arena, sum_block_sizes);
     }
     else
     {
@@ -909,7 +911,7 @@ elk_static_pool_reset(ElkStaticPool *pool)
 }
 
 inline void
-elk_static_pool_init(ElkStaticPool *pool, size_t object_size, size_t num_objects, unsigned char buffer[])
+elk_static_pool_create(ElkStaticPool *pool, size_t object_size, size_t num_objects, unsigned char buffer[])
 {
     Assert(pool);
     Assert(object_size >= sizeof(void *));       // Need to be able to fit at least a pointer!

@@ -16,7 +16,7 @@ test_full_pool(void)
     ElkStaticPool *pool = &pool_obj;
     _Alignas(_Alignof(double)) unsigned char buffer[TEST_BUF_COUNT * sizeof(double)] = {0};
 
-    elk_static_pool_init(pool, sizeof(double), TEST_BUF_COUNT, buffer);
+    elk_static_pool_create(pool, sizeof(double), TEST_BUF_COUNT, buffer);
 
     double *dubs[TEST_BUF_COUNT] = {0};
 
@@ -50,7 +50,7 @@ test_pool_freeing(void)
     ElkStaticPool *pool = &pool_obj;
     _Alignas(_Alignof(double)) unsigned char buffer[TEST_BUF_COUNT * sizeof(double)] = {0};
 
-    elk_static_pool_init(pool, sizeof(double), TEST_BUF_COUNT, buffer);
+    elk_static_pool_create(pool, sizeof(double), TEST_BUF_COUNT, buffer);
 
     double *dubs[TEST_BUF_COUNT] = {0};
 

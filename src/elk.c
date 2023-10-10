@@ -426,7 +426,7 @@ elk_string_interner_create(int8_t size_exp, int avg_string_size)
 
     size_t const storage_len = avg_string_size * (handles_len / 4);
     ElkArenaAllocator storage = {0};
-    elk_arena_init(&storage, storage_len);
+    elk_arena_create(&storage, storage_len);
 
     ElkStringInterner *interner = malloc(sizeof(*interner));
 
@@ -584,7 +584,7 @@ elk_string_interner_intern(ElkStringInterner *interner, ElkStr str)
 extern bool elk_is_power_of_2(uintptr_t p);
 #endif
 
-extern void elk_static_arena_init(ElkStaticArena *arena, size_t buf_size, unsigned char buffer[]);
+extern void elk_static_arena_create(ElkStaticArena *arena, size_t buf_size, unsigned char buffer[]);
 extern void elk_static_arena_destroy(ElkStaticArena *arena);
 extern void elk_static_arena_reset(ElkStaticArena *arena);
 extern uintptr_t elk_align_pointer(uintptr_t ptr, size_t align);
@@ -598,7 +598,7 @@ extern void elk_static_arena_free(ElkStaticArena *arena, void *ptr);
 
 extern void elk_arena_add_block(ElkArenaAllocator *arena, size_t block_size);
 extern void elk_arena_free_blocks(ElkArenaAllocator *arena);
-extern void elk_arena_init(ElkArenaAllocator *arena, size_t starting_block_size);
+extern void elk_arena_create(ElkArenaAllocator *arena, size_t starting_block_size);
 extern void elk_arena_reset(ElkArenaAllocator *arena);
 extern void elk_arena_destroy(ElkArenaAllocator *arena);
 inline void elk_arena_free(ElkArenaAllocator *arena, void *ptr);
@@ -608,7 +608,7 @@ extern void *elk_arena_alloc(ElkArenaAllocator *arena, size_t bytes, size_t alig
  *                                                  Static Pool Allocator
  *-------------------------------------------------------------------------------------------------------------------------*/
 extern void elk_static_pool_initialize_linked_list(unsigned char *buffer, size_t object_size, size_t num_objects);
-extern void elk_static_pool_init(ElkStaticPool *pool, size_t object_size, size_t num_objects, unsigned char buffer[]);
+extern void elk_static_pool_create(ElkStaticPool *pool, size_t object_size, size_t num_objects, unsigned char buffer[]);
 extern void elk_static_pool_reset(ElkStaticPool *pool);
 extern void elk_static_pool_destroy(ElkStaticPool *pool);
 extern void *elk_static_pool_alloc(ElkStaticPool *pool);

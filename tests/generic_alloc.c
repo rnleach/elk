@@ -16,7 +16,7 @@ test_full_pool(void)
     ElkStaticPool *pool = &pool_obj;
     _Alignas(_Alignof(double)) unsigned char buffer[TEST_BUF_COUNT * sizeof(double)] = {0};
 
-    elk_static_pool_init(pool, sizeof(double), TEST_BUF_COUNT, buffer);
+    elk_static_pool_create(pool, sizeof(double), TEST_BUF_COUNT, buffer);
 
     double *dubs[TEST_BUF_COUNT] = {0};
 
@@ -50,7 +50,7 @@ test_pool_freeing(void)
     ElkStaticPool *pool = &pool_obj;
     _Alignas(_Alignof(double)) unsigned char buffer[TEST_BUF_COUNT * sizeof(double)] = {0};
 
-    elk_static_pool_init(pool, sizeof(double), TEST_BUF_COUNT, buffer);
+    elk_static_pool_create(pool, sizeof(double), TEST_BUF_COUNT, buffer);
 
     double *dubs[TEST_BUF_COUNT] = {0};
 
@@ -140,7 +140,7 @@ test_arena(void)
     // This is a really small block size, but we want to test the arena expansion as well.
     ElkArenaAllocator arena_i = {0};
     ElkArenaAllocator *arena = &arena_i;
-    elk_arena_init(arena, 50);
+    elk_arena_create(arena, 50);
 
     for (int trip_num = 1; trip_num <= 5; trip_num++) 
     {

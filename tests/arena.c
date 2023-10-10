@@ -42,7 +42,7 @@ test_arena(void)
     // This is a really small block size, but we want to test the arena expansion as well.
     ElkArenaAllocator arena_i = {0};
     ElkArenaAllocator *arena = &arena_i;
-    elk_arena_init(arena, 50);
+    elk_arena_create(arena, 50);
 
     for (int trip_num = 1; trip_num <= 5; trip_num++) 
     {
@@ -94,10 +94,10 @@ static void
 test_static_arena_realloc(void)
 {
     _Alignas(_Alignof(double)) unsigned char buffer[100 * sizeof(double)];
-    ElkStaticArena arena_instance = {};
+    ElkStaticArena arena_instance = {0};
     ElkStaticArena *arena = &arena_instance;
 
-    elk_static_arena_init(arena, sizeof(buffer), buffer);
+    elk_static_arena_create(arena, sizeof(buffer), buffer);
 
     double *ten_dubs = elk_allocator_nmalloc(arena, 10, double);
     Assert(ten_dubs);
@@ -137,10 +137,10 @@ static void
 test_static_arena_free(void)
 {
     unsigned char buffer[10 * sizeof(double)];
-    ElkStaticArena arena_instance = {};
+    ElkStaticArena arena_instance = {0};
     ElkStaticArena *arena = &arena_instance;
 
-    elk_static_arena_init(arena, sizeof(buffer), buffer);
+    elk_static_arena_create(arena, sizeof(buffer), buffer);
 
     double *first = elk_allocator_malloc(arena, double);
     Assert(first);
