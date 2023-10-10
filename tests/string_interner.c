@@ -8,7 +8,7 @@
  *
  *-------------------------------------------------------------------------------------------------------------------------*/
 
-char *some_strings[] = 
+static char *some_strings[] = 
 {
     "vegemite", "cantaloupe",    "poutine",    "cottonwood trees", "x",
     "y",        "peanut butter", "jelly time", "strawberries",     "and cream",

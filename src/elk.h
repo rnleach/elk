@@ -123,8 +123,8 @@ inline uint64_t elk_fnv1a_hash_accumulate(size_t const size_bytes, void const *v
 
 typedef struct ElkStr 
 {
-    char *start;      // points at first character in the string.
-    size_t len;       // the length of the string (not including a null terminator if it's there).
+    char *start;      // points at first character in the string
+    size_t len;       // the length of the string (not including a null terminator if it's there)
 } ElkStr;
 
 inline ElkStr elk_str_from_cstring(char *src);
@@ -409,6 +409,45 @@ inline void elk_array_ledger_reset(ElkArrayLedger *array);
 inline void elk_array_ledger_set_capacity(ElkArrayLedger *array, size_t capacity);
 
 /*---------------------------------------------------------------------------------------------------------------------------
+ *                                         
+ *                                                  Unordered Collections
+ *
+ *-------------------------------------------------------------------------------------------------------------------------*/
+
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                    Hash Map (Table)
+ *---------------------------------------------------------------------------------------------------------------------------
+ * The table size must be a power of two, so size_exp is used to calcualte the size of the table. If it needs to grow in 
+ * size, it will grow the table, so this is only a starting point.
+ *
+ * The ELkHashMap does NOT copy any objects, so it only store pointers. The user has to manage the memory for their own
+ * objects.
+ */
+typedef struct ElkHashMap ElkHashMap;
+
+typedef bool (*ElkEqFunction)(void *left, void *right);
+typedef uint64_t (*ElkSimpleHash)(void const *object); // Already knows the size of the object to be hashed!
+
+extern ElkHashMap *elk_hash_map_create(int8_t size_exp, ElkSimpleHash key_hash, ElkEqFunction key_eq);
+extern void elk_hash_map_destroy(ElkHashMap *map);
+extern void *elk_hash_map_insert(ElkHashMap *map, void *key, void *value); // if return != value, key was already in the map
+extern void *elk_hash_map_lookup(ElkHashMap *map, void *key); // return NULL if not in map, otherwise return pointer to value
+
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                            Hash Map (Table, ElkStr as keys)
+ *---------------------------------------------------------------------------------------------------------------------------
+ * Designed for use when keys are strings. If the key_hash is NULL, it just uses the fnv1a has function.
+ *
+ * Values are not copied, they are stored as pointers, so the user must manage memory.
+ */
+typedef struct ElkStrMap ElkStrMap;
+
+extern ElkStrMap *elk_str_map_create(int8_t size_exp, ElkHashFunction key_hash); // if key_hash is NULL, uses fnv1a
+extern void elk_str_map_destroy(ElkStrMap *map);
+extern void *elk_str_map_insert(ElkStrMap *map, ElkStr key, void *value); // if return != value, key was already in the map
+extern void *elk_str_map_lookup(ElkStrMap *map, ElkStr key); // return NULL if not in map, otherwise return pointer to value
+
+/*---------------------------------------------------------------------------------------------------------------------------
  *
  *
  *
@@ -595,6 +634,8 @@ inline int
 elk_str_cmp(ElkStr left, ElkStr right)
 {
     Assert(left.start && right.start);
+
+    if(left.start == right.start && left.len == right.len) { return 0; }
 
     size_t len = left.len > right.len ? right.len : left.len;
 

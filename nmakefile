@@ -31,7 +31,8 @@ TEST_OBJS = tests/test.obj            \
 			tests/generic_alloc.obj   \
 			tests/queue_ledger.obj    \
 			tests/parse.obj           \
-			tests/array_ledger.obj
+			tests/array_ledger.obj    \
+			tests/hash_tables.obj
 
 LIB_OBJ = src/elk.obj
 

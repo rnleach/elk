@@ -455,14 +455,14 @@ elk_string_interner_destroy(ElkStringInterner *interner)
 }
 
 static bool
-elk_string_interner_table_large_enough(ElkStringInterner const *interner)
+elk_hash_table_large_enough(size_t num_handles, int8_t size_exp)
 {
     // Shoot for no more than 50% of slots filled.
-    return interner->num_handles <= (1 << (interner->size_exp - 1));
+    return num_handles <= (1 << (size_exp - 1));
 }
 
 static uint32_t
-elk_string_interner_lookup(uint64_t hash, int8_t exp, uint32_t idx)
+elk_hash_lookup(uint64_t hash, int8_t exp, uint32_t idx)
 {
     // Copied from https://nullprogram.com/blog/2022/08/08
     // All code & writing on this blog is in the public domain.
@@ -494,7 +494,7 @@ elk_string_interner_expand_table(ElkStringInterner *interner)
         uint32_t j = hash; // This truncates, but it's OK, the *_lookup function takes care of it.
         while (true) 
         {
-            j = elk_string_interner_lookup(hash, new_size_exp, j);
+            j = elk_hash_lookup(hash, new_size_exp, j);
             ElkStringInternerHandle *new_handle = &new_handles[j];
 
             if (!new_handle->str.start)
@@ -536,13 +536,13 @@ elk_string_interner_intern(ElkStringInterner *interner, ElkStr str)
     uint32_t i = hash; // I know it truncates, but it's OK, the *_lookup function takes care of it.
     while (true)
     {
-        i = elk_string_interner_lookup(hash, interner->size_exp, i);
+        i = elk_hash_lookup(hash, interner->size_exp, i);
         ElkStringInternerHandle *handle = &interner->handles[i];
 
         if (!handle->str.start)
         {
             // empty, insert here if room in the table of handles. Check for room first!
-            if (elk_string_interner_table_large_enough(interner))
+            if (elk_hash_table_large_enough(interner->num_handles, interner->size_exp))
             {
 
                 char *dest = elk_allocator_nmalloc(&interner->storage, str.len + 1, char);
@@ -655,4 +655,348 @@ extern int64_t elk_array_ledger_push_back_index(ElkArrayLedger *array);
 extern size_t elk_array_ledger_len(ElkArrayLedger const *array);
 extern void elk_array_ledger_reset(ElkArrayLedger *array);
 extern void elk_array_ledger_set_capacity(ElkArrayLedger *array, size_t capacity);
+
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                         
+ *                                                  Unordered Collections
+ *
+ *-------------------------------------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                    Hash Map (Table)
+ *-------------------------------------------------------------------------------------------------------------------------*/
+typedef struct 
+{
+    uint64_t hash;
+    void *key;
+	void *value;
+} ElkHashMapHandle;
+
+struct ElkHashMap
+{
+	int8_t size_exp;
+	ElkHashMapHandle *handles;
+    size_t num_handles;
+    ElkSimpleHash hasher;
+    ElkEqFunction eq;
+};
+
+ElkHashMap *
+elk_hash_map_create(int8_t size_exp, ElkSimpleHash key_hash, ElkEqFunction key_eq)
+{
+    Assert(size_exp > 0 && size_exp <= 31);                 // Come on, 31 is HUGE
+
+    size_t const handles_len = 1 << size_exp;
+    ElkHashMapHandle *handles = calloc(handles_len, sizeof(*handles));
+    Assert(handles);
+
+    ElkHashMap *map = malloc(sizeof(*map));
+
+    *map = (ElkHashMap)
+    {
+        .size_exp = size_exp,
+        .handles = handles,
+        .num_handles = 0, 
+        .hasher = key_hash,
+        .eq = key_eq
+    };
+
+    return map;
+}
+
+void 
+elk_hash_map_destroy(ElkHashMap *map)
+{
+    if(map)
+    {
+        free(map->handles);
+        free(map);
+    }
+}
+
+static void
+elk_hash_table_expand(ElkHashMap *map)
+{
+    int8_t const size_exp = map->size_exp;
+    int8_t const new_size_exp = size_exp + 1;
+
+    size_t const handles_len = 1 << size_exp;
+    size_t const new_handles_len = 1 << new_size_exp;
+
+    ElkHashMapHandle *new_handles = calloc(new_handles_len, sizeof(*new_handles));
+    Assert(new_handles);
+
+    for (uint32_t i = 0; i < handles_len; i++) 
+    {
+        ElkHashMapHandle *handle = &map->handles[i];
+
+        if (handle->key == NULL) { continue; } // Skip if it's empty
+
+        // Find the position in the new table and update it.
+        uint64_t const hash = handle->hash;
+        uint32_t j = hash; // This truncates, but it's OK, the *_lookup function takes care of it.
+        while (true) 
+        {
+            j = elk_hash_lookup(hash, new_size_exp, j);
+            ElkHashMapHandle *new_handle = &new_handles[j];
+
+            if (!new_handle->key)
+            {
+                // empty - put it here. Don't need to check for room because we just expanded
+                // the hash table of handles, and we're not copying anything new into storage,
+                // it's already there!
+                *new_handle = *handle;
+                break;
+            }
+        }
+    }
+
+    free(map->handles);
+    map->handles = new_handles;
+    map->size_exp = new_size_exp;
+
+    return;
+}
+
+void *
+elk_hash_map_insert(ElkHashMap *map, void *key, void *value)
+{
+    Assert(map);
+
+    // Inspired by https://nullprogram.com/blog/2022/08/08
+    // All code & writing on this blog is in the public domain.
+
+    uint64_t const hash = map->hasher(key);
+    uint32_t i = hash; // I know it truncates, but it's OK, the *_lookup function takes care of it.
+    while (true)
+    {
+        i = elk_hash_lookup(hash, map->size_exp, i);
+        ElkHashMapHandle *handle = &map->handles[i];
+
+        if (!handle->key)
+        {
+            // empty, insert here if room in the table of handles. Check for room first!
+            if (elk_hash_table_large_enough(map->num_handles, map->size_exp))
+            {
+
+                *handle = (ElkHashMapHandle){.hash = hash, .key=key, .value=value};
+                map->num_handles += 1;
+
+                return handle->value;
+            }
+            else 
+            {
+                // Grow the table so we have room
+                elk_hash_table_expand(map);
+
+                // Recurse because all the state needed by the *_lookup function was just crushed
+                // by the expansion of the table.
+                return elk_hash_map_insert(map, key, value);
+            }
+        }
+        else if (handle->hash == hash && map->eq(handle->key, key)) 
+        {
+            // found it!
+            return handle->value;
+        }
+    }
+
+    return NULL;
+}
+
+void *
+elk_hash_map_lookup(ElkHashMap *map, void *key)
+{
+    Assert(map);
+
+    // Inspired by https://nullprogram.com/blog/2022/08/08
+    // All code & writing on this blog is in the public domain.
+
+    uint64_t const hash = map->hasher(key);
+    uint32_t i = hash; // I know it truncates, but it's OK, the *_lookup function takes care of it.
+    while (true)
+    {
+        i = elk_hash_lookup(hash, map->size_exp, i);
+        ElkHashMapHandle *handle = &map->handles[i];
+
+        if (!handle->key)
+        {
+            return NULL;
+            
+        }
+        else if (handle->hash == hash && map->eq(handle->key, key)) 
+        {
+            // found it!
+            return handle->value;
+        }
+    }
+
+    return NULL;
+}
+
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                            Hash Map (Table, ElkStr as keys)
+ *-------------------------------------------------------------------------------------------------------------------------*/
+typedef struct
+{
+    uint64_t hash;
+    ElkStr key;
+	void *value;
+} ElkStrMapHandle;
+
+struct ElkStrMap
+{
+	int8_t size_exp;
+	ElkStrMapHandle *handles;
+    size_t num_handles;
+    ElkHashFunction hasher;
+};
+
+ElkStrMap *
+elk_str_map_create(int8_t size_exp, ElkHashFunction key_hash)
+{
+    Assert(size_exp > 0 && size_exp <= 31);                 // Come on, 31 is HUGE
+
+    size_t const handles_len = 1 << size_exp;
+    ElkStrMapHandle *handles = calloc(handles_len, sizeof(*handles));
+    Assert(handles);
+
+    ElkHashFunction hasher = elk_fnv1a_hash;
+    if(key_hash) { hasher = key_hash; }
+
+    ElkStrMap *map = malloc(sizeof(*map));
+
+    *map = (ElkStrMap)
+    {
+        .size_exp = size_exp,
+        .handles = handles,
+        .num_handles = 0, 
+        .hasher = hasher
+    };
+
+    return map;
+}
+
+void
+elk_str_map_destroy(ElkStrMap *map)
+{
+    if(map)
+    {
+        free(map->handles);
+        free(map);
+    }
+}
+
+static void
+elk_str_table_expand(ElkStrMap *map)
+{
+    int8_t const size_exp = map->size_exp;
+    int8_t const new_size_exp = size_exp + 1;
+
+    size_t const handles_len = 1 << size_exp;
+    size_t const new_handles_len = 1 << new_size_exp;
+
+    ElkStrMapHandle *new_handles = calloc(new_handles_len, sizeof(*new_handles));
+    Assert(new_handles);
+
+    for (uint32_t i = 0; i < handles_len; i++) 
+    {
+        ElkStrMapHandle *handle = &map->handles[i];
+
+        if (handle->key.start == NULL) { continue; } // Skip if it's empty
+
+        // Find the position in the new table and update it.
+        uint64_t const hash = handle->hash;
+        uint32_t j = hash; // This truncates, but it's OK, the *_lookup function takes care of it.
+        while (true) 
+        {
+            j = elk_hash_lookup(hash, new_size_exp, j);
+            ElkStrMapHandle *new_handle = &new_handles[j];
+
+            if (!new_handle->key.start)
+            {
+                // empty - put it here. Don't need to check for room because we just expanded
+                // the hash table of handles, and we're not copying anything new into storage,
+                // it's already there!
+                *new_handle = *handle;
+                break;
+            }
+        }
+    }
+
+    free(map->handles);
+    map->handles = new_handles;
+    map->size_exp = new_size_exp;
+
+    return;
+}
+
+void *
+elk_str_map_insert(ElkStrMap *map, ElkStr key, void *value)
+{
+    Assert(map);
+
+    // Inspired by https://nullprogram.com/blog/2022/08/08
+    // All code & writing on this blog is in the public domain.
+
+    uint64_t const hash = map->hasher(key.len, key.start);
+    uint32_t i = hash; // I know it truncates, but it's OK, the *_lookup function takes care of it.
+    while (true)
+    {
+        i = elk_hash_lookup(hash, map->size_exp, i);
+        ElkStrMapHandle *handle = &map->handles[i];
+
+        if (!handle->key.start)
+        {
+            // empty, insert here if room in the table of handles. Check for room first!
+            if (elk_hash_table_large_enough(map->num_handles, map->size_exp))
+            {
+
+                *handle = (ElkStrMapHandle){.hash = hash, .key=key, .value=value};
+                map->num_handles += 1;
+
+                return handle->value;
+            }
+            else 
+            {
+                // Grow the table so we have room
+                elk_str_table_expand(map);
+
+                // Recurse because all the state needed by the *_lookup function was just crushed
+                // by the expansion of the table.
+                return elk_str_map_insert(map, key, value);
+            }
+        }
+        else if (handle->hash == hash && !elk_str_cmp(key, handle->key)) 
+        {
+            // found it!
+            return handle->value;
+        }
+    }
+}
+
+void *
+elk_str_map_lookup(ElkStrMap *map, ElkStr key)
+{
+    Assert(map);
+
+    // Inspired by https://nullprogram.com/blog/2022/08/08
+    // All code & writing on this blog is in the public domain.
+
+    uint64_t const hash = map->hasher(key.len, key.start);
+    uint32_t i = hash; // I know it truncates, but it's OK, the *_lookup function takes care of it.
+    while (true)
+    {
+        i = elk_hash_lookup(hash, map->size_exp, i);
+        ElkStrMapHandle *handle = &map->handles[i];
+
+        if (!handle->key.start) { return NULL; }
+        else if (handle->hash == hash && !elk_str_cmp(key, handle->key)) 
+        {
+            // found it!
+            return handle->value;
+        }
+    }
+
+    return NULL;
+}
 

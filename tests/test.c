@@ -19,6 +19,7 @@ main(void)
     elk_string_interner_tests();
     elk_queue_ledger_tests();
     elk_array_ledger_tests();
+    elk_hash_table_tests();
 
     printf("\n\n*** Tests completed successfully. ***\n\n");
     return EXIT_SUCCESS;
