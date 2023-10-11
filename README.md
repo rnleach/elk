@@ -57,6 +57,7 @@
   - Added functions to parse string into int64_t, double, or ElkTime values.
   - Added substring function.
   - Added function to create ElkTime from year, day of year, hours, minutes, and seconds.
+  - Added a general hashmap and one specialized for strings as keys.
   - Trimmed down dependencies on the standard library.
   - Remove Doxygen, just read the header file.
 
