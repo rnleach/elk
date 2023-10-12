@@ -834,6 +834,29 @@ elk_hash_map_lookup(ElkHashMap *map, void *key)
     return NULL;
 }
 
+ElkHashMapKeyIter 
+elk_hash_map_key_iter(ElkHashMap *map)
+{
+	return 0;
+}
+
+void *
+elk_hash_map_key_iter_next(ElkHashMap *map, ElkHashMapKeyIter *iter)
+{
+	size_t const max_iter = (1 << map->size_exp);
+	void *next_key = NULL;
+	if(*iter >= max_iter) { return next_key; }
+
+	do
+	{
+		next_key = map->handles[*iter].key;
+		*iter += 1;
+
+	} while(next_key == NULL && *iter < max_iter);
+
+	return next_key;
+}
+
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                            Hash Map (Table, ElkStr as keys)
  *-------------------------------------------------------------------------------------------------------------------------*/
@@ -994,5 +1017,31 @@ elk_str_map_lookup(ElkStrMap *map, ElkStr key)
     }
 
     return NULL;
+}
+
+ElkHashMapKeyIter 
+elk_str_map_key_iter(ElkStrMap *map)
+{
+	return 0;
+}
+
+ElkStr 
+elk_str_map_key_iter_next(ElkStrMap *map, ElkStrMapKeyIter *iter)
+{
+	size_t const max_iter = (1 << map->size_exp);
+	if(*iter >= max_iter) 
+	{
+		return (ElkStr){.start=NULL, .len=0};
+	}
+
+	ElkStr next_key = map->handles[*iter].key;
+	*iter += 1;
+	while(next_key.start == NULL && *iter < max_iter)
+	{
+		next_key = map->handles[*iter].key;
+		*iter += 1;
+	}
+
+	return next_key;
 }
 

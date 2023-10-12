@@ -427,13 +427,17 @@ inline void elk_array_ledger_set_capacity(ElkArrayLedger *array, size_t capacity
  * objects.
  */
 typedef struct ElkHashMap ElkHashMap;
+typedef size_t ElkHashMapKeyIter;
 
 extern ElkHashMap *elk_hash_map_create(int8_t size_exp, ElkSimpleHash key_hash, ElkEqFunction key_eq);
 extern void elk_hash_map_destroy(ElkHashMap *map);
 extern void *elk_hash_map_insert(ElkHashMap *map, void *key, void *value); // if return != value, key was already in the map
 extern void *elk_hash_map_lookup(ElkHashMap *map, void *key); // return NULL if not in map, otherwise return pointer to value
+extern ElkHashMapKeyIter elk_hash_map_key_iter(ElkHashMap *map);
 
-/*---------------------------------------------------------------------------------------------------------------------------
+extern void *elk_hash_map_key_iter_next(ElkHashMap *map, ElkHashMapKeyIter *iter);
+
+/*--------------------------------------------------------------------------------------------------------------------------
  *                                            Hash Map (Table, ElkStr as keys)
  *---------------------------------------------------------------------------------------------------------------------------
  * Designed for use when keys are strings. If the key_hash is NULL, it just uses the fnv1a has function.
@@ -443,11 +447,15 @@ extern void *elk_hash_map_lookup(ElkHashMap *map, void *key); // return NULL if 
  * Uses fnv1a hash.
  */
 typedef struct ElkStrMap ElkStrMap;
+typedef size_t ElkStrMapKeyIter;
 
 extern ElkStrMap *elk_str_map_create(int8_t size_exp);
 extern void elk_str_map_destroy(ElkStrMap *map);
 extern void *elk_str_map_insert(ElkStrMap *map, ElkStr key, void *value); // if return != value, key was already in the map
 extern void *elk_str_map_lookup(ElkStrMap *map, ElkStr key); // return NULL if not in map, otherwise return pointer to value
+extern ElkHashMapKeyIter elk_str_map_key_iter(ElkStrMap *map);
+
+extern ElkStr elk_str_map_key_iter_next(ElkStrMap *map, ElkStrMapKeyIter *iter);
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *
