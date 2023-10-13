@@ -1218,7 +1218,7 @@ elk_hash_set_lookup(ElkHashSet *set, void *value)
 }
 
 ElkHashSetIter
-elk_hash_set_key_iter(ElkHashSet *set)
+elk_hash_set_value_iter(ElkHashSet *set)
 {
     return 0;
 }

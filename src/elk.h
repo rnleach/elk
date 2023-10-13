@@ -473,7 +473,7 @@ extern ElkHashSet *elk_hash_set_create(int8_t size_exp, ElkSimpleHash val_hash, 
 extern void elk_hash_set_destroy(ElkHashSet *set);
 extern void *elk_hash_set_insert(ElkHashSet *set, void *value); // if return != value, value was already in the set
 extern void *elk_hash_set_lookup(ElkHashSet *set, void *value); // return NULL if not in set, otherwise return ptr to value
-extern ElkHashSetIter elk_hash_set_key_iter(ElkHashSet *set);
+extern ElkHashSetIter elk_hash_set_value_iter(ElkHashSet *set);
 
 extern void *elk_hash_set_value_iter_next(ElkHashSet *set, ElkHashSetIter *iter);
 

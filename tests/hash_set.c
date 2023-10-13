@@ -58,6 +58,48 @@ test_elk_hash_set(void)
     elk_hash_set_destroy(set);
 }
 
+static void
+test_elk_hash_set_iter(void)
+{
+    ElkStr strs[NUM_TEST_STRINGS] = {0};
+    for(int i = 0; i < NUM_TEST_STRINGS; ++i)
+    {
+        strs[i] = elk_str_from_cstring(some_strings[i]);
+    }
+
+
+    ElkHashSet *set = elk_hash_set_create(2, simple_str_hash, str_eq);
+    for(int i = 0; i < NUM_TEST_STRINGS; ++i)
+    {
+        ElkStr *str = elk_hash_set_insert(set, &strs[i]);
+        Assert(str == &strs[i]);
+    }
+
+    ElkHashSetIter iter = elk_hash_set_value_iter(set);
+    ElkStr *next = elk_hash_set_value_iter_next(set, &iter);
+    int found_count = 0;
+    while(next)
+    {
+        bool found = false;
+        for(int i = 0; i < NUM_TEST_STRINGS; ++i)
+        {
+            if(&strs[i] == next) 
+            { 
+                found_count += 1;
+                found = true;
+                break;
+            }
+        }
+
+        Assert(found);
+
+        next = elk_hash_set_value_iter_next(set, &iter);
+    }
+    Assert(found_count == NUM_TEST_STRINGS);
+
+    elk_hash_set_destroy(set);
+}
+
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                       All tests
  *-------------------------------------------------------------------------------------------------------------------------*/
@@ -65,4 +107,5 @@ void
 elk_hash_set_tests()
 {
     test_elk_hash_set();
+    test_elk_hash_set_iter();
 }
