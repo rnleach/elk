@@ -52,7 +52,7 @@
 
 ## Releases
 
-### Version 2.1.0 - IN PROGRESS
+### Version 3.0.0 - IN PROGRESS
   - (XXXX-XX-XX) NOTES ON REVISIONS
   - Added functions to parse string into int64_t, double, or ElkTime values.
   - Added substring function.
