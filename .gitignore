@@ -4,6 +4,18 @@ tags
 .vscode
 .gdb*
 
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+Generated\ Files/
+.vs
+*.sln
+*.vcproj
+*.vcxproj
+
 # Project layout
 debug
 release
