@@ -108,7 +108,7 @@ inline ElkStr elk_str_copy(size_t dst_len, char *restrict dest, ElkStr src);
 inline ElkStr elk_str_strip(ElkStr input);                        // Strips leading and trailing whitespace
 inline ElkStr elk_str_substr(ElkStr str, int start, int len);     // Create a substring from a longer string
 inline int elk_str_case_sensitive_cmp(ElkStr left, ElkStr right); // returns 0 if equal, -1 if left is first, 1 otherwise
-inline bool elk_str_eq(ElkStr left, ElkStr right);                // Faster than elk_str_cmp because it checks length first
+inline bool elk_str_eq(ElkStr const left, ElkStr const right);    // Faster than elk_str_cmp because it checks length first
 
 /* Parsing values from strings.
  *
@@ -139,7 +139,7 @@ extern bool elk_str_parse_datetime(ElkStr str, ElkTime *out);
  * for each remaining member of the struct. This will leave the padding out of the calculation, which is good because we
  * cannot guarantee what is in the padding.
  */
-typedef bool (*ElkEqFunction)(void *left, void *right);
+typedef bool (*ElkEqFunction)(void const *left, void const *right);
 
 typedef uint64_t (*ElkHashFunction)(size_t const size_bytes, void const *value);
 typedef uint64_t (*ElkSimpleHash)(void const *object); // Already knows the size of the object to be hashed!
@@ -423,7 +423,7 @@ inline void elk_array_ledger_set_capacity(ElkArrayLedger *array, size_t capacity
  * The table size must be a power of two, so size_exp is used to calcualte the size of the table. If it needs to grow in 
  * size, it will grow the table, so this is only a starting point.
  *
- * The ELkHashMap does NOT copy any objects, so it only store pointers. The user has to manage the memory for their own
+ * The ELkHashMap does NOT copy any objects, so it only stores pointers. The user has to manage the memory for their own
  * objects.
  */
 typedef struct ElkHashMap ElkHashMap;
@@ -456,6 +456,26 @@ extern void *elk_str_map_lookup(ElkStrMap *map, ElkStr key); // return NULL if n
 extern ElkHashMapKeyIter elk_str_map_key_iter(ElkStrMap *map);
 
 extern ElkStr elk_str_map_key_iter_next(ElkStrMap *map, ElkStrMapKeyIter *iter);
+
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                        Hash Set
+ *---------------------------------------------------------------------------------------------------------------------------
+ * The table size must be a power of two, so size_exp is used to calcualte the size of the table. If it needs to grow in 
+ * size, it will grow the table, so this is only a starting point.
+ *
+ * The ELkHashSet does NOT copy any objects, so it only stores pointers. The user has to manage the memory for their own
+ * objects.
+ */
+typedef struct ElkHashSet ElkHashSet;
+typedef size_t ElkHashSetIter;
+
+extern ElkHashSet *elk_hash_set_create(int8_t size_exp, ElkSimpleHash val_hash, ElkEqFunction val_eq);
+extern void elk_hash_set_destroy(ElkHashSet *set);
+extern void *elk_hash_set_insert(ElkHashSet *set, void *value); // if return != value, value was already in the set
+extern void *elk_hash_set_lookup(ElkHashSet *set, void *value); // return NULL if not in set, otherwise return ptr to value
+extern ElkHashSetIter elk_hash_set_key_iter(ElkHashSet *set);
+
+extern void *elk_hash_set_value_iter_next(ElkHashSet *set, ElkHashSetIter *iter);
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *
@@ -640,7 +660,7 @@ elk_str_cmp(ElkStr left, ElkStr right)
 }
 
 inline bool
-elk_str_eq(ElkStr left, ElkStr right)
+elk_str_eq(ElkStr const left, ElkStr const right)
 {
     Assert(left.start && right.start);
 

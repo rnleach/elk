@@ -107,10 +107,10 @@ id_hash(void const *value)
 }
 
 static bool
-int64_eq(void *left, void *right)
+int64_eq(void const *left, void const *right)
 {
-    int64_t *ileft = left;
-    int64_t *iright = right;
+    int64_t const *ileft = left;
+    int64_t const *iright = right;
     return *ileft == *iright;
 }
 

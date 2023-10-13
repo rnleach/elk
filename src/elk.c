@@ -1045,3 +1045,198 @@ elk_str_map_key_iter_next(ElkStrMap *map, ElkStrMapKeyIter *iter)
 	return next_key;
 }
 
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                        Hash Set
+ *-------------------------------------------------------------------------------------------------------------------------*/
+
+typedef struct
+{
+    uint64_t hash;
+	void *value;
+} ElkHashSetHandle;
+
+struct ElkHashSet
+{
+	int8_t size_exp;
+	ElkHashSetHandle *handles;
+    size_t num_handles;
+    ElkSimpleHash hasher;
+    ElkEqFunction eq;
+};
+
+ElkHashSet *
+elk_hash_set_create(int8_t size_exp, ElkSimpleHash val_hash, ElkEqFunction val_eq)
+{
+    Assert(size_exp > 0 && size_exp <= 31);                 // Come on, 31 is HUGE
+
+    size_t const handles_len = 1 << size_exp;
+    ElkHashSetHandle *handles = calloc(handles_len, sizeof(*handles));
+    Assert(handles);
+
+    ElkHashSet *set = malloc(sizeof(*set));
+
+    *set = (ElkHashSet)
+    {
+        .size_exp = size_exp,
+        .handles = handles,
+        .num_handles = 0, 
+        .hasher = val_hash,
+        .eq = val_eq
+    };
+
+    return set;
+}
+
+void 
+elk_hash_set_destroy(ElkHashSet *set)
+{
+    if(set)
+    {
+        free(set->handles);
+        free(set);
+    }
+}
+
+static void
+elk_hash_set_expand(ElkHashSet *set)
+{
+    int8_t const size_exp = set->size_exp;
+    int8_t const new_size_exp = size_exp + 1;
+
+    size_t const handles_len = 1 << size_exp;
+    size_t const new_handles_len = 1 << new_size_exp;
+
+    ElkHashSetHandle *new_handles = calloc(new_handles_len, sizeof(*new_handles));
+    Assert(new_handles);
+
+    for (uint32_t i = 0; i < handles_len; i++) 
+    {
+        ElkHashSetHandle *handle = &set->handles[i];
+
+        if (handle->value == NULL) { continue; } // Skip if it's empty
+
+        // Find the position in the new table and update it.
+        uint64_t const hash = handle->hash;
+        uint32_t j = hash; // This truncates, but it's OK, the *_lookup function takes care of it.
+        while (true) 
+        {
+            j = elk_hash_lookup(hash, new_size_exp, j);
+            ElkHashSetHandle *new_handle = &new_handles[j];
+
+            if (!new_handle->value)
+            {
+                // empty - put it here. Don't need to check for room because we just expanded
+                // the hash table of handles, and we're not copying anything new into storage,
+                // it's already there!
+                *new_handle = *handle;
+                break;
+            }
+        }
+    }
+
+    free(set->handles);
+    set->handles = new_handles;
+    set->size_exp = new_size_exp;
+
+    return;
+}
+
+void *
+elk_hash_set_insert(ElkHashSet *set, void *value)
+{
+    Assert(set);
+
+    // Inspired by https://nullprogram.com/blog/2022/08/08
+    // All code & writing on this blog is in the public domain.
+
+    uint64_t const hash = set->hasher(value);
+    uint32_t i = hash; // I know it truncates, but it's OK, the *_lookup function takes care of it.
+    while (true)
+    {
+        i = elk_hash_lookup(hash, set->size_exp, i);
+        ElkHashSetHandle *handle = &set->handles[i];
+
+        if (!handle->value)
+        {
+            // empty, insert here if room in the table of handles. Check for room first!
+            if (elk_hash_table_large_enough(set->num_handles, set->size_exp))
+            {
+
+                *handle = (ElkHashSetHandle){.hash = hash, .value=value};
+                set->num_handles += 1;
+
+                return handle->value;
+            }
+            else 
+            {
+                // Grow the table so we have room
+                elk_hash_set_expand(set);
+
+                // Recurse because all the state needed by the *_lookup function was just crushed
+                // by the expansion of the set.
+                return elk_hash_set_insert(set, value);
+            }
+        }
+        else if (handle->hash == hash && set->eq(handle->value, value)) 
+        {
+            // found it!
+            return handle->value;
+        }
+    }
+
+    return NULL;
+}
+
+
+void *
+elk_hash_set_lookup(ElkHashSet *set, void *value)
+{
+    Assert(set);
+
+    // Inspired by https://nullprogram.com/blog/2022/08/08
+    // All code & writing on this blog is in the public domain.
+
+    uint64_t const hash = set->hasher(value);
+    uint32_t i = hash; // I know it truncates, but it's OK, the *_lookup function takes care of it.
+    while (true)
+    {
+        i = elk_hash_lookup(hash, set->size_exp, i);
+        ElkHashSetHandle *handle = &set->handles[i];
+
+        if (!handle->value)
+        {
+            return NULL;
+        }
+        else if (handle->hash == hash && set->eq(handle->value, value)) 
+        {
+            // found it!
+            return handle->value;
+        }
+    }
+
+    return NULL;
+}
+
+ElkHashSetIter
+elk_hash_set_key_iter(ElkHashSet *set)
+{
+    return 0;
+}
+
+void *
+elk_hash_set_value_iter_next(ElkHashSet *set, ElkHashSetIter *iter)
+{
+	size_t const max_iter = (1 << set->size_exp);
+	void *next_value = NULL;
+	if(*iter >= max_iter) { return next_value; }
+
+	do
+	{
+		next_value = set->handles[*iter].value;
+		*iter += 1;
+
+	} while(next_value == NULL && *iter < max_iter);
+
+	return next_value;
+}
+

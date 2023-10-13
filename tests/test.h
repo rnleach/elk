@@ -23,5 +23,6 @@ void elk_string_interner_tests(void);
 void elk_queue_ledger_tests(void);
 void elk_array_ledger_tests(void);
 void elk_hash_table_tests(void);
+void elk_hash_set_tests(void);
 
 #endif
