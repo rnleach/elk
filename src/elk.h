@@ -1,5 +1,5 @@
-#ifndef ELK_HEADER
-#define ELK_HEADER
+#ifndef _ELK_HEADER_
+#define _ELK_HEADER_
 
 #include <stdbool.h>
 #include <stdint.h>
