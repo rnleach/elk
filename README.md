@@ -1,7 +1,7 @@
 # elk - A general purpose C11 library.
 
   I like elk. They're really interesting, majestic animals. And did you know they have ivory?! So
-  I decided to name my ~~general purpose~~ utility C library after them. 
+  I decided to name my C utility library after them. 
  
  Goals and non-Goals:
   1. I only implement the things I need. If it's in here, I needed it at some point.
@@ -46,15 +46,13 @@
   header. I've given most of the inline functions (except the smallest) external linkage so they
   only get compiled into the final executable once, but have the best opportunities to get inlined.
   Some of the smallest functions are just `static inline`. This makes it hard to know what's
-  intended as public API and what isn't from the library. But if you can read comments formatted for
-  Doxygen, then you can follow along. If you have Doxygen, just use it to create the documentation
-  and read that.
+  intended as public API and what isn't from the library. So read the comments in the header file!
 
 ## Releases
 
 ### Version 3.0.0 - IN PROGRESS
   - (XXXX-XX-XX) NOTES ON REVISIONS
-  - Added functions to parse string into int64_t, double, or ElkTime values.
+  - Added functions to parse strings into int64_t, double, or ElkTime values.
   - Added substring function.
   - Added function to create ElkTime from year, day of year, hours, minutes, and seconds.
   - Added a general hashmap and one specialized for strings as keys.
