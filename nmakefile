@@ -22,18 +22,18 @@ CFLAGS = $(CFLAGS) /O2 /DNDEBUG /openmp:experimental /Qvec-report:1
 !ENDIF
 
 TEST_OBJS = tests/test.obj            \
-			tests/arena.obj           \
-			tests/fnv1a.obj           \
-			tests/pool.obj            \
-			tests/str.obj             \
-			tests/string_interner.obj \
-			tests/time.obj            \
-			tests/generic_alloc.obj   \
-			tests/queue_ledger.obj    \
-			tests/parse.obj           \
-			tests/array_ledger.obj    \
-			tests/hash_tables.obj     \
-			tests/hash_set.obj
+            tests/arena.obj           \
+            tests/fnv1a.obj           \
+            tests/pool.obj            \
+            tests/str.obj             \
+            tests/string_interner.obj \
+            tests/time.obj            \
+            tests/generic_alloc.obj   \
+            tests/queue_ledger.obj    \
+            tests/parse.obj           \
+            tests/array_ledger.obj    \
+            tests/hash_tables.obj     \
+            tests/hash_set.obj
 
 all: test.exe test
 
