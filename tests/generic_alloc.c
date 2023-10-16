@@ -1,7 +1,5 @@
 #include "test.h"
 
-#include <string.h>
-
 /*---------------------------------------------------------------------------------------------------------------------------
  *
  *                                           Tests for the Generic Memory API
@@ -116,7 +114,7 @@ static char *tst_strings[6] =
 };
 
 static char *
-copy_string_to_arena(ElkArenaAllocator *arena, char const *str)
+copy_string_to_arena(ElkStaticArena *arena, char const *str)
 {
     size_t len = strlen(str) + 1;
     char *dest = elk_allocator_nmalloc(arena, len, char);
@@ -137,10 +135,10 @@ static double test_doubles[6] = { 0.0, 1.0, 2.17, 3.14159, 9.81, 1.6666 };
 static void
 test_arena(void)
 {
-    // This is a really small block size, but we want to test the arena expansion as well.
-    ElkArenaAllocator arena_i = {0};
-    ElkArenaAllocator *arena = &arena_i;
-    elk_arena_create(arena, 50);
+	unsigned char buffer[ELK_KB(1)] = {0};
+    ElkStaticArena arena_i = {0};
+    ElkStaticArena *arena = &arena_i;
+    elk_static_arena_create(arena, sizeof(buffer), buffer);
 
     for (int trip_num = 1; trip_num <= 5; trip_num++) 
     {

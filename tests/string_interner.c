@@ -1,7 +1,5 @@
 #include "test.h"
 
-#include <string.h>
-
 /*---------------------------------------------------------------------------------------------------------------------------
  *
  *                                                 Test String Interner
@@ -23,7 +21,11 @@ test_string_interner(void)
 
     ElkStr strs[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
 
-    ElkStringInterner interner = elk_string_interner_create(3, 3);
+	unsigned char buffer[ELK_KB(2)] = {0};
+	ElkStaticArena arena_i = {0};
+	ElkStaticArena *arena = &arena_i;
+	elk_static_arena_create(arena, sizeof(buffer), buffer);
+    ElkStringInterner interner = elk_string_interner_create(3, arena);
     ElkStringInterner *internerp = &interner;
 
     // Fill the interner with strings!

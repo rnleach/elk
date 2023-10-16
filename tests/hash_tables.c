@@ -1,7 +1,5 @@
 #include "test.h"
 
-#include <string.h>
-
 /*---------------------------------------------------------------------------------------------------------------------------
  *
  *                                                 Test String Interner
@@ -25,7 +23,12 @@ test_elk_str_table(void)
 	int64_t values[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
 	int64_t values2[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
 
-	ElkStrMap map_ = elk_str_map_create(2); // Use a crazy small size_exp to force it to grow, this IS a test!
+	unsigned char buffer[ELK_KB(2)] = {0};
+	ElkStaticArena arena_i = {0};
+	ElkStaticArena *arena = &arena_i;
+	elk_static_arena_create(arena, sizeof(buffer), buffer);
+
+	ElkStrMap map_ = elk_str_map_create(2, arena); // Use a crazy small size_exp to force it to grow, this IS a test!
     ElkStrMap *map = &map_;
     Assert(map);
 
@@ -68,7 +71,12 @@ test_elk_str_key_iterator(void)
     ElkStr strs[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
 	int64_t values[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
 
-	ElkStrMap map_ = elk_str_map_create(2); // Use a crazy small size_exp to force it to grow, this IS a test!
+	unsigned char buffer[ELK_KB(2)] = {0};
+	ElkStaticArena arena_i = {0};
+	ElkStaticArena *arena = &arena_i;
+	elk_static_arena_create(arena, sizeof(buffer), buffer);
+
+	ElkStrMap map_ = elk_str_map_create(2, arena); // Use a crazy small size_exp to force it to grow, this IS a test!
     ElkStrMap *map = &map_;
     Assert(map);
 
@@ -132,8 +140,14 @@ test_elk_hash_table(void)
 		values2[i] = i;
 	}
 
+	// Set up memory
+	unsigned char buffer[ELK_KB(2)] = {0};
+	ElkStaticArena arena_i = {0};
+	ElkStaticArena *arena = &arena_i;
+	elk_static_arena_create(arena, sizeof(buffer), buffer);
+
 	// Fill the hashmap
-	ElkHashMap map_ = elk_hash_map_create(2, id_hash, int64_eq);
+	ElkHashMap map_ = elk_hash_map_create(2, id_hash, int64_eq, arena);
 	ElkHashMap *map = &map_;
 	for(int i = 0; i < NUM_KEYS; ++i)
 	{
@@ -173,8 +187,14 @@ test_elk_hash_key_iterator(void)
 		values[i] = i;
 	}
 
+	// Set up memory
+	unsigned char buffer[ELK_KB(2)] = {0};
+	ElkStaticArena arena_i = {0};
+	ElkStaticArena *arena = &arena_i;
+	elk_static_arena_create(arena, sizeof(buffer), buffer);
+
 	// Fill the hashmap
-	ElkHashMap map_ = elk_hash_map_create(2, id_hash, int64_eq);
+	ElkHashMap map_ = elk_hash_map_create(2, id_hash, int64_eq, arena);
 	ElkHashMap *map = &map_;
 	for(int i = 0; i < NUM_KEYS; ++i)
 	{

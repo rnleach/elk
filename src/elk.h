@@ -17,11 +17,7 @@
 // string.h
 void *memcpy(void *dst, void const *src, size_t num_bytes);
 void *memset(void *buffer, int val, size_t num_bytes);
-
-// stdlib.h
-void *malloc(size_t nbytes);
-void *calloc(size_t num, size_t size);
-void free(void *prt);
+int memcmp(const void *s1, const void *s2, size_t num_bytes);
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                       Error Handling
@@ -184,33 +180,6 @@ static inline void elk_static_arena_free(ElkStaticArena *arena, void *ptr); // U
     (type *) elk_static_arena_realloc((arena), (ptr), sizeof(type) * (count))
 
 /*---------------------------------------------------------------------------------------------------------------------------
- *                                                Growable Arena Allocator
- *---------------------------------------------------------------------------------------------------------------------------
- *
- * Reset is useful if you don't want to return the memory to the OS because you will reuse it soon, e.g. in a loop, but 
- * you're done with the objects allocated off it so far.
- *
- * WARNING: When using the reset function If there are multiple blocks allocated in the arena, they will be freed and a new
- * block the same size as the sum of all the previous blocks will be allocated in their place. If you want the memory to
- * shrink, then use elk_arena_destroy() followed by a call to elk_arena_create() to ensure that it doesn't remain larger
- * than needed.
- *
- * The alloc function returns NULL when it's out of space, but that should never happen unless the computer runs out of 
- * space.
- */
-typedef struct 
-{
-    ElkStaticArena head;
-} ElkArenaAllocator;
-
-static inline void elk_arena_create(ElkArenaAllocator *arena, intptr_t starting_block_size);
-static inline void elk_arena_destroy(ElkArenaAllocator *arena);
-static inline void elk_arena_reset(ElkArenaAllocator *arena);
-static inline void * elk_arena_alloc(ElkArenaAllocator *arena, intptr_t bytes, intptr_t alignment);  // returns NULL when out of space
-static inline void elk_arena_free(ElkArenaAllocator *arena, void *ptr); // Undo if it was last allocation, otherwise no-op
-// no elk_arena_realloc because cannot ensure pointer stability & consistent behavior w.r.t. returning NULL
-
-/*---------------------------------------------------------------------------------------------------------------------------
  *                                                  Static Pool Allocator
  *---------------------------------------------------------------------------------------------------------------------------
  *
@@ -288,31 +257,26 @@ elk_panic_allocator_alloc_aligned(void *arena, intptr_t size, intptr_t alignment
 
 #define elk_allocator_malloc(alloc, type) (type *)_Generic((alloc),                                                         \
         ElkStaticArena*: elk_static_arena_alloc,                                                                            \
-        ElkArenaAllocator*: elk_arena_alloc,                                                                                \
         ElkStaticPool*: elk_static_pool_alloc_aligned,                                                                      \
         default: elk_panic_allocator_alloc_aligned)(alloc, sizeof(type), _Alignof(type))
 
 #define elk_allocator_nmalloc(alloc, count, type) (type *)_Generic((alloc),                                                 \
         ElkStaticArena*: elk_static_arena_alloc,                                                                            \
-        ElkArenaAllocator*: elk_arena_alloc,                                                                                \
         ElkStaticPool*: elk_static_pool_alloc_aligned,                                                                      \
         default: elk_panic_allocator_alloc_aligned)(alloc, count * sizeof(type), _Alignof(type))
 
 #define elk_allocator_free(alloc, ptr) _Generic((alloc),                                                                    \
         ElkStaticArena*: elk_static_arena_free,                                                                             \
-        ElkArenaAllocator*: elk_arena_free,                                                                                 \
         ElkStaticPool*: elk_static_pool_free,                                                                               \
         default: elk_panic_allocator_free)(alloc, ptr)
 
 #define elk_allocator_reset(alloc) _Generic((alloc),                                                                        \
         ElkStaticArena*: elk_static_arena_reset,                                                                            \
-        ElkArenaAllocator*: elk_arena_reset,                                                                                \
         ElkStaticPool*: elk_static_pool_reset,                                                                              \
         default: elk_panic_allocator_reset)(alloc)
 
 #define elk_allocator_destroy(alloc) _Generic((alloc),                                                                      \
         ElkStaticArena*: elk_static_arena_destroy,                                                                          \
-        ElkArenaAllocator*: elk_arena_destroy,                                                                              \
         ElkStaticPool*: elk_static_pool_destroy,                                                                            \
         default: elk_panic_allocator_destroy)(alloc)
 
@@ -349,11 +313,6 @@ static inline uint64_t elk_fnv1a_hash_str(ElkStr str);
  *     However, if you know it will grow larger, it's better to start larger! For most reasonable use cases, it really
  *     probably shouldn't be smaller than 5, but no checks are done for this.
  *
- * avg_string_size - Is the expected average size of the strings. This isn't really important, because we can allocate more 
- *     storage if needed. But if you know you'll always be using small strings, make this a small number like 5 or 6 to
- *     prevent overallocating memory. If you aren't sure, still use a small number and the interner will grow the storage as
- *     necessary.
- *
  * NOTE: A cstring is a null terminated string of unknown length.
  *
  * NOTE: The interner copies any successfully interned string, so once it has been interned you can reclaim the memory that 
@@ -367,7 +326,7 @@ typedef struct // Internal only
 
 typedef struct 
 {
-    ElkArenaAllocator storage;        // This is where to store the strings
+    ElkStaticArena *storage;          // This is where to store the strings
 
     ElkStringInternerHandle *handles; // The hash table - handles index into storage
     uint32_t num_handles;             // The number of handles
@@ -375,7 +334,7 @@ typedef struct
 } ElkStringInterner;
 
 
-static inline ElkStringInterner elk_string_interner_create(int8_t size_exp, int avg_string_size);
+static inline ElkStringInterner elk_string_interner_create(int8_t size_exp, ElkStaticArena *storage);
 static inline void elk_string_interner_destroy(ElkStringInterner *interner);
 static inline ElkStr elk_string_interner_intern_cstring(ElkStringInterner *interner, char *string);
 static inline ElkStr elk_string_interner_intern(ElkStringInterner *interner, ElkStr str);
@@ -502,16 +461,17 @@ typedef struct // Internal Only
 
 typedef struct 
 {
-	int8_t size_exp;
+	ElkStaticArena *arena;
 	ElkHashMapHandle *handles;
     intptr_t num_handles;
     ElkSimpleHash hasher;
     ElkEqFunction eq;
+	int8_t size_exp;
 } ElkHashMap;
 
 typedef intptr_t ElkHashMapKeyIter;
 
-static inline ElkHashMap elk_hash_map_create(int8_t size_exp, ElkSimpleHash key_hash, ElkEqFunction key_eq);
+static inline ElkHashMap elk_hash_map_create(int8_t size_exp, ElkSimpleHash key_hash, ElkEqFunction key_eq, ElkStaticArena *arena);
 static inline void elk_hash_map_destroy(ElkHashMap *map);
 static inline void *elk_hash_map_insert(ElkHashMap *map, void *key, void *value); // if return != value, key was already in the map
 static inline void *elk_hash_map_lookup(ElkHashMap *map, void *key); // return NULL if not in map, otherwise return pointer to value
@@ -537,14 +497,15 @@ typedef struct // Internal only
 
 typedef struct 
 {
-	int8_t size_exp;
+	ElkStaticArena *arena;
 	ElkStrMapHandle *handles;
     intptr_t num_handles;
+	int8_t size_exp;
 } ElkStrMap;
 
 typedef intptr_t ElkStrMapKeyIter;
 
-static inline ElkStrMap elk_str_map_create(int8_t size_exp);
+static inline ElkStrMap elk_str_map_create(int8_t size_exp, ElkStaticArena *arena);
 static inline void elk_str_map_destroy(ElkStrMap *map);
 static inline void *elk_str_map_insert(ElkStrMap *map, ElkStr key, void *value); // if return != value, key was already in the map
 static inline void *elk_str_map_lookup(ElkStrMap *map, ElkStr key); // return NULL if not in map, otherwise return pointer to value
@@ -569,16 +530,17 @@ typedef struct // Internal only
 
 typedef struct 
 {
-	int8_t size_exp;
+	ElkStaticArena *arena;
 	ElkHashSetHandle *handles;
     intptr_t num_handles;
     ElkSimpleHash hasher;
     ElkEqFunction eq;
+	int8_t size_exp;
 } ElkHashSet;
 
 typedef intptr_t ElkHashSetIter;
 
-static inline ElkHashSet elk_hash_set_create(int8_t size_exp, ElkSimpleHash val_hash, ElkEqFunction val_eq);
+static inline ElkHashSet elk_hash_set_create(int8_t size_exp, ElkSimpleHash val_hash, ElkEqFunction val_eq, ElkStaticArena *arena);
 static inline void elk_hash_set_destroy(ElkHashSet *set);
 static inline void *elk_hash_set_insert(ElkHashSet *set, void *value); // if return != value, value was already in the set
 static inline void *elk_hash_set_lookup(ElkHashSet *set, void *value); // return NULL if not in set, otherwise return ptr to value
@@ -1164,18 +1126,14 @@ elk_fnv1a_hash_str(ElkStr str)
 }
 
 static inline ElkStringInterner 
-elk_string_interner_create(int8_t size_exp, int avg_string_size)
+elk_string_interner_create(int8_t size_exp, ElkStaticArena *storage)
 {
-    Assert(size_exp > 0 && size_exp <= 31);                 // Come on, 31 is HUGE
-    Assert(avg_string_size > 0 && avg_string_size <= 1000); // Come on, 1000 is a really big string.
+    Assert(size_exp > 0 && size_exp <= 31); // Come on, 31 is HUGE
+	Assert(storage && storage->buffer);
 
     size_t const handles_len = 1 << size_exp;
-    ElkStringInternerHandle *handles = calloc(handles_len, sizeof(*handles));
-    Assert(handles);
-
-    size_t const storage_len = avg_string_size * (handles_len / 4);
-    ElkArenaAllocator storage = {0};
-    elk_arena_create(&storage, storage_len);
+    ElkStringInternerHandle *handles = elk_allocator_nmalloc(storage, handles_len, ElkStringInternerHandle);
+	PanicIf(!handles);
 
     return (ElkStringInterner)
     {
@@ -1189,20 +1147,14 @@ elk_string_interner_create(int8_t size_exp, int avg_string_size)
 static inline void
 elk_string_interner_destroy(ElkStringInterner *interner)
 {
-    if (interner)
-    {
-        elk_arena_destroy(&interner->storage);
-        free(interner->handles);
-    }
-
     return;
 }
 
 static inline bool
 elk_hash_table_large_enough(size_t num_handles, int8_t size_exp)
 {
-    // Shoot for no more than 50% of slots filled.
-    return num_handles <= (1 << (size_exp - 1));
+    // Shoot for no more than 75% of slots filled.
+    return num_handles < 3 * (1 << size_exp) / 4;
 }
 
 static inline uint32_t
@@ -1224,8 +1176,8 @@ elk_string_interner_expand_table(ElkStringInterner *interner)
     size_t const handles_len = 1 << size_exp;
     size_t const new_handles_len = 1 << new_size_exp;
 
-    ElkStringInternerHandle *new_handles = calloc(new_handles_len, sizeof(*new_handles));
-    Assert(new_handles);
+    ElkStringInternerHandle *new_handles = elk_allocator_nmalloc(interner->storage, new_handles_len, ElkStringInternerHandle);
+    PanicIf(!new_handles);
 
     for (uint32_t i = 0; i < handles_len; i++) 
     {
@@ -1252,7 +1204,6 @@ elk_string_interner_expand_table(ElkStringInterner *interner)
         }
     }
 
-    free(interner->handles);
     interner->handles = new_handles;
     interner->size_exp = new_size_exp;
 
@@ -1288,8 +1239,8 @@ elk_string_interner_intern(ElkStringInterner *interner, ElkStr str)
             // empty, insert here if room in the table of handles. Check for room first!
             if (elk_hash_table_large_enough(interner->num_handles, interner->size_exp))
             {
-
-                char *dest = elk_allocator_nmalloc(&interner->storage, str.len + 1, char);
+                char *dest = elk_allocator_nmalloc(interner->storage, str.len + 1, char);
+				Assert(dest);
                 ElkStr interned_str = elk_str_copy(str.len + 1, dest, str);
 
                 *handle = (ElkStringInternerHandle){.hash = hash, .str = interned_str};
@@ -1430,143 +1381,6 @@ elk_static_arena_free(ElkStaticArena *arena, void *ptr)
     }
 
     return;
-}
-
-static inline void
-elk_arena_add_block(ElkArenaAllocator *arena, intptr_t block_size)
-{
-    uint32_t max_block_size = arena->head.buf_size > block_size ? arena->head.buf_size : block_size;
-    Assert(max_block_size > sizeof(ElkStaticArena));
-
-    unsigned char *buffer = calloc(max_block_size, 1);
-    PanicIf(!buffer);
-
-    ElkStaticArena next = arena->head;
-
-    elk_static_arena_create(&arena->head, max_block_size, buffer);
-    ElkStaticArena *next_ptr = elk_static_arena_alloc(&arena->head, sizeof(ElkStaticArena), _Alignof(ElkStaticArena));
-
-    *next_ptr = next;
-    return;
-}
-
-static inline void
-elk_arena_free_blocks(ElkArenaAllocator *arena)
-{
-    unsigned char *curr_buffer = arena->head.buffer;
-
-    // Relies on the first block's buffer being initialized to NULL
-    while (curr_buffer) 
-    {
-        // Copy next into head.
-        arena->head = *(ElkStaticArena *)&curr_buffer[0];
-
-        // Free the buffer
-        free(curr_buffer);
-
-        // Update to point to the next buffer
-        curr_buffer = arena->head.buffer;
-    }
-
-    return;
-}
-
-static inline void
-elk_arena_create(ElkArenaAllocator *arena, intptr_t starting_block_size)
-{
-    Assert(arena);
-	Assert(starting_block_size > 0);
-
-    intptr_t const min_size = sizeof(arena->head) + 8;
-    starting_block_size = starting_block_size > min_size ? starting_block_size : min_size;
-
-    // Zero everything out - important for the intrusive linked list used to keep track of how
-    // many blocks have been added. The NULL buffer signals the end of the list.
-    *arena = (ElkArenaAllocator)
-    {
-        .head = (ElkStaticArena)
-        {
-            .buffer = NULL, 
-            .buf_size = 0,
-            .buf_offset = 0,
-            .prev_ptr = NULL,
-            .prev_offset = 0
-        }
-    };
-
-    elk_arena_add_block(arena, starting_block_size);
-
-    return;
-}
-
-static inline void
-elk_arena_reset(ElkArenaAllocator *arena)
-{
-    Assert(arena);
-
-    // Get the total size in all the blocks
-    intptr_t sum_block_sizes = arena->head.buf_size;
-
-    // It's always placed at the very beginning of the buffer.
-    ElkStaticArena *next = (ElkStaticArena *)&arena->head.buffer[0];
-
-    // Relies on the first block's buffer being initialized to NULL in the arena creation.
-    while (next->buffer) 
-    {
-        sum_block_sizes += next->buf_size;
-        next = (ElkStaticArena *)&next->buffer[0];
-    }
-
-    if (sum_block_sizes > arena->head.buf_size)
-    {
-        // Free the blocks
-        elk_arena_free_blocks(arena);
-
-        // Re-initialize with a larger block size.
-        elk_arena_create(arena, sum_block_sizes);
-    }
-    else
-    {
-        // We only have one block, no reaseon to free and reallocate, but we need to maintain
-        // the header describing the "next" block.
-        arena->head.buf_offset = sizeof(ElkStaticArena);
-    }
-
-    return;
-}
-
-static inline void
-elk_arena_destroy(ElkArenaAllocator *arena)
-{
-    elk_arena_free_blocks(arena);
-    arena->head.buf_size = 0;
-    arena->head.buf_offset = 0;
-}
-
-static inline void
-elk_arena_free(ElkArenaAllocator *arena, void *ptr)
-{
-    elk_static_arena_free(&arena->head, ptr);
-
-    return;
-}
-
-static inline void *
-elk_arena_alloc(ElkArenaAllocator *arena, intptr_t bytes, intptr_t alignment)
-{
-    Assert(arena && arena->head.buffer);
-	Assert(bytes > 0 && alignment > 0);
-
-    void *ptr = elk_static_arena_alloc(&arena->head, bytes, alignment);
-
-    if (!ptr)
-    {
-        // add a new block of at least the required size
-        elk_arena_add_block(arena, bytes + sizeof(ElkStaticArena) + alignment);
-        ptr = elk_static_arena_alloc(&arena->head, bytes, alignment);
-    }
-
-    return ptr;
 }
 
 static inline void
@@ -1777,31 +1591,29 @@ elk_array_ledger_set_capacity(ElkArrayLedger *array, intptr_t capacity)
 }
 
 static ElkHashMap 
-elk_hash_map_create(int8_t size_exp, ElkSimpleHash key_hash, ElkEqFunction key_eq)
+elk_hash_map_create(int8_t size_exp, ElkSimpleHash key_hash, ElkEqFunction key_eq, ElkStaticArena *arena)
 {
-    Assert(size_exp > 0 && size_exp <= 31);                 // Come on, 31 is HUGE
+    Assert(size_exp > 0 && size_exp <= 31); // Come on, 31 is HUGE
 
     intptr_t const handles_len = 1 << size_exp;
-    ElkHashMapHandle *handles = calloc(handles_len, sizeof(*handles));
-    Assert(handles);
+    ElkHashMapHandle *handles = elk_allocator_nmalloc(arena, handles_len, ElkHashMapHandle);
+    PanicIf(!handles);
 
     return (ElkHashMap)
     {
-        .size_exp = size_exp,
+		.arena = arena,
         .handles = handles,
         .num_handles = 0, 
         .hasher = key_hash,
-        .eq = key_eq
+        .eq = key_eq,
+        .size_exp = size_exp
     };
 }
 
 static inline void 
 elk_hash_map_destroy(ElkHashMap *map)
 {
-    if(map)
-    {
-        free(map->handles);
-    }
+	return;
 }
 
 static inline void
@@ -1813,8 +1625,8 @@ elk_hash_table_expand(ElkHashMap *map)
     intptr_t const handles_len = 1 << size_exp;
     intptr_t const new_handles_len = 1 << new_size_exp;
 
-    ElkHashMapHandle *new_handles = calloc(new_handles_len, sizeof(*new_handles));
-    Assert(new_handles);
+    ElkHashMapHandle *new_handles = elk_allocator_nmalloc(map->arena, new_handles_len, ElkHashMapHandle);
+    PanicIf(!new_handles);
 
     for (uint32_t i = 0; i < handles_len; i++) 
     {
@@ -1841,7 +1653,6 @@ elk_hash_table_expand(ElkHashMap *map)
         }
     }
 
-    free(map->handles);
     map->handles = new_handles;
     map->size_exp = new_size_exp;
 
@@ -1897,8 +1708,6 @@ elk_hash_map_insert(ElkHashMap *map, void *key, void *value)
 static inline void *
 elk_hash_map_lookup(ElkHashMap *map, void *key)
 {
-    Assert(map);
-
     // Inspired by https://nullprogram.com/blog/2022/08/08
     // All code & writing on this blog is in the public domain.
 
@@ -1949,31 +1758,27 @@ elk_hash_map_key_iter_next(ElkHashMap *map, ElkHashMapKeyIter *iter)
 
 
 static inline ElkStrMap 
-elk_str_map_create(int8_t size_exp)
+elk_str_map_create(int8_t size_exp, ElkStaticArena *arena)
 {
-    Assert(size_exp > 0 && size_exp <= 31);                 // Come on, 31 is HUGE
+    Assert(size_exp > 0 && size_exp <= 31); // Come on, 31 is HUGE
 
     intptr_t const handles_len = 1 << size_exp;
-    ElkStrMapHandle *handles = calloc(handles_len, sizeof(*handles));
-    Assert(handles);
-
-    ElkStrMap *map = malloc(sizeof(*map));
+    ElkStrMapHandle *handles = elk_allocator_nmalloc(arena, handles_len, ElkStrMapHandle);
+    PanicIf(!handles);
 
     return (ElkStrMap)
     {
-        .size_exp = size_exp,
+		.arena = arena,
         .handles = handles,
         .num_handles = 0, 
+        .size_exp = size_exp,
     };
 }
 
 static inline void
 elk_str_map_destroy(ElkStrMap *map)
 {
-    if(map)
-    {
-        free(map->handles);
-    }
+	return;
 }
 
 static inline void
@@ -1985,8 +1790,8 @@ elk_str_table_expand(ElkStrMap *map)
     intptr_t const handles_len = 1 << size_exp;
     intptr_t const new_handles_len = 1 << new_size_exp;
 
-    ElkStrMapHandle *new_handles = calloc(new_handles_len, sizeof(*new_handles));
-    Assert(new_handles);
+    ElkStrMapHandle *new_handles = elk_allocator_nmalloc(map->arena, new_handles_len, ElkStrMapHandle);
+	PanicIf(!new_handles);
 
     for (uint32_t i = 0; i < handles_len; i++) 
     {
@@ -2013,7 +1818,6 @@ elk_str_table_expand(ElkStrMap *map)
         }
     }
 
-    free(map->handles);
     map->handles = new_handles;
     map->size_exp = new_size_exp;
 
@@ -2118,33 +1922,29 @@ elk_str_map_key_iter_next(ElkStrMap *map, ElkStrMapKeyIter *iter)
 }
 
 static inline ElkHashSet 
-elk_hash_set_create(int8_t size_exp, ElkSimpleHash val_hash, ElkEqFunction val_eq)
+elk_hash_set_create(int8_t size_exp, ElkSimpleHash val_hash, ElkEqFunction val_eq, ElkStaticArena *arena)
 {
-    Assert(size_exp > 0 && size_exp <= 31);                 // Come on, 31 is HUGE
+    Assert(size_exp > 0 && size_exp <= 31); // Come on, 31 is HUGE
 
     intptr_t const handles_len = 1 << size_exp;
-    ElkHashSetHandle *handles = calloc(handles_len, sizeof(*handles));
-    Assert(handles);
-
-    ElkHashSet *set = malloc(sizeof(*set));
+    ElkHashSetHandle *handles = elk_allocator_nmalloc(arena, handles_len, ElkHashSetHandle);
+    PanicIf(!handles);
 
     return (ElkHashSet)
     {
-        .size_exp = size_exp,
+		.arena = arena,
         .handles = handles,
         .num_handles = 0, 
         .hasher = val_hash,
-        .eq = val_eq
+        .eq = val_eq,
+        .size_exp = size_exp
     };
 }
 
 static inline void 
 elk_hash_set_destroy(ElkHashSet *set)
 {
-    if(set)
-    {
-        free(set->handles);
-    }
+	return;
 }
 
 static void
@@ -2156,8 +1956,8 @@ elk_hash_set_expand(ElkHashSet *set)
     intptr_t const handles_len = 1 << size_exp;
     intptr_t const new_handles_len = 1 << new_size_exp;
 
-    ElkHashSetHandle *new_handles = calloc(new_handles_len, sizeof(*new_handles));
-    Assert(new_handles);
+    ElkHashSetHandle *new_handles = elk_allocator_nmalloc(set->arena, new_handles_len, ElkHashSetHandle);
+    PanicIf(!new_handles);
 
     for (uint32_t i = 0; i < handles_len; i++) 
     {
@@ -2184,7 +1984,6 @@ elk_hash_set_expand(ElkHashSet *set)
         }
     }
 
-    free(set->handles);
     set->handles = new_handles;
     set->size_exp = new_size_exp;
 
