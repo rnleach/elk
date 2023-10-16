@@ -781,8 +781,6 @@ elk_make_struct_time(ElkTime time)
 static inline ElkStr
 elk_str_from_cstring(char *src)
 {
-    Assert(src);
-
     intptr_t len;
     for (len = 0; *(src + len) != '\0'; ++len) ; // intentionally left blank.
     return (ElkStr){.start = src, .len = len};
@@ -791,8 +789,6 @@ elk_str_from_cstring(char *src)
 static inline ElkStr
 elk_str_copy(intptr_t dst_len, char *restrict dest, ElkStr src)
 {
-    Assert(dest);
-
     intptr_t const src_len = src.len;
     intptr_t const copy_len = src_len < dst_len ? src_len : dst_len;
     memcpy(dest, src.start, copy_len);
@@ -839,8 +835,6 @@ ElkStr elk_str_substr(ElkStr str, intptr_t start, intptr_t len)
 static inline int
 elk_str_cmp(ElkStr left, ElkStr right)
 {
-    Assert(left.start && right.start);
-
     if(left.start == right.start && left.len == right.len) { return 0; }
 
     intptr_t len = left.len > right.len ? right.len : left.len;
@@ -859,8 +853,6 @@ elk_str_cmp(ElkStr left, ElkStr right)
 static inline bool
 elk_str_eq(ElkStr const left, ElkStr const right)
 {
-    Assert(left.start && right.start);
-
     if (left.len != right.len) { return false; }
 
     intptr_t len = left.len > right.len ? right.len : left.len;
@@ -1129,7 +1121,6 @@ static inline ElkStringInterner
 elk_string_interner_create(int8_t size_exp, ElkStaticArena *storage)
 {
     Assert(size_exp > 0 && size_exp <= 31); // Come on, 31 is HUGE
-	Assert(storage && storage->buffer);
 
     size_t const handles_len = 1 << size_exp;
     ElkStringInternerHandle *handles = elk_allocator_nmalloc(storage, handles_len, ElkStringInternerHandle);
@@ -1213,8 +1204,6 @@ elk_string_interner_expand_table(ElkStringInterner *interner)
 static inline ElkStr
 elk_string_interner_intern_cstring(ElkStringInterner *interner, char *string)
 {
-    Assert(interner && string);
-
     ElkStr str = elk_str_from_cstring(string);
     return elk_string_interner_intern(interner, str);
 }
@@ -1222,8 +1211,6 @@ elk_string_interner_intern_cstring(ElkStringInterner *interner, char *string)
 static inline ElkStr
 elk_string_interner_intern(ElkStringInterner *interner, ElkStr str)
 {
-    Assert(interner);
-
     // Inspired by https://nullprogram.com/blog/2022/08/08
     // All code & writing on this blog is in the public domain.
 
@@ -1240,7 +1227,7 @@ elk_string_interner_intern(ElkStringInterner *interner, ElkStr str)
             if (elk_hash_table_large_enough(interner->num_handles, interner->size_exp))
             {
                 char *dest = elk_allocator_nmalloc(interner->storage, str.len + 1, char);
-				Assert(dest);
+				PanicIf(!dest);
                 ElkStr interned_str = elk_str_copy(str.len + 1, dest, str);
 
                 *handle = (ElkStringInternerHandle){.hash = hash, .str = interned_str};
@@ -1319,7 +1306,7 @@ elk_static_arena_destroy(ElkStaticArena *arena)
 static inline void
 elk_static_arena_reset(ElkStaticArena *arena)
 {
-    Assert(arena && arena->buffer);
+    Assert(arena->buffer);
     arena->buf_offset = 0;
     arena->prev_ptr = NULL;
     arena->prev_offset = 0;
@@ -1329,7 +1316,6 @@ elk_static_arena_reset(ElkStaticArena *arena)
 static inline void *
 elk_static_arena_alloc(ElkStaticArena *arena, intptr_t size, intptr_t alignment)
 {
-    Assert(arena);
     Assert(size > 0 && alignment > 0);
 
     // Align 'curr_offset' forward to the specified alignment
@@ -1353,7 +1339,6 @@ elk_static_arena_alloc(ElkStaticArena *arena, intptr_t size, intptr_t alignment)
 static inline void * 
 elk_static_arena_realloc(ElkStaticArena *arena, void *ptr, intptr_t size)
 {
-	Assert(ptr);
 	Assert(size > 0);
 
     if(ptr == arena->prev_ptr)
@@ -1421,7 +1406,6 @@ elk_static_pool_reset(ElkStaticPool *pool)
 static inline void
 elk_static_pool_create(ElkStaticPool *pool, intptr_t object_size, intptr_t num_objects, unsigned char buffer[])
 {
-    Assert(pool);
     Assert(object_size >= sizeof(void *));       // Need to be able to fit at least a pointer!
     Assert(object_size % _Alignof(void *) == 0); // Need for alignment of pointers.
     Assert(num_objects > 0);
@@ -1436,15 +1420,12 @@ elk_static_pool_create(ElkStaticPool *pool, intptr_t object_size, intptr_t num_o
 static inline void
 elk_static_pool_destroy(ElkStaticPool *pool)
 {
-    Assert(pool);
     memset(pool, 0, sizeof(*pool));
 }
 
 static inline void
 elk_static_pool_free(ElkStaticPool *pool, void *ptr)
 {
-    Assert(pool && ptr);
-
     uintptr_t *next = ptr;
     *next = (uintptr_t)pool->free;
     pool->free = ptr;
@@ -1453,8 +1434,6 @@ elk_static_pool_free(ElkStaticPool *pool, void *ptr)
 static inline void *
 elk_static_pool_alloc(ElkStaticPool *pool)
 {
-    Assert(pool);
-
     void *ptr = pool->free;
     uintptr_t *next = pool->free;
 
@@ -1470,7 +1449,7 @@ elk_static_pool_alloc(ElkStaticPool *pool)
 static inline void *
 elk_static_pool_alloc_aligned(ElkStaticPool *pool, intptr_t size, intptr_t alignment)
 {
-    Assert(pool && pool->object_size == size);
+    Assert(pool->object_size == size);
     return elk_static_pool_alloc(pool);
 }
 
@@ -1501,7 +1480,6 @@ elk_queue_ledger_empty(ElkQueueLedger *queue)
 static inline intptr_t
 elk_queue_ledger_push_back_index(ElkQueueLedger *queue)
 {
-    Assert(queue);
     if(elk_queue_ledger_full(queue)) { return ELK_COLLECTION_FULL; }
 
     intptr_t idx = queue->back % queue->capacity;
@@ -1560,7 +1538,6 @@ elk_array_ledger_empty(ElkArrayLedger *array)
 static inline intptr_t
 elk_array_ledger_push_back_index(ElkArrayLedger *array)
 {
-    Assert(array);
     if(elk_array_ledger_full(array)) { return ELK_COLLECTION_FULL; }
 
     intptr_t idx = array->length;
@@ -1571,21 +1548,18 @@ elk_array_ledger_push_back_index(ElkArrayLedger *array)
 static inline intptr_t
 elk_array_ledger_len(ElkArrayLedger const *array)
 {
-    Assert(array);
     return array->length;
 }
 
 static inline void
 elk_array_ledger_reset(ElkArrayLedger *array)
 {
-    Assert(array);
     array->length = 0;
 }
 
 static inline void
 elk_array_ledger_set_capacity(ElkArrayLedger *array, intptr_t capacity)
 {
-    Assert(array);
 	Assert(capacity > 0);
     array->capacity = capacity;
 }
@@ -1662,8 +1636,6 @@ elk_hash_table_expand(ElkHashMap *map)
 static inline void *
 elk_hash_map_insert(ElkHashMap *map, void *key, void *value)
 {
-    Assert(map);
-
     // Inspired by https://nullprogram.com/blog/2022/08/08
     // All code & writing on this blog is in the public domain.
 
@@ -1828,8 +1800,6 @@ elk_str_table_expand(ElkStrMap *map)
 static inline void *
 elk_str_map_insert(ElkStrMap *map, ElkStr key, void *value)
 {
-    Assert(map);
-
     // Inspired by https://nullprogram.com/blog/2022/08/08
     // All code & writing on this blog is in the public domain.
 
@@ -1872,8 +1842,6 @@ elk_str_map_insert(ElkStrMap *map, ElkStr key, void *value)
 static inline void *
 elk_str_map_lookup(ElkStrMap *map, ElkStr key)
 {
-    Assert(map);
-
     // Inspired by https://nullprogram.com/blog/2022/08/08
     // All code & writing on this blog is in the public domain.
 
@@ -1993,8 +1961,6 @@ elk_hash_set_expand(ElkHashSet *set)
 static inline void *
 elk_hash_set_insert(ElkHashSet *set, void *value)
 {
-    Assert(set);
-
     // Inspired by https://nullprogram.com/blog/2022/08/08
     // All code & writing on this blog is in the public domain.
 
@@ -2040,8 +2006,6 @@ elk_hash_set_insert(ElkHashSet *set, void *value)
 static inline void *
 elk_hash_set_lookup(ElkHashSet *set, void *value)
 {
-    Assert(set);
-
     // Inspired by https://nullprogram.com/blog/2022/08/08
     // All code & writing on this blog is in the public domain.
 
