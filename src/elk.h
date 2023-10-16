@@ -456,17 +456,17 @@ typedef struct // Internal Only
 {
     uint64_t hash;
     void *key;
-	void *value;
+    void *value;
 } ElkHashMapHandle;
 
 typedef struct 
 {
-	ElkStaticArena *arena;
-	ElkHashMapHandle *handles;
+    ElkStaticArena *arena;
+    ElkHashMapHandle *handles;
     intptr_t num_handles;
     ElkSimpleHash hasher;
     ElkEqFunction eq;
-	int8_t size_exp;
+    int8_t size_exp;
 } ElkHashMap;
 
 typedef intptr_t ElkHashMapKeyIter;
@@ -492,15 +492,15 @@ typedef struct // Internal only
 {
     uint64_t hash;
     ElkStr key;
-	void *value;
+    void *value;
 } ElkStrMapHandle;
 
 typedef struct 
 {
-	ElkStaticArena *arena;
-	ElkStrMapHandle *handles;
+    ElkStaticArena *arena;
+    ElkStrMapHandle *handles;
     intptr_t num_handles;
-	int8_t size_exp;
+    int8_t size_exp;
 } ElkStrMap;
 
 typedef intptr_t ElkStrMapKeyIter;
@@ -525,17 +525,17 @@ static inline ElkStr elk_str_map_key_iter_next(ElkStrMap *map, ElkStrMapKeyIter 
 typedef struct // Internal only
 {
     uint64_t hash;
-	void *value;
+    void *value;
 } ElkHashSetHandle;
 
 typedef struct 
 {
-	ElkStaticArena *arena;
-	ElkHashSetHandle *handles;
+    ElkStaticArena *arena;
+    ElkHashSetHandle *handles;
     intptr_t num_handles;
     ElkSimpleHash hasher;
     ElkEqFunction eq;
-	int8_t size_exp;
+    int8_t size_exp;
 } ElkHashSet;
 
 typedef intptr_t ElkHashSetIter;
@@ -793,7 +793,7 @@ elk_str_copy(intptr_t dst_len, char *restrict dest, ElkStr src)
     intptr_t const copy_len = src_len < dst_len ? src_len : dst_len;
     memcpy(dest, src.start, copy_len);
 
-	// Add a terminating zero IFF we can.
+    // Add a terminating zero IFF we can.
     if(copy_len < dst_len) { dest[copy_len] = '\0'; }
 
     intptr_t end = copy_len < dst_len ? copy_len : dst_len;
@@ -903,12 +903,12 @@ elk_str_parse_int_64(ElkStr str, int64_t *result)
 static inline bool
 elk_str_parse_float_64(ElkStr str, double *out)
 {
-	// The following block is required to create NAN/INF witnout using math.h on MSVC Using
-	// #define NAN (0.0/0.0) doesn't work either on MSVC, which gives C2124 divide by zero error.
-	static double const ELK_ZERO = 0.0;
-	double const ELK_INF = 1.0 / ELK_ZERO;
-	double const ELK_NEG_INF = -1.0 / ELK_ZERO;
-	double const ELK_NAN = 0.0 / ELK_ZERO;
+    // The following block is required to create NAN/INF witnout using math.h on MSVC Using
+    // #define NAN (0.0/0.0) doesn't work either on MSVC, which gives C2124 divide by zero error.
+    static double const ELK_ZERO = 0.0;
+    double const ELK_INF = 1.0 / ELK_ZERO;
+    double const ELK_NEG_INF = -1.0 / ELK_ZERO;
+    double const ELK_NAN = 0.0 / ELK_ZERO;
 
     StopIf(str.len == 0, goto ERR_RETURN);
 
@@ -1124,7 +1124,7 @@ elk_string_interner_create(int8_t size_exp, ElkStaticArena *storage)
 
     size_t const handles_len = 1 << size_exp;
     ElkStringInternerHandle *handles = elk_allocator_nmalloc(storage, handles_len, ElkStringInternerHandle);
-	PanicIf(!handles);
+    PanicIf(!handles);
 
     return (ElkStringInterner)
     {
@@ -1227,7 +1227,7 @@ elk_string_interner_intern(ElkStringInterner *interner, ElkStr str)
             if (elk_hash_table_large_enough(interner->num_handles, interner->size_exp))
             {
                 char *dest = elk_allocator_nmalloc(interner->storage, str.len + 1, char);
-				PanicIf(!dest);
+                PanicIf(!dest);
                 ElkStr interned_str = elk_str_copy(str.len + 1, dest, str);
 
                 *handle = (ElkStringInternerHandle){.hash = hash, .str = interned_str};
@@ -1327,7 +1327,7 @@ elk_static_arena_alloc(ElkStaticArena *arena, intptr_t size, intptr_t alignment)
     if (offset + size <= arena->buf_size)
     {
         void *ptr = &arena->buffer[offset];
-		memset(ptr, 0, size);
+        memset(ptr, 0, size);
         arena->prev_offset = arena->buf_offset;
         arena->buf_offset = offset + size;
         arena->prev_ptr = ptr;
@@ -1340,7 +1340,7 @@ elk_static_arena_alloc(ElkStaticArena *arena, intptr_t size, intptr_t alignment)
 static inline void * 
 elk_static_arena_realloc(ElkStaticArena *arena, void *ptr, intptr_t size)
 {
-	Assert(size > 0);
+    Assert(size > 0);
 
     if(ptr == arena->prev_ptr)
     {
@@ -1441,7 +1441,7 @@ elk_static_pool_alloc(ElkStaticPool *pool)
     if (ptr) 
     {
         pool->free = (void *)*next;
-		memset(ptr, 0, pool->object_size);
+        memset(ptr, 0, pool->object_size);
     }
 
     return ptr;
@@ -1517,7 +1517,7 @@ elk_queue_ledger_len(ElkQueueLedger const *queue)
 static inline ElkArrayLedger
 elk_array_ledger_create(intptr_t capacity)
 {
-	Assert(capacity > 0);
+    Assert(capacity > 0);
     return (ElkArrayLedger)
     {
         .capacity = capacity,
@@ -1562,7 +1562,7 @@ elk_array_ledger_reset(ElkArrayLedger *array)
 static inline void
 elk_array_ledger_set_capacity(ElkArrayLedger *array, intptr_t capacity)
 {
-	Assert(capacity > 0);
+    Assert(capacity > 0);
     array->capacity = capacity;
 }
 
@@ -1577,7 +1577,7 @@ elk_hash_map_create(int8_t size_exp, ElkSimpleHash key_hash, ElkEqFunction key_e
 
     return (ElkHashMap)
     {
-		.arena = arena,
+        .arena = arena,
         .handles = handles,
         .num_handles = 0, 
         .hasher = key_hash,
@@ -1589,7 +1589,7 @@ elk_hash_map_create(int8_t size_exp, ElkSimpleHash key_hash, ElkEqFunction key_e
 static inline void 
 elk_hash_map_destroy(ElkHashMap *map)
 {
-	return;
+    return;
 }
 
 static inline void
@@ -1710,24 +1710,24 @@ elk_hash_map_lookup(ElkHashMap *map, void *key)
 static inline ElkHashMapKeyIter 
 elk_hash_map_key_iter(ElkHashMap *map)
 {
-	return 0;
+    return 0;
 }
 
 static inline void *
 elk_hash_map_key_iter_next(ElkHashMap *map, ElkHashMapKeyIter *iter)
 {
-	intptr_t const max_iter = (1 << map->size_exp);
-	void *next_key = NULL;
-	if(*iter >= max_iter) { return next_key; }
+    intptr_t const max_iter = (1 << map->size_exp);
+    void *next_key = NULL;
+    if(*iter >= max_iter) { return next_key; }
 
-	do
-	{
-		next_key = map->handles[*iter].key;
-		*iter += 1;
+    do
+    {
+        next_key = map->handles[*iter].key;
+        *iter += 1;
 
-	} while(next_key == NULL && *iter < max_iter);
+    } while(next_key == NULL && *iter < max_iter);
 
-	return next_key;
+    return next_key;
 }
 
 
@@ -1742,7 +1742,7 @@ elk_str_map_create(int8_t size_exp, ElkStaticArena *arena)
 
     return (ElkStrMap)
     {
-		.arena = arena,
+        .arena = arena,
         .handles = handles,
         .num_handles = 0, 
         .size_exp = size_exp,
@@ -1752,7 +1752,7 @@ elk_str_map_create(int8_t size_exp, ElkStaticArena *arena)
 static inline void
 elk_str_map_destroy(ElkStrMap *map)
 {
-	return;
+    return;
 }
 
 static inline void
@@ -1765,7 +1765,7 @@ elk_str_table_expand(ElkStrMap *map)
     intptr_t const new_handles_len = 1 << new_size_exp;
 
     ElkStrMapHandle *new_handles = elk_allocator_nmalloc(map->arena, new_handles_len, ElkStrMapHandle);
-	PanicIf(!new_handles);
+    PanicIf(!new_handles);
 
     for (uint32_t i = 0; i < handles_len; i++) 
     {
@@ -1868,27 +1868,27 @@ elk_str_map_lookup(ElkStrMap *map, ElkStr key)
 static inline ElkHashMapKeyIter 
 elk_str_map_key_iter(ElkStrMap *map)
 {
-	return 0;
+    return 0;
 }
 
 static inline ElkStr 
 elk_str_map_key_iter_next(ElkStrMap *map, ElkStrMapKeyIter *iter)
 {
-	intptr_t const max_iter = (1 << map->size_exp);
-	if(*iter >= max_iter) 
-	{
-		return (ElkStr){.start=NULL, .len=0};
-	}
+    intptr_t const max_iter = (1 << map->size_exp);
+    if(*iter >= max_iter) 
+    {
+        return (ElkStr){.start=NULL, .len=0};
+    }
 
-	ElkStr next_key = map->handles[*iter].key;
-	*iter += 1;
-	while(next_key.start == NULL && *iter < max_iter)
-	{
-		next_key = map->handles[*iter].key;
-		*iter += 1;
-	}
+    ElkStr next_key = map->handles[*iter].key;
+    *iter += 1;
+    while(next_key.start == NULL && *iter < max_iter)
+    {
+        next_key = map->handles[*iter].key;
+        *iter += 1;
+    }
 
-	return next_key;
+    return next_key;
 }
 
 static inline ElkHashSet 
@@ -1902,7 +1902,7 @@ elk_hash_set_create(int8_t size_exp, ElkSimpleHash val_hash, ElkEqFunction val_e
 
     return (ElkHashSet)
     {
-		.arena = arena,
+        .arena = arena,
         .handles = handles,
         .num_handles = 0, 
         .hasher = val_hash,
@@ -1914,7 +1914,7 @@ elk_hash_set_create(int8_t size_exp, ElkSimpleHash val_hash, ElkEqFunction val_e
 static inline void 
 elk_hash_set_destroy(ElkHashSet *set)
 {
-	return;
+    return;
 }
 
 static void
@@ -2041,18 +2041,18 @@ elk_hash_set_value_iter(ElkHashSet *set)
 static inline void *
 elk_hash_set_value_iter_next(ElkHashSet *set, ElkHashSetIter *iter)
 {
-	intptr_t const max_iter = (1 << set->size_exp);
-	void *next_value = NULL;
-	if(*iter >= max_iter) { return next_value; }
+    intptr_t const max_iter = (1 << set->size_exp);
+    void *next_value = NULL;
+    if(*iter >= max_iter) { return next_value; }
 
-	do
-	{
-		next_value = set->handles[*iter].value;
-		*iter += 1;
+    do
+    {
+        next_value = set->handles[*iter].value;
+        *iter += 1;
 
-	} while(next_value == NULL && *iter < max_iter);
+    } while(next_value == NULL && *iter < max_iter);
 
-	return next_value;
+    return next_value;
 }
 
 #endif

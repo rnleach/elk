@@ -117,8 +117,6 @@ test_str_cmp(void)
 static void
 test_str_copy(void)
 {
-	//                        111111
-	//              0123456789012345
     char *sample = "a sample string";
     ElkStr str = elk_str_from_cstring(sample);
 

@@ -35,10 +35,10 @@ test_elk_hash_set(void)
         strs[i] = elk_str_from_cstring(some_strings[i]);
     }
 
-	unsigned char buffer[ELK_KB(1)] = {0};
-	ElkStaticArena arena_i = {0};
-	ElkStaticArena *arena = &arena_i;
-	elk_static_arena_create(arena, sizeof(buffer), buffer);
+    unsigned char buffer[ELK_KB(1)] = {0};
+    ElkStaticArena arena_i = {0};
+    ElkStaticArena *arena = &arena_i;
+    elk_static_arena_create(arena, sizeof(buffer), buffer);
 
     ElkHashSet set_ = elk_hash_set_create(2, simple_str_hash, str_eq, arena);
     ElkHashSet *set = &set_;
@@ -70,10 +70,10 @@ test_elk_hash_set_iter(void)
         strs[i] = elk_str_from_cstring(some_strings[i]);
     }
 
-	unsigned char buffer[ELK_KB(1)] = {0};
-	ElkStaticArena arena_i = {0};
-	ElkStaticArena *arena = &arena_i;
-	elk_static_arena_create(arena, sizeof(buffer), buffer);
+    unsigned char buffer[ELK_KB(1)] = {0};
+    ElkStaticArena arena_i = {0};
+    ElkStaticArena *arena = &arena_i;
+    elk_static_arena_create(arena, sizeof(buffer), buffer);
 
     ElkHashSet set_ = elk_hash_set_create(2, simple_str_hash, str_eq, arena);
     ElkHashSet *set = &set_;

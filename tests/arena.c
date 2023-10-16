@@ -37,7 +37,7 @@ static double test_doubles[6] = { 0.0, 1.0, 2.17, 3.14159, 9.81, 1.6666 };
 static void
 test_arena(void)
 {
-	unsigned char arena_buffer[ELK_KB(1)] = {0};
+    unsigned char arena_buffer[ELK_KB(1)] = {0};
     ElkStaticArena arena_i = {0};
     ElkStaticArena *arena = &arena_i;
     elk_static_arena_create(arena, sizeof(arena_buffer), arena_buffer);
@@ -85,7 +85,7 @@ test_arena(void)
         elk_allocator_reset(arena);
     }
 
-	elk_allocator_destroy(arena);
+    elk_allocator_destroy(arena);
 }
 
 static void
