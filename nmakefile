@@ -12,7 +12,7 @@ LDFLAGS = /NOLOGO
 
 !IF "$(DEBUG)" == "1"
 
-CFLAGS = $(CFLAGS) /Od /Zi 
+CFLAGS = $(CFLAGS) /Od /Zi /RTCcsu
 LDFLAGS = $(LDFLAGS) /DEBUG
 
 !ELSE

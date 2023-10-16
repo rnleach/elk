@@ -12,7 +12,7 @@ DEBUGDIR := $(PROJDIR)/debug
 CFLAGS = -Wall -Werror -std=c11 -I$(SOURCEDIR) -I$(TESTDIR)
 LDLIBS = -lm
 ifeq ($(DEBUG),1)
-	CFLAGS += -g3
+	CFLAGS += -g3 -fsanitize=address,undefined
 	LDLIBS +=
 	BUILDDIR := $(DEBUGDIR)
 else
