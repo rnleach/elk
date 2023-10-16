@@ -23,28 +23,28 @@ test_string_interner(void)
 
     ElkStr strs[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
 
-    ElkStringInterner *interner = elk_string_interner_create(3, 3);
-    Assert(interner);
+    ElkStringInterner interner = elk_string_interner_create(3, 3);
+    ElkStringInterner *internerp = &interner;
 
     // Fill the interner with strings!
     for (size_t i = 0; i < NUM_TEST_STRINGS; ++i) 
     {
         char *str = some_strings[i];
-        strs[i] = elk_string_interner_intern_cstring(interner, str);
+        strs[i] = elk_string_interner_intern_cstring(internerp, str);
     }
 
     // Now see if we get the right ones back out!
     for (size_t i = 0; i < NUM_TEST_STRINGS; ++i) 
     {
         char *str = some_strings[i];
-        ElkStr interned_str = elk_string_interner_intern_cstring(interner, str);
+        ElkStr interned_str = elk_string_interner_intern_cstring(internerp, str);
         Assert(strcmp(str, interned_str.start) == 0);
         Assert(strcmp(str, strs[i].start) == 0);
         Assert(interned_str.len == strs[i].len);
         Assert(interned_str.start == strs[i].start);
     }
 
-    elk_string_interner_destroy(interner);
+    elk_string_interner_destroy(internerp);
 }
 
 /*---------------------------------------------------------------------------------------------------------------------------

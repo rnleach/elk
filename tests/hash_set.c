@@ -38,7 +38,8 @@ test_elk_hash_set(void)
     }
 
 
-    ElkHashSet *set = elk_hash_set_create(2, simple_str_hash, str_eq);
+    ElkHashSet set_ = elk_hash_set_create(2, simple_str_hash, str_eq);
+    ElkHashSet *set = &set_;
     for(int i = 0; i < NUM_TEST_STRINGS; ++i)
     {
         ElkStr *str = elk_hash_set_insert(set, &strs[i]);
@@ -68,7 +69,8 @@ test_elk_hash_set_iter(void)
     }
 
 
-    ElkHashSet *set = elk_hash_set_create(2, simple_str_hash, str_eq);
+    ElkHashSet set_ = elk_hash_set_create(2, simple_str_hash, str_eq);
+    ElkHashSet *set = &set_;
     for(int i = 0; i < NUM_TEST_STRINGS; ++i)
     {
         ElkStr *str = elk_hash_set_insert(set, &strs[i]);

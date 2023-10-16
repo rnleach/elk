@@ -25,7 +25,8 @@ test_elk_str_table(void)
 	int64_t values[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
 	int64_t values2[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
 
-	ElkStrMap *map = elk_str_map_create(2); // Use a crazy small size_exp to force it to grow, this IS a test!
+	ElkStrMap map_ = elk_str_map_create(2); // Use a crazy small size_exp to force it to grow, this IS a test!
+    ElkStrMap *map = &map_;
     Assert(map);
 
     // Fill the map
@@ -67,7 +68,8 @@ test_elk_str_key_iterator(void)
     ElkStr strs[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
 	int64_t values[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
 
-	ElkStrMap *map = elk_str_map_create(2); // Use a crazy small size_exp to force it to grow, this IS a test!
+	ElkStrMap map_ = elk_str_map_create(2); // Use a crazy small size_exp to force it to grow, this IS a test!
+    ElkStrMap *map = &map_;
     Assert(map);
 
     // Fill the map
@@ -131,7 +133,8 @@ test_elk_hash_table(void)
 	}
 
 	// Fill the hashmap
-	ElkHashMap *map = elk_hash_map_create(2, id_hash, int64_eq);
+	ElkHashMap map_ = elk_hash_map_create(2, id_hash, int64_eq);
+	ElkHashMap *map = &map_;
 	for(int i = 0; i < NUM_KEYS; ++i)
 	{
 		int64_t *vptr = elk_hash_map_insert(map, &keys[i], &values[i]);
@@ -171,7 +174,8 @@ test_elk_hash_key_iterator(void)
 	}
 
 	// Fill the hashmap
-	ElkHashMap *map = elk_hash_map_create(2, id_hash, int64_eq);
+	ElkHashMap map_ = elk_hash_map_create(2, id_hash, int64_eq);
+	ElkHashMap *map = &map_;
 	for(int i = 0; i < NUM_KEYS; ++i)
 	{
 		int64_t *vptr = elk_hash_map_insert(map, &keys[i], &values[i]);

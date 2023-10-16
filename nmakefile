@@ -35,19 +35,13 @@ TEST_OBJS = tests/test.obj            \
 			tests/hash_tables.obj     \
 			tests/hash_set.obj
 
-LIB_OBJ = src/elk.obj
-
 all: test.exe test
-
-$(LIB_OBJ): src/elk.h
-{src}.c{src}.obj:
-	@$(CC) $(CFLAGS) /c /Fo$*.obj $*.c 
 
 $(TEST_OBJS): tests/test.h src/elk.h
 {tests}.c{tests}.obj:
 	@$(CC) $(CFLAGS) /c /Fo$*.obj $*.c 
 
-test.exe: $(TEST_OBJS) $(LIB_OBJ) 
+test.exe: $(TEST_OBJS)
 	@LINK $(LDFLAGS) $**
 
 test: test.exe
