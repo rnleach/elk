@@ -1327,6 +1327,7 @@ elk_static_arena_alloc(ElkStaticArena *arena, intptr_t size, intptr_t alignment)
     if (offset + size <= arena->buf_size)
     {
         void *ptr = &arena->buffer[offset];
+		memset(ptr, 0, size);
         arena->prev_offset = arena->buf_offset;
         arena->buf_offset = offset + size;
         arena->prev_ptr = ptr;
@@ -1440,6 +1441,7 @@ elk_static_pool_alloc(ElkStaticPool *pool)
     if (ptr) 
     {
         pool->free = (void *)*next;
+		memset(ptr, 0, pool->object_size);
     }
 
     return ptr;
@@ -1449,7 +1451,7 @@ elk_static_pool_alloc(ElkStaticPool *pool)
 static inline void *
 elk_static_pool_alloc_aligned(ElkStaticPool *pool, intptr_t size, intptr_t alignment)
 {
-    Assert(pool->object_size == size);
+    Assert(pool->object_size == size); // This will trip up elk_allocator_nmalloc if count > 1
     return elk_static_pool_alloc(pool);
 }
 
