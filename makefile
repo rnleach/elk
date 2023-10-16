@@ -13,7 +13,7 @@ CFLAGS = -Wall -Werror -std=c11 -I$(SOURCEDIR) -I$(TESTDIR)
 LDLIBS = -lm
 ifeq ($(DEBUG),1)
 	CFLAGS += -g3 -fsanitize=address,undefined
-	LDLIBS +=
+	LDLIBS += -fsanitize=address,undefined
 	BUILDDIR := $(DEBUGDIR)
 else
 	CFLAGS += -fPIC -O3 -DNDEBUG
