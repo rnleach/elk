@@ -39,7 +39,7 @@
   before that. The maximum time that can be handled by all the functions is December 31st, 32767.
   So this more than covers the useful period of meteorological observations and forecasts.
 
-### Header (.h) ile Layout
+### Header (.h) File Layout
   The header file has prototypes at the top of the file and the implementation below it. All 
   functions are 'static inline' to give the compiler the most opportunities for inlining and 
   optimization. Plus it simplifies builds. Structs that aren't meant to be used directly by
@@ -55,7 +55,7 @@
   - Added a general hashmap and one specialized for strings as keys.
   - Trimmed down dependencies on the standard library.
   - Remove Doxygen, just read the header file.
-  - Migrated to single header file, inlude only library.
+  - Migrated to single header file, include only library.
 
 ### Version 2.0.0
   - (2023-09-23) Major revision.
