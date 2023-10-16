@@ -50,5 +50,5 @@ test: test.exe
 
 clean:
 	@echo -------------------------------------------------------------------------------------------
-	@del tests\*.obj src\*.obj *.pdb *.exe *.ilk
+	@del tests\*.obj *.pdb *.exe *.ilk
 

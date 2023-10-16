@@ -1,10 +1,27 @@
 #ifndef _ELK_HEADER_
 #define _ELK_HEADER_
 
-#include <stdbool.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+
+/*---------------------------------------------------------------------------------------------------------------------------
+ * Define the few parts of the standard headers that I need.
+ *-------------------------------------------------------------------------------------------------------------------------*/
+
+// stdbool.h
+#ifndef bool
+  #define bool int
+  #define false 0
+  #define true 1
+#endif
+
+// string.h
+void *memcpy(void *dst, void const *src, size_t num_bytes);
+void *memset(void *buffer, int val, size_t num_bytes);
+
+// stdlib.h
+void *malloc(size_t nbytes);
+void *calloc(size_t num, size_t size);
+void free(void *prt);
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                       Error Handling
