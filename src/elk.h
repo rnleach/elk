@@ -24,16 +24,28 @@ int memcmp(const void *s1, const void *s2, size_t num_bytes);
  *-------------------------------------------------------------------------------------------------------------------------*/
 
 // Crash immediately, useful with a debugger!
-#define HARD_EXIT (*(int volatile*)0) 
+#ifndef HARD_EXIT
+  #define HARD_EXIT (*(int volatile*)0) 
+#endif
 
-#define PanicIf(assertion) StopIf((assertion), HARD_EXIT)
-#define Panic() HARD_EXIT
-#define StopIf(assertion, error_action) if (assertion) { error_action; }
+#ifndef PanicIf
+  #define PanicIf(assertion) StopIf((assertion), HARD_EXIT)
+#endif
 
-#ifndef NDEBUG
-#define Assert(assertion) if(!(assertion)) { HARD_EXIT; }
-#else
-#define Assert(assertion)
+#ifndef Panic
+  #define Panic() HARD_EXIT
+#endif
+
+#ifndef StopIf
+  #define StopIf(assertion, error_action) if (assertion) { error_action; }
+#endif
+
+#ifndef Assert
+  #ifndef NDEBUG
+    #define Assert(assertion) if(!(assertion)) { HARD_EXIT; }
+  #else
+    #define Assert(assertion)
+  #endif
 #endif
 
 /*---------------------------------------------------------------------------------------------------------------------------
