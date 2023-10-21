@@ -21,7 +21,7 @@ static char *
 copy_string_to_arena(ElkStaticArena *arena, char const *str)
 {
     size_t len = strlen(str) + 1;
-    char *dest = elk_allocator_nmalloc(arena, len, char);
+    char *dest = elk_static_arena_nmalloc(arena, len, char);
     Assert(dest);
 
     strcpy(dest, str);
@@ -55,21 +55,21 @@ test_arena(void)
         // Fill the arena
         for (int j = 0; j < 6; j++) 
         {
-            arena_chars[j * 3 + 0] = elk_allocator_malloc(arena, char);
+            arena_chars[j * 3 + 0] = elk_static_arena_malloc(arena, char);
             *arena_chars[j * 3 + 0] = test_chars[j * 3 + 0];
 
-            arena_doubles[j] = elk_allocator_malloc(arena, double);
+            arena_doubles[j] = elk_static_arena_malloc(arena, double);
             *arena_doubles[j] = test_doubles[j];
 
-            arena_chars[j * 3 + 1] = elk_allocator_malloc(arena, char);
+            arena_chars[j * 3 + 1] = elk_static_arena_malloc(arena, char);
             *arena_chars[j * 3 + 1] = test_chars[j * 3 + 1];
 
             arena_strs[j] = copy_string_to_arena(arena, tst_strings[j]);
 
-            arena_chars[j * 3 + 2] = elk_allocator_malloc(arena, char);
+            arena_chars[j * 3 + 2] = elk_static_arena_malloc(arena, char);
             *arena_chars[j * 3 + 2] = test_chars[j * 3 + 2];
 
-            arena_ints[j] = elk_allocator_malloc(arena, int);
+            arena_ints[j] = elk_static_arena_malloc(arena, int);
             *arena_ints[j] = 2 * trip_num + 3 * j;
         }
 
@@ -84,10 +84,10 @@ test_arena(void)
             Assert(*arena_ints[j] == 2 * trip_num + 3 * j);
         }
 
-        elk_allocator_reset(arena);
+        elk_static_arena_reset(arena);
     }
 
-    elk_allocator_destroy(arena);
+    elk_static_arena_destroy(arena);
 }
 
 static void
@@ -99,7 +99,7 @@ test_static_arena_realloc(void)
 
     elk_static_arena_create(arena, sizeof(buffer), buffer);
 
-    double *ten_dubs = elk_allocator_nmalloc(arena, 10, double);
+    double *ten_dubs = elk_static_arena_nmalloc(arena, 10, double);
     Assert(ten_dubs);
 
     for(int i = 0; i < 10; ++i)
@@ -142,22 +142,22 @@ test_static_arena_free(void)
 
     elk_static_arena_create(arena, sizeof(buffer), buffer);
 
-    double *first = elk_allocator_malloc(arena, double);
+    double *first = elk_static_arena_malloc(arena, double);
     Assert(first);
     *first = 2.0;
 
-    elk_allocator_free(arena, first);
+    elk_static_arena_free(arena, first);
 
-    double *second = elk_allocator_malloc(arena, double);
+    double *second = elk_static_arena_malloc(arena, double);
     Assert(second);
     Assert(first == second); // Since we freed 'first', that's what we should get back this time.
 
-    double *third = elk_allocator_malloc(arena, double);
+    double *third = elk_static_arena_malloc(arena, double);
     Assert(third);
 
     size_t offset_before = arena->buf_offset;
-    elk_allocator_free(arena, second); // should be a no op
-    double *fourth = elk_allocator_malloc(arena, double);
+    elk_static_arena_free(arena, second); // should be a no op
+    double *fourth = elk_static_arena_malloc(arena, double);
     Assert(fourth);
 
     size_t offset_after = arena->buf_offset;

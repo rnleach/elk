@@ -16,7 +16,6 @@ main(void)
     elk_parse_tests();
     elk_arena_tests();
     elk_pool_tests();
-    elk_allocator_generic_api_tests();
     elk_string_interner_tests();
     elk_queue_ledger_tests();
     elk_array_ledger_tests();
