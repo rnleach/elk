@@ -32,7 +32,8 @@ TEST_OBJS = tests/test.obj            \
             tests/parse.obj           \
             tests/array_ledger.obj    \
             tests/hash_tables.obj     \
-            tests/hash_set.obj
+            tests/hash_set.obj        \
+			tests/csv.obj
 
 all: test.exe test
 

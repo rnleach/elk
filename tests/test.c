@@ -21,6 +21,7 @@ main(void)
     elk_array_ledger_tests();
     elk_hash_table_tests();
     elk_hash_set_tests();
+    elk_csv_tests();
 
     printf("\n\n*** Tests completed successfully. ***\n\n");
     return EXIT_SUCCESS;

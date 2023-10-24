@@ -39,6 +39,10 @@
   before that. The maximum time that can be handled by all the functions is December 31st, 32767.
   So this more than covers the useful period of meteorological observations and forecasts.
 
+### CSV Parser
+  The CSV parser is simple and only handles quoted strings and comment lines. It just returns
+  a token at a time, then the user can do what it wants with each token.
+
 ### Header (.h) File Layout
   The header file has prototypes at the top of the file and the implementation below it. All 
   functions are 'static inline' to give the compiler the most opportunities for inlining and 
@@ -57,6 +61,7 @@
   - Remove Doxygen, just read the header file.
   - Migrated to single header file, include only library.
   - Added more checks to the debug builds of the tests. (ASAN, UBSAN type stuff).
+  - Added a simple CSV parser.
 
 ### Version 2.0.0
   - (2023-09-23) Major revision.

@@ -165,7 +165,7 @@ static inline bool elk_str_parse_datetime(ElkStr str, ElkTime *out);
 #define ELK_GB(a) (ELK_MB(a) * 1000)
 #define ELK_TB(a) (ELK_GB(a) * 1000)
 
- /*--------------------------------------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------------------------------------
  *                                                 Static Arena Allocator
  *---------------------------------------------------------------------------------------------------------------------------
  *
@@ -493,6 +493,46 @@ static inline void *elk_hash_set_lookup(ElkHashSet *set, void *value); // return
 static inline ElkHashSetIter elk_hash_set_value_iter(ElkHashSet *set);
 
 static inline void *elk_hash_set_value_iter_next(ElkHashSet *set, ElkHashSetIter *iter);
+
+/*---------------------------------------------------------------------------------------------------------------------------
+ *
+ *                                         
+ *                                          Parsing Commonly Encountered File Types
+ *
+ *
+ *-------------------------------------------------------------------------------------------------------------------------*/
+
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                       CSV Parsing
+ *---------------------------------------------------------------------------------------------------------------------------
+ * Parsing a string may modify it since tokens are returned as ElkStr and we may modify those strings in place.
+ *
+ * The CSV format I handle is pretty simple. Anything goes inside quoted strings. Quotes in a quoted string have to be 
+ * escaped by another quote, e.g. "Frank ""The Tank"" Johnson". Comment lines are allowed, but they must be full lines, no
+ * end of line comments, and they must start with a '#' character.
+ */
+typedef struct
+{
+    intptr_t row; // The number of CSV rows parsed so far, this includes blank lines.
+    intptr_t col; // CSV column, that is, how many commas have we passed
+    ElkStr value; // The value not including the comma or any new line character
+} ElkCsvToken;
+
+typedef struct
+{
+    ElkStr remaining;       // The portion of the string remaining to be parsed. Useful for diagnosing parse errors.
+    intptr_t row;           // Only counts parseable rows, comment lines don't count.
+    intptr_t col;           // CSV column, that is, how many commas have we passed on this line.
+    intptr_t max_token_len; // CSV files usually don't have very long entries for values, set a limit beyond which is error
+    bool error;             // Have we encountered an error while parsing?
+} ElkCsvParser;
+
+static inline ElkCsvParser elk_csv_create_parser(ElkStr input, intptr_t max_token_len);
+static inline ElkCsvToken elk_csv_next_token(ElkCsvParser *parser);
+static inline bool elk_csv_finished(ElkCsvParser *parser);
+static inline ElkStr elk_csv_unquote_str(ElkStr str);
+
+#define elk_csv_default_parser(input) elk_csv_create_parser(input, 128)
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *
@@ -1999,6 +2039,146 @@ elk_hash_set_value_iter_next(ElkHashSet *set, ElkHashSetIter *iter)
     } while(next_value == NULL && *iter < max_iter);
 
     return next_value;
+}
+
+static inline ElkCsvParser 
+elk_csv_create_parser(ElkStr input, intptr_t max_token_len)
+{
+    return (ElkCsvParser){ .remaining=input, .row=0, .col=0, .max_token_len= max_token_len, .error=false };
+}
+
+static inline bool 
+elk_csv_finished(ElkCsvParser *parser)
+{
+    return parser->error || parser->remaining.len == 0;
+}
+
+static inline ElkCsvToken 
+elk_csv_next_token(ElkCsvParser *parser)
+{
+    StopIf(elk_csv_finished(parser), goto ERR_RETURN);
+
+    // Current position in parser and how much we've processed
+    char *next_char = parser->remaining.start;
+    int num_chars_proc = 0;
+    intptr_t row = parser->row;
+    intptr_t col = parser->col;
+
+    // Handle comment lines
+    while(col == 0 && *next_char == '#')
+    {
+        // We must be on a comment line if we got here, so read just past the end of the line
+        
+        while(*next_char && parser->remaining.len - num_chars_proc > 0)
+        {
+            char *last_char = next_char;
+            ++next_char;
+            ++num_chars_proc;
+            if(*last_char == '\n') { break; }
+        }
+    }
+
+    // The data for the next value to return
+    char *next_value_start = next_char;
+    intptr_t next_value_len = 0;
+
+    // Are we in a quoted string where we should ignore commas?
+    bool in_string = false;
+    bool new_row = false;
+
+    while(*next_char && parser->remaining.len - num_chars_proc > 0)
+    {
+        if(*next_char == '\n')  
+        {
+            ++next_char;
+            ++num_chars_proc;
+            new_row = true;
+            break;
+        }
+        else if(*next_char == '"')
+        {
+            in_string = !in_string;
+        }
+        else if(*next_char == ',' && !in_string)
+        {
+            ++next_char;
+            ++num_chars_proc;
+            break;
+        }
+        else if(next_value_len > parser->max_token_len)
+        {
+            goto ERR_RETURN;
+        }
+
+        ++next_value_len;
+        ++next_char;
+        ++num_chars_proc;
+    }
+
+    if(new_row)
+    {
+        parser->row += 1;
+        parser->col = 0;
+    } 
+    else
+    {
+        parser->col += 1;
+    }
+
+    parser->remaining.start = next_char;
+    parser->remaining.len -= num_chars_proc;
+
+    return (ElkCsvToken){ .row=row, .col=col, .value=(ElkStr){ .start=next_value_start, .len=next_value_len }};
+
+ERR_RETURN:
+    parser->error = true;
+    return (ElkCsvToken){ .row=parser->row, .col=parser->col, .value=(ElkStr){.start=parser->remaining.start, .len=0}};
+}
+
+static inline ElkStr 
+elk_csv_unquote_str(ElkStr str)
+{
+    // remove any leading and trailing white space
+    str = elk_str_strip(str);
+
+    // 
+    // Handle corner cases
+    //
+
+    // Handle string that isn't even quoted!
+    if(str.len < 2 || str.start[0] != '"') { return str; }
+
+
+    // Handle the empty string.
+    if(str.len == 2 && str.start[0] == '"' && str.start[1] == '"') 
+    {
+        return (ElkStr){ .start = str.start, .len=0 }; 
+    }
+
+    // Ok, now we've got a quoted non-empty string.
+    char *sub_str = &str.start[1];
+    int next_read = 0;
+    int next_write = 0;
+    intptr_t len = 0;
+    while(next_read < str.len - 2)
+    {
+        if(sub_str[next_read] == '"')
+        {
+            next_read++;
+            if(next_read >= str.len -2) { break; }
+        }
+
+        if(next_read != next_write)
+        {
+            sub_str[next_write] = sub_str[next_read];
+        }
+
+        len += 1;
+        next_read += 1;
+        next_write += 1;
+    }
+
+    return (ElkStr){ .start=sub_str, .len=len};
 }
 
 #endif
