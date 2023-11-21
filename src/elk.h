@@ -155,15 +155,15 @@ static inline bool elk_str_parse_datetime(ElkStr str, ElkTime *out);
  *
  *-------------------------------------------------------------------------------------------------------------------------*/
 
-#define ELK_KiB(a) ((a) * 1024)
-#define ELK_MiB(a) (ELK_KiB(a) * 1024)
-#define ELK_GiB(a) (ELK_MiB(a) * 1024)
-#define ELK_TiB(a) (ELK_GiB(a) * 1024)
+#define ELK_KiB(a) ((a) * INT64_C(1024))
+#define ELK_MiB(a) (ELK_KiB(a) * INT64_C(1024))
+#define ELK_GiB(a) (ELK_MiB(a) * INT64_C(1024))
+#define ELK_TiB(a) (ELK_GiB(a) * INT64_C(1024))
 
-#define ELK_KB(a) ((a) * 1000)
-#define ELK_MB(a) (ELK_KB(a) * 1000)
-#define ELK_GB(a) (ELK_MB(a) * 1000)
-#define ELK_TB(a) (ELK_GB(a) * 1000)
+#define ELK_KB(a) ((a) * INT64_C(1000))
+#define ELK_MB(a) (ELK_KB(a) * INT64_C(1000))
+#define ELK_GB(a) (ELK_MB(a) * INT64_C(1000))
+#define ELK_TB(a) (ELK_GB(a) * INT64_C(1000))
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                 Static Arena Allocator
