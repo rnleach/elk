@@ -128,12 +128,19 @@ typedef struct
     intptr_t len;     // the length of the string (not including a null terminator if it's there)
 } ElkStr;
 
+typedef struct
+{
+    ElkStr left;
+    ElkStr right;
+} ElkStrSplitPair;
+
 static inline ElkStr elk_str_from_cstring(char *src);
 static inline ElkStr elk_str_copy(intptr_t dst_len, char *restrict dest, ElkStr src);
 static inline ElkStr elk_str_strip(ElkStr input);                              // Strips leading and trailing whitespace
 static inline ElkStr elk_str_substr(ElkStr str, intptr_t start, intptr_t len); // Create a substring from a longer string
 static inline int elk_str_case_sensitive_cmp(ElkStr left, ElkStr right);       // 0 if equal, -1 if left is first, 1 otherwise
 static inline bool elk_str_eq(ElkStr const left, ElkStr const right);          // Faster than elk_str_cmp, checks length first
+static inline ElkStrSplitPair elk_str_split_on_char(ElkStr str, char const split_char);
 
 /* Parsing values from strings.
  *
@@ -849,6 +856,23 @@ elk_str_eq(ElkStr const left, ElkStr const right)
     }
 
     return true;
+}
+
+static inline ElkStrSplitPair
+elk_str_split_on_char(ElkStr str, char const split_char)
+{
+    ElkStr left = { .start = str.start, .len = 0 };
+    ElkStr right = { .start = NULL, .len = 0 };
+
+    for(char const *c = str.start; *c != split_char && left.len < str.len; ++c, ++left.len);
+
+    if(left.len + 1 < str.len)
+    {
+        right.start = &str.start[left.len + 1];
+        right.len = str.len - left.len - 1;
+    }
+
+    return (ElkStrSplitPair) { .left = left, .right = right};
 }
 
 _Static_assert(sizeof(intptr_t) == sizeof(uintptr_t), "intptr_t and uintptr_t aren't the same size?!");
