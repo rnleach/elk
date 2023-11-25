@@ -87,6 +87,11 @@ test_arena(void)
         elk_static_arena_reset(arena);
     }
 
+#ifdef _ELK_TRACK_MEM_USAGE
+    double pct_mem = (double)arena->max_offset / (double)arena->buf_size * 100.0;
+    fprintf(stdout, "%s used %.2lf%% of arena.\n", __func__, pct_mem);
+#endif
+
     elk_static_arena_destroy(arena);
 }
 
@@ -130,6 +135,12 @@ test_static_arena_realloc(void)
     double *million_dubs = elk_static_arena_realloc(arena, hundred_dubs, 1000000 * sizeof *ten_dubs);
     Assert(!million_dubs);
 
+
+#ifdef _ELK_TRACK_MEM_USAGE
+    double pct_mem = (double)arena->max_offset / (double)arena->buf_size * 100.0;
+    fprintf(stdout, "%s used %.2lf%% of arena.\n", __func__, pct_mem);
+#endif
+
     elk_static_arena_destroy(arena);
 }
 
@@ -164,6 +175,12 @@ test_static_arena_free(void)
 
     Assert(offset_before != offset_after);
     Assert(offset_before < offset_after);
+
+
+#ifdef _ELK_TRACK_MEM_USAGE
+    double pct_mem = (double)arena->max_offset / (double)arena->buf_size * 100.0;
+    fprintf(stdout, "%s used %.2lf%% of arena.\n", __func__, pct_mem);
+#endif
 
     elk_static_arena_destroy(arena);
 }

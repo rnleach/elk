@@ -176,6 +176,8 @@ static inline bool elk_str_parse_datetime(ElkStr str, ElkTime *out);
  *                                                 Static Arena Allocator
  *---------------------------------------------------------------------------------------------------------------------------
  *
+ * Compile with -D_ELK_TRACK_MEM_USAGE to include the maximum memory tracking variables & features.
+ *
  * A statically sized, non-growable arena allocator that works on top of a user supplied buffer.
  */
 
@@ -186,6 +188,10 @@ typedef struct
     unsigned char *buffer;
     void *prev_ptr;
     intptr_t prev_offset;
+#ifdef _ELK_TRACK_MEM_USAGE
+    intptr_t max_offset; // internal use only
+    intptr_t *max_offset_ptr;
+#endif
 } ElkStaticArena;
 
 static inline void elk_static_arena_create(ElkStaticArena *arena, intptr_t buf_size, unsigned char buffer[]);
@@ -1301,8 +1307,14 @@ elk_static_arena_create(ElkStaticArena *arena, intptr_t buf_size, unsigned char 
         .buffer = buffer,
         .prev_ptr = NULL,
         .prev_offset = 0,
+#ifdef _ELK_TRACK_MEM_USAGE
+        .max_offset = 0,
+#endif
     };
 
+#ifdef _ELK_TRACK_MEM_USAGE
+        arena->max_offset_ptr = &arena->max_offset;
+#endif
     return;
 }
 
@@ -1342,6 +1354,10 @@ elk_static_arena_alloc(ElkStaticArena *arena, intptr_t size, intptr_t alignment)
         arena->buf_offset = offset + size;
         arena->prev_ptr = ptr;
 
+#ifdef _ELK_TRACK_MEM_USAGE
+        *arena->max_offset_ptr = arena->buf_offset > (*arena->max_offset_ptr) ? arena->buf_offset : (*arena->max_offset_ptr);
+#endif
+
         return ptr;
     }
     else { return NULL; }
@@ -1361,6 +1377,11 @@ elk_static_arena_realloc(ElkStaticArena *arena, void *ptr, intptr_t size)
         if (offset + size <= arena->buf_size)
         {
             arena->buf_offset = offset + size;
+
+#ifdef _ELK_TRACK_MEM_USAGE
+            *arena->max_offset_ptr = arena->buf_offset > (*arena->max_offset_ptr) ? arena->buf_offset : (*arena->max_offset_ptr);
+#endif
+
             return ptr;
         }
     }
