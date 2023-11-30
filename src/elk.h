@@ -392,6 +392,7 @@ static inline ElkArrayLedger elk_array_ledger_create(intptr_t capacity);
 static inline bool elk_array_ledger_full(ElkArrayLedger *array);
 static inline bool elk_array_ledger_empty(ElkArrayLedger *array);
 static inline intptr_t elk_array_ledger_push_back_index(ElkArrayLedger *array);
+static inline intptr_t elk_array_ledger_pop_back_index(ElkArrayLedger *array);
 static inline intptr_t elk_array_ledger_len(ElkArrayLedger const *array);
 static inline void elk_array_ledger_reset(ElkArrayLedger *array);
 static inline void elk_array_ledger_set_capacity(ElkArrayLedger *array, intptr_t capacity);
@@ -441,7 +442,7 @@ static inline void *elk_hash_map_key_iter_next(ElkHashMap *map, ElkHashMapKeyIte
 /*--------------------------------------------------------------------------------------------------------------------------
  *                                            Hash Map (Table, ElkStr as keys)
  *---------------------------------------------------------------------------------------------------------------------------
- * Designed for use when keys are strings. If the key_hash is NULL, it just uses the fnv1a has function.
+ * Designed for use when keys are strings.
  *
  * Values are not copied, they are stored as pointers, so the user must manage memory.
  *
@@ -1576,6 +1577,14 @@ elk_array_ledger_push_back_index(ElkArrayLedger *array)
     intptr_t idx = array->length;
     array->length += 1;
     return idx;
+}
+
+static inline intptr_t
+elk_array_ledger_pop_back_index(ElkArrayLedger *array)
+{
+    if(elk_array_ledger_empty(array)) { return ELK_COLLECTION_EMPTY; }
+
+    return --array->length;
 }
 
 static inline intptr_t
