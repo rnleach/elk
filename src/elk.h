@@ -138,7 +138,7 @@ static inline ElkStr elk_str_from_cstring(char *src);
 static inline ElkStr elk_str_copy(intptr_t dst_len, char *restrict dest, ElkStr src);
 static inline ElkStr elk_str_strip(ElkStr input);                              // Strips leading and trailing whitespace
 static inline ElkStr elk_str_substr(ElkStr str, intptr_t start, intptr_t len); // Create a substring from a longer string
-static inline int elk_str_case_sensitive_cmp(ElkStr left, ElkStr right);       // 0 if equal, -1 if left is first, 1 otherwise
+static inline int elk_str_cmp(ElkStr left, ElkStr right);                      // 0 if equal, -1 if left is first, 1 otherwise
 static inline bool elk_str_eq(ElkStr const left, ElkStr const right);          // Faster than elk_str_cmp, checks length first
 static inline ElkStrSplitPair elk_str_split_on_char(ElkStr str, char const split_char);
 
