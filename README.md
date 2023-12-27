@@ -53,6 +53,8 @@
 
 ### Version 3.0.0 - IN PROGRESS
   - (XXXX-XX-XX) NOTES ON REVISIONS
+  - Added some convenience functions for memory when working with the Coyote library.
+  - Added generic elk_len macro for several collections.
   - Added functions to parse strings into int64_t, double, or ElkTime values.
   - Added substring function.
   - Added function to create ElkTime from year, day of year, hours, minutes, and seconds.

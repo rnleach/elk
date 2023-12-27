@@ -435,6 +435,7 @@ static inline ElkHashMap elk_hash_map_create(int8_t size_exp, ElkSimpleHash key_
 static inline void elk_hash_map_destroy(ElkHashMap *map);
 static inline void *elk_hash_map_insert(ElkHashMap *map, void *key, void *value); // if return != value, key was already in the map
 static inline void *elk_hash_map_lookup(ElkHashMap *map, void *key); // return NULL if not in map, otherwise return pointer to value
+static inline intptr_t elk_hash_map_len(ElkHashMap *map);
 static inline ElkHashMapKeyIter elk_hash_map_key_iter(ElkHashMap *map);
 
 static inline void *elk_hash_map_key_iter_next(ElkHashMap *map, ElkHashMapKeyIter *iter);
@@ -469,6 +470,7 @@ static inline ElkStrMap elk_str_map_create(int8_t size_exp, ElkStaticArena *aren
 static inline void elk_str_map_destroy(ElkStrMap *map);
 static inline void *elk_str_map_insert(ElkStrMap *map, ElkStr key, void *value); // if return != value, key was already in the map
 static inline void *elk_str_map_lookup(ElkStrMap *map, ElkStr key); // return NULL if not in map, otherwise return pointer to value
+static inline intptr_t elk_str_map_len(ElkStrMap *map);
 static inline ElkHashMapKeyIter elk_str_map_key_iter(ElkStrMap *map);
 
 static inline ElkStr elk_str_map_key_iter_next(ElkStrMap *map, ElkStrMapKeyIter *iter);
@@ -504,9 +506,24 @@ static inline ElkHashSet elk_hash_set_create(int8_t size_exp, ElkSimpleHash val_
 static inline void elk_hash_set_destroy(ElkHashSet *set);
 static inline void *elk_hash_set_insert(ElkHashSet *set, void *value); // if return != value, value was already in the set
 static inline void *elk_hash_set_lookup(ElkHashSet *set, void *value); // return NULL if not in set, otherwise return ptr to value
+static inline intptr_t elk_hash_set_len(ElkHashSet *set);
 static inline ElkHashSetIter elk_hash_set_value_iter(ElkHashSet *set);
 
 static inline void *elk_hash_set_value_iter_next(ElkHashSet *set, ElkHashSetIter *iter);
+
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                            Generic Macros for Collections
+ *---------------------------------------------------------------------------------------------------------------------------
+ * These macros take any collection and return a result.
+ */
+#define elk_len(x) _Generic((x),                                                                                            \
+        ElkQueueLedger *: elk_queue_ledger_len,                                                                             \
+        ElkArrayLedger *: elk_array_ledger_len,                                                                             \
+        ElkHashMap *: elk_hash_map_len,                                                                                     \
+        ElkStrMap *: elk_str_map_len,                                                                                        \
+        ElkHashSet *: elk_hash_set_len)(x)
+
+
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *
@@ -547,6 +564,21 @@ static inline bool elk_csv_finished(ElkCsvParser *parser);
 static inline ElkStr elk_csv_unquote_str(ElkStr str);
 
 #define elk_csv_default_parser(input) elk_csv_create_parser(input, 128)
+
+/*---------------------------------------------------------------------------------------------------------------------------
+ *
+ *                                         
+ *                                                     Coyote Add Ons
+ *
+ *
+ *---------------------------------------------------------------------------------------------------------------------------
+ * These are ONLY enabled if the coyote library has also been included. It must be included first.
+ *
+ */
+#ifdef _COYOTE_H_
+static inline void elk_static_arena_allocate_and_create(ElkStaticArena *arena, intptr_t num_bytes);
+static inline void elk_static_arena_destroy_and_deallocate(ElkStaticArena *arena);
+#endif
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *
@@ -1747,6 +1779,12 @@ elk_hash_map_lookup(ElkHashMap *map, void *key)
     return NULL;
 }
 
+static inline intptr_t 
+elk_hash_map_len(ElkHashMap *map)
+{
+    return map->num_handles;
+}
+
 static inline ElkHashMapKeyIter 
 elk_hash_map_key_iter(ElkHashMap *map)
 {
@@ -1903,6 +1941,12 @@ elk_str_map_lookup(ElkStrMap *map, ElkStr key)
     }
 
     return NULL;
+}
+
+static inline intptr_t
+elk_str_map_len(ElkStrMap *map)
+{
+    return map->num_handles;
 }
 
 static inline ElkHashMapKeyIter 
@@ -2072,6 +2116,12 @@ elk_hash_set_lookup(ElkHashSet *set, void *value)
     return NULL;
 }
 
+static inline intptr_t 
+elk_hash_set_len(ElkHashSet *set)
+{
+    return set->num_handles;
+}
+
 static inline ElkHashSetIter
 elk_hash_set_value_iter(ElkHashSet *set)
 {
@@ -2234,5 +2284,34 @@ elk_csv_unquote_str(ElkStr str)
 
     return (ElkStr){ .start=sub_str, .len=len};
 }
+
+#ifdef _COYOTE_H_
+
+static inline void 
+elk_static_arena_allocate_and_create(ElkStaticArena *arena, intptr_t num_bytes)
+{
+    CoyMemoryBlock mem = coy_memory_allocate(num_bytes);
+    StopIf(!mem.valid, goto ERR_RETURN);
+    elk_static_arena_create(arena, mem.size, mem.mem);
+
+    return;
+
+ERR_RETURN:
+    arena->buffer = NULL;
+    arena->buf_size = 0;
+    return;
+}
+
+static inline void 
+elk_static_arena_destroy_and_deallocate(ElkStaticArena *arena)
+{
+    CoyMemoryBlock mem = { .mem = arena->buffer, .size = arena->buf_size, .valid = true };
+    coy_memory_free(&mem);
+    arena->buffer = NULL;
+    arena->buf_size = 0;
+    return;
+}
+
+#endif // Coyote
 
 #endif
