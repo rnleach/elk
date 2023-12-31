@@ -581,7 +581,7 @@ static inline ElkStr elk_csv_unquote_str(ElkStr str);
  *
  */
 #ifdef _COYOTE_H_
-static inline void elk_static_arena_allocate_and_create(ElkStaticArena *arena, intptr_t num_bytes);
+static inline ElkStaticArena elk_static_arena_allocate_and_create(intptr_t num_bytes);
 static inline void elk_static_arena_destroy_and_deallocate(ElkStaticArena *arena);
 #endif
 
@@ -2296,19 +2296,18 @@ elk_csv_unquote_str(ElkStr str)
 
 #ifdef _COYOTE_H_
 
-static inline void 
-elk_static_arena_allocate_and_create(ElkStaticArena *arena, intptr_t num_bytes)
+static inline ElkStaticArena 
+elk_static_arena_allocate_and_create(intptr_t num_bytes)
 {
+    ElkStaticArena arena = {0};
     CoyMemoryBlock mem = coy_memory_allocate(num_bytes);
-    StopIf(!mem.valid, goto ERR_RETURN);
-    elk_static_arena_create(arena, mem.size, mem.mem);
 
-    return;
+    if(mem.valid)
+    {
+        elk_static_arena_create(&arena, mem.size, mem.mem);
+    }
 
-ERR_RETURN:
-    arena->buffer = NULL;
-    arena->buf_size = 0;
-    return;
+    return arena;
 }
 
 static inline void 
