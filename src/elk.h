@@ -581,8 +581,11 @@ static inline ElkStr elk_csv_unquote_str(ElkStr str);
  *
  */
 #ifdef _COYOTE_H_
-static inline ElkStaticArena elk_static_arena_allocate_and_create(intptr_t num_bytes);
-static inline void elk_static_arena_destroy_and_deallocate(ElkStaticArena *arena);
+static inline ElkStaticArena elk_static_arena_allocate_and_create(intptr_t num_bytes); /* Allocates using Coyote.          */
+static inline void elk_static_arena_destroy_and_deallocate(ElkStaticArena *arena);     /* Frees memory with Coyote.        */
+
+/* Use Coyote file slurp with arena. */
+static inline intptr_t elk_file_slurp(char const *filename, unsigned char **out, ElkStaticArena *arena);   
 #endif
 
 /*---------------------------------------------------------------------------------------------------------------------------
@@ -2318,6 +2321,22 @@ elk_static_arena_destroy_and_deallocate(ElkStaticArena *arena)
     arena->buffer = NULL;
     arena->buf_size = 0;
     return;
+}
+
+static inline intptr_t 
+elk_file_slurp(char const *filename, unsigned char **out, ElkStaticArena *arena)
+{
+    intptr_t size = coy_file_size(filename);
+    StopIf(size < 0, goto ERR_RETURN);
+
+    *out = elk_static_arena_nmalloc(arena, size, unsigned char);
+    StopIf(!*out, goto ERR_RETURN);
+
+    return coy_file_slurp(filename, size, *out);
+
+ERR_RETURN:
+    *out = NULL;
+    return -1;
 }
 
 #endif // Coyote
