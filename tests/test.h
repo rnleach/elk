@@ -9,7 +9,7 @@
 #    undef NDEBUG
 #endif
 
-// #define _ELK_TRACK_MEM_USAGE
+#define _ELK_TRACK_MEM_USAGE
 
 #include <stdio.h>
 #include "../src/elk.h"

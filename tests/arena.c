@@ -88,7 +88,7 @@ test_arena(void)
     }
 
 #ifdef _ELK_TRACK_MEM_USAGE
-    double pct_mem = (double)arena->max_offset / (double)arena->buf_size * 100.0;
+    double pct_mem = elk_static_arena_max_ratio(arena) * 100.0;
     fprintf(stdout, "%s used %.2lf%% of arena.\n", __func__, pct_mem);
 #endif
 
@@ -137,7 +137,7 @@ test_static_arena_realloc(void)
 
 
 #ifdef _ELK_TRACK_MEM_USAGE
-    double pct_mem = (double)arena->max_offset / (double)arena->buf_size * 100.0;
+    double pct_mem = elk_static_arena_max_ratio(arena) * 100.0;
     fprintf(stdout, "%s used %.2lf%% of arena.\n", __func__, pct_mem);
 #endif
 
@@ -178,7 +178,7 @@ test_static_arena_free(void)
 
 
 #ifdef _ELK_TRACK_MEM_USAGE
-    double pct_mem = (double)arena->max_offset / (double)arena->buf_size * 100.0;
+    double pct_mem = elk_static_arena_max_ratio(arena) * 100.0;
     fprintf(stdout, "%s used %.2lf%% of arena.\n", __func__, pct_mem);
 #endif
 

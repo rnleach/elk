@@ -189,7 +189,6 @@ typedef struct
     void *prev_ptr;
     intptr_t prev_offset;
 #ifdef _ELK_TRACK_MEM_USAGE
-    intptr_t max_offset; // internal use only
     intptr_t *max_offset_ptr;
 #endif
 } ElkStaticArena;
@@ -204,6 +203,12 @@ static inline void elk_static_arena_free(ElkStaticArena *arena, void *ptr); // U
 #define elk_static_arena_malloc(arena, type) (type *)elk_static_arena_alloc(arena, sizeof(type), _Alignof(type))
 #define elk_static_arena_nmalloc(arena, count, type) (type *)elk_static_arena_alloc(arena, count * sizeof(type), _Alignof(type))
 #define elk_static_arena_nrealloc(arena, ptr, count, type) (type *) elk_static_arena_realloc(arena, (ptr), sizeof(type) * (count))
+
+#ifdef _ELK_TRACK_MEM_USAGE
+static intptr_t elk_static_arena_max_offset[32] = {0};
+static intptr_t elk_static_arena_max_offset_next = 0;
+static inline double elk_static_arena_max_ratio(ElkStaticArena *arena);
+#endif
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                  Static Pool Allocator
@@ -1340,13 +1345,11 @@ elk_static_arena_create(ElkStaticArena *arena, intptr_t buf_size, unsigned char 
         .buffer = buffer,
         .prev_ptr = NULL,
         .prev_offset = 0,
-#ifdef _ELK_TRACK_MEM_USAGE
-        .max_offset = 0,
-#endif
     };
 
 #ifdef _ELK_TRACK_MEM_USAGE
-        arena->max_offset_ptr = &arena->max_offset;
+        arena->max_offset_ptr = &elk_static_arena_max_offset[elk_static_arena_max_offset_next++];
+        *arena->max_offset_ptr = 0;
 #endif
     return;
 }
@@ -1431,6 +1434,12 @@ elk_static_arena_free(ElkStaticArena *arena, void *ptr)
     }
 
     return;
+}
+
+static inline double 
+elk_static_arena_max_ratio(ElkStaticArena *arena)
+{
+    return (double)*arena->max_offset_ptr / (double)arena->buf_size;
 }
 
 static inline void
