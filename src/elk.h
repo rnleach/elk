@@ -481,7 +481,7 @@ static inline ElkStrMapKeyIter elk_str_map_key_iter(ElkStrMap *map);
 static inline ElkStrMapHandleIter elk_str_map_handle_iter(ElkStrMap *map);
 
 static inline ElkStr elk_str_map_key_iter_next(ElkStrMap *map, ElkStrMapKeyIter *iter);
-static inline ElkStrMapHandle elk_str_map_handle_iter_iter_next(ElkStrMap *map, ElkStrMapHandleIter *iter);
+static inline ElkStrMapHandle elk_str_map_handle_iter_next(ElkStrMap *map, ElkStrMapHandleIter *iter);
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                        Hash Set
