@@ -110,6 +110,53 @@ test_elk_str_key_iterator(void)
     elk_str_map_destroy(map);
 }
 
+static void
+test_elk_str_handle_iterator(void)
+{
+    size_t const NUM_TEST_STRINGS = sizeof(some_strings) / sizeof(some_strings[0]);
+
+    ElkStr strs[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
+    int64_t values[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
+
+    unsigned char buffer[ELK_KB(2)] = {0};
+    ElkStaticArena arena_i = {0};
+    ElkStaticArena *arena = &arena_i;
+    elk_static_arena_create(arena, sizeof(buffer), buffer);
+
+    ElkStrMap map_ = elk_str_map_create(2, arena); // Use a crazy small size_exp to force it to grow, this IS a test!
+    ElkStrMap *map = &map_;
+    Assert(map);
+
+    // Fill the map
+    for (size_t i = 0; i < NUM_TEST_STRINGS; ++i) 
+    {
+        char *str = some_strings[i];
+        strs[i] = elk_str_from_cstring(str);
+        values[i] = i;
+        
+        int64_t *vptr = elk_str_map_insert(map, strs[i], &values[i]);
+        Assert(vptr == &values[i]);
+    }
+
+    ElkStrMapHandleIter iter = elk_str_map_handle_iter(map);
+
+    ElkStrMapHandle handle = {0};
+    int key_count = 0;
+    do
+    {
+        handle = elk_str_map_handle_iter_next(map, &iter);
+        if(handle.key.start) {
+            key_count  += 1;
+            //printf("%p %s\n", handle.key.start, handle.key.start); 
+        }
+
+    } while(handle.key.start);
+
+    Assert(key_count  == NUM_TEST_STRINGS);
+
+    elk_str_map_destroy(map);
+}
+
 static uint64_t 
 id_hash(void const *value)
 {
@@ -231,6 +278,7 @@ elk_hash_table_tests()
 {
     test_elk_str_table();
     test_elk_str_key_iterator();
+    test_elk_str_handle_iterator();
     test_elk_hash_table();
     test_elk_hash_key_iterator();
 }

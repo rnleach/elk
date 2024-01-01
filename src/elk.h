@@ -470,15 +470,18 @@ typedef struct
 } ElkStrMap;
 
 typedef intptr_t ElkStrMapKeyIter;
+typedef intptr_t ElkStrMapHandleIter;
 
 static inline ElkStrMap elk_str_map_create(int8_t size_exp, ElkStaticArena *arena);
 static inline void elk_str_map_destroy(ElkStrMap *map);
 static inline void *elk_str_map_insert(ElkStrMap *map, ElkStr key, void *value); // if return != value, key was already in the map
 static inline void *elk_str_map_lookup(ElkStrMap *map, ElkStr key); // return NULL if not in map, otherwise return pointer to value
 static inline intptr_t elk_str_map_len(ElkStrMap *map);
-static inline ElkHashMapKeyIter elk_str_map_key_iter(ElkStrMap *map);
+static inline ElkStrMapKeyIter elk_str_map_key_iter(ElkStrMap *map);
+static inline ElkStrMapHandleIter elk_str_map_handle_iter(ElkStrMap *map);
 
 static inline ElkStr elk_str_map_key_iter_next(ElkStrMap *map, ElkStrMapKeyIter *iter);
+static inline ElkStrMapHandle elk_str_map_handle_iter_iter_next(ElkStrMap *map, ElkStrMapHandleIter *iter);
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                        Hash Set
@@ -1967,24 +1970,55 @@ elk_str_map_key_iter(ElkStrMap *map)
     return 0;
 }
 
+static inline ElkStrMapHandleIter 
+elk_str_map_handle_iter(ElkStrMap *map)
+{
+    return 0;
+}
+
 static inline ElkStr 
 elk_str_map_key_iter_next(ElkStrMap *map, ElkStrMapKeyIter *iter)
 {
     intptr_t const max_iter = (1 << map->size_exp);
-    if(*iter >= max_iter) 
+    if(*iter < max_iter) 
+    {
+        ElkStr next_key = map->handles[*iter].key;
+        *iter += 1;
+        while(next_key.start == NULL && *iter < max_iter)
+        {
+            next_key = map->handles[*iter].key;
+            *iter += 1;
+        }
+
+        return next_key;
+    }
+    else
     {
         return (ElkStr){.start=NULL, .len=0};
     }
 
-    ElkStr next_key = map->handles[*iter].key;
-    *iter += 1;
-    while(next_key.start == NULL && *iter < max_iter)
-    {
-        next_key = map->handles[*iter].key;
-        *iter += 1;
-    }
+}
 
-    return next_key;
+static inline ElkStrMapHandle 
+elk_str_map_handle_iter_next(ElkStrMap *map, ElkStrMapHandleIter *iter)
+{
+    intptr_t const max_iter = (1 << map->size_exp);
+    if(*iter < max_iter) 
+    {
+        ElkStrMapHandle next = map->handles[*iter];
+        *iter += 1;
+        while(next.key.start == NULL && *iter < max_iter)
+        {
+            next = map->handles[*iter];
+            *iter += 1;
+        }
+
+        return next;
+    }
+    else
+    {
+        return (ElkStrMapHandle){ .key = (ElkStr){.start=NULL, .len=0}, .hash = 0, .value = NULL };
+    }
 }
 
 static inline ElkHashSet 
