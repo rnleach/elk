@@ -181,6 +181,14 @@ static inline bool elk_str_parse_datetime(ElkStr str, ElkTime *out);
  * A statically sized, non-growable arena allocator that works on top of a user supplied buffer.
  */
 
+#ifdef _ELK_TRACK_MEM_USAGE
+typedef struct
+{
+    intptr_t max_offset;
+    bool over_allocation_attempted;
+} ElkStaticArenaAllocationMetrics;
+#endif
+
 typedef struct 
 {
     intptr_t buf_size;
@@ -189,7 +197,7 @@ typedef struct
     void *prev_ptr;
     intptr_t prev_offset;
 #ifdef _ELK_TRACK_MEM_USAGE
-    intptr_t *max_offset_ptr;
+    ElkStaticArenaAllocationMetrics *metrics_ptr;
 #endif
 } ElkStaticArena;
 
@@ -205,9 +213,10 @@ static inline void elk_static_arena_free(ElkStaticArena *arena, void *ptr); // U
 #define elk_static_arena_nrealloc(arena, ptr, count, type) (type *) elk_static_arena_realloc(arena, (ptr), sizeof(type) * (count))
 
 #ifdef _ELK_TRACK_MEM_USAGE
-static intptr_t elk_static_arena_max_offset[32] = {0};
-static intptr_t elk_static_arena_max_offset_next = 0;
+static ElkStaticArenaAllocationMetrics elk_static_arena_metrics[32] = {0};
+static intptr_t elk_static_arena_metrics_next = 0;
 static inline double elk_static_arena_max_ratio(ElkStaticArena *arena);
+static inline bool elk_static_arena_over_allocated(ElkStaticArena *arena);
 #endif
 
 /*---------------------------------------------------------------------------------------------------------------------------
@@ -589,6 +598,7 @@ static inline void elk_static_arena_destroy_and_deallocate(ElkStaticArena *arena
 
 /* Use Coyote file slurp with arena. */
 static inline intptr_t elk_file_slurp(char const *filename, unsigned char **out, ElkStaticArena *arena);   
+static inline ElkStr elk_file_slurp_text(char const *filename, ElkStaticArena *arena);
 #endif
 
 /*---------------------------------------------------------------------------------------------------------------------------
@@ -1354,8 +1364,8 @@ elk_static_arena_create(ElkStaticArena *arena, intptr_t buf_size, unsigned char 
     };
 
 #ifdef _ELK_TRACK_MEM_USAGE
-        arena->max_offset_ptr = &elk_static_arena_max_offset[elk_static_arena_max_offset_next++];
-        *arena->max_offset_ptr = 0;
+        arena->metrics_ptr = &elk_static_arena_metrics[elk_static_arena_metrics_next++];
+        *arena->metrics_ptr = (ElkStaticArenaAllocationMetrics){0};
 #endif
     return;
 }
@@ -1397,12 +1407,19 @@ elk_static_arena_alloc(ElkStaticArena *arena, intptr_t size, intptr_t alignment)
         arena->prev_ptr = ptr;
 
 #ifdef _ELK_TRACK_MEM_USAGE
-        *arena->max_offset_ptr = arena->buf_offset > (*arena->max_offset_ptr) ? arena->buf_offset : (*arena->max_offset_ptr);
+        arena->metrics_ptr->max_offset = arena->buf_offset > (arena->metrics_ptr->max_offset) ?
+            arena->buf_offset : (arena->metrics_ptr->max_offset);
 #endif
 
         return ptr;
     }
-    else { return NULL; }
+    else
+    {
+#ifdef _ELK_TRACK_MEM_USAGE
+        arena->metrics_ptr->over_allocation_attempted = true;
+#endif
+        return NULL;
+    }
 }
 
 static inline void * 
@@ -1421,13 +1438,17 @@ elk_static_arena_realloc(ElkStaticArena *arena, void *ptr, intptr_t size)
             arena->buf_offset = offset + size;
 
 #ifdef _ELK_TRACK_MEM_USAGE
-            *arena->max_offset_ptr = arena->buf_offset > (*arena->max_offset_ptr) ? arena->buf_offset : (*arena->max_offset_ptr);
+            arena->metrics_ptr->max_offset = arena->buf_offset > (arena->metrics_ptr->max_offset) ?
+                arena->buf_offset : (arena->metrics_ptr->max_offset);
 #endif
 
             return ptr;
         }
     }
 
+#ifdef _ELK_TRACK_MEM_USAGE
+            arena->metrics_ptr->over_allocation_attempted = true;
+#endif
     return NULL;
 }
 
@@ -1442,11 +1463,21 @@ elk_static_arena_free(ElkStaticArena *arena, void *ptr)
     return;
 }
 
+#ifdef _ELK_TRACK_MEM_USAGE
+
 static inline double 
 elk_static_arena_max_ratio(ElkStaticArena *arena)
 {
-    return (double)*arena->max_offset_ptr / (double)arena->buf_size;
+    return (double)arena->metrics_ptr->max_offset / (double)arena->buf_size;
 }
+
+static inline bool 
+elk_static_arena_over_allocated(ElkStaticArena *arena)
+{
+    return arena->metrics_ptr->over_allocation_attempted;
+}
+
+#endif
 
 static inline void
 elk_static_pool_initialize_linked_list(unsigned char *buffer, intptr_t object_size,
@@ -2366,11 +2397,33 @@ elk_file_slurp(char const *filename, unsigned char **out, ElkStaticArena *arena)
     *out = elk_static_arena_nmalloc(arena, size, unsigned char);
     StopIf(!*out, goto ERR_RETURN);
 
-    return coy_file_slurp(filename, size, *out);
+    intptr_t size_read = coy_file_slurp(filename, size, *out);
+    StopIf(size != size_read, goto ERR_RETURN);
+
+    return size;
 
 ERR_RETURN:
     *out = NULL;
     return -1;
+}
+
+static inline ElkStr 
+elk_file_slurp_text(char const *filename, ElkStaticArena *arena)
+{
+
+    intptr_t size = coy_file_size(filename);
+    StopIf(size < 0, goto ERR_RETURN);
+
+    unsigned char *out = elk_static_arena_nmalloc(arena, size, unsigned char);
+    StopIf(!out, goto ERR_RETURN);
+
+    intptr_t size_read = coy_file_slurp(filename, size, out);
+    StopIf(size != size_read, goto ERR_RETURN);
+
+    return (ElkStr){ .start = out, .len = size };
+
+ERR_RETURN:
+    return (ElkStr){ .start = NULL, .len = 0 };
 }
 
 #endif // Coyote
