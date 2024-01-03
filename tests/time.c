@@ -183,18 +183,19 @@ test_time_struct(void)
 {
     ElkStructTime testVals[] = 
     {
-        {.year =     1, .month =  1, .day =  1, .hour =  0, .minute =  0, .second =  0},
-        {.year =     4, .month = 12, .day = 31, .hour =  0, .minute =  0, .second =  0},
-        {.year =  1970, .month =  1, .day =  1, .hour =  0, .minute =  0, .second =  0},
-        {.year = 32767, .month = 12, .day = 31, .hour = 23, .minute = 59, .second = 59},
+        {.year =     1, .month =  1, .day =  1, .hour =  0, .minute =  0, .second =  0, .day_of_year =   1 },
+        {.year =     4, .month = 12, .day = 31, .hour =  0, .minute =  0, .second =  0, .day_of_year = 366 },
+        {.year =  1970, .month =  1, .day =  1, .hour =  0, .minute =  0, .second =  0, .day_of_year =   1 },
+        {.year = 32767, .month = 12, .day = 31, .hour = 23, .minute = 59, .second = 59, .day_of_year = 365 },
     };
 
     for (int i = 0; i < sizeof(testVals) / sizeof(testVals[0]); i++) 
     {
         ElkStructTime forward = testVals[i];
+        int16_t forward_doy = testVals[i].day_of_year;
         ElkTime middle = elk_make_time(testVals[i]);
         ElkStructTime back = elk_make_struct_time(middle);
-        if (!struct_times_equal(forward, back)) 
+        if (!struct_times_equal(forward, back) || forward_doy != back.day_of_year) 
         {
             printf("%+05d-%02d-%02d %02d:%02d:%02d %12" PRId64 " %+05d-%02d-%02d %02d:%02d:%02d \n",
                    forward.year, forward.month, forward.day, forward.hour, forward.minute,
@@ -209,9 +210,10 @@ test_time_struct(void)
     for (int year = 1; year <= 4000; year++) 
     {
         int leap_idx = elk_is_leap_year(year) ? 1 : 0;
+        int16_t day_of_year = 1;
         for (int month = 1; month <= 12; month++) 
         {
-            for (int day = 1; day <= dim[leap_idx][month - 1]; day++) 
+            for (int day = 1; day <= dim[leap_idx][month - 1]; day_of_year++, day++) 
             {
                 for (int hour = 0; hour <= 23; hour++) 
                 {
@@ -224,11 +226,13 @@ test_time_struct(void)
                                                      .day = day,
                                                      .hour = hour,
                                                      .minute = minute,
-                                                     .second = second};
+                                                     .second = second,
+                                                     .day_of_year = day_of_year,
+                                                    };
                             ElkTime middle = elk_make_time(forward);
                             ElkStructTime back = elk_make_struct_time(middle);
 
-                            if (!struct_times_equal(forward, back)) 
+                            if (!struct_times_equal(forward, back) || forward.day_of_year != back.day_of_year) 
                             {
                                 printf("%+05d-%02d-%02d %02d:%02d:%02d %12" PRId64
                                        " %+05d-%02d-%02d "

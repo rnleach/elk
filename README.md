@@ -58,6 +58,7 @@
   - Added generic elk_len macro for several collections.
   - Added functions to parse strings into int64_t, double, or ElkTime values.
   - Added substring function.
+  - Added day of year member to ElkStructTime.
   - Added function to create ElkTime from year, day of year, hours, minutes, and seconds.
   - Added a general hashmap and one specialized for strings as keys.
   - Trimmed down dependencies on the standard library.

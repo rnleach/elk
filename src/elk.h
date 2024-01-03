@@ -76,12 +76,13 @@ typedef int64_t ElkTime;
 
 typedef struct 
 {
-    int16_t year;
-    int8_t month;
-    int8_t day;
-    int8_t hour;
-    int8_t minute;
-    int8_t second;
+    int16_t year;        /* 1-32,767 */
+    int8_t month;        /* 1-12     */
+    int8_t day;          /* 1-31     */
+    int8_t hour;         /* 0-23     */
+    int8_t minute;       /* 0-59     */
+    int8_t second;       /* 0-59     */
+    int16_t day_of_year; /* 1-366    */
 } ElkStructTime;
 
 typedef enum
@@ -98,7 +99,7 @@ static ElkTime const elk_unix_epoch_timestamp = INT64_C(62135596800);
 static inline int64_t elk_time_to_unix_epoch(ElkTime time);
 static inline ElkTime elk_time_from_unix_timestamp(int64_t unixtime);
 static inline bool elk_is_leap_year(int year);
-static inline ElkTime elk_make_time(ElkStructTime tm);
+static inline ElkTime elk_make_time(ElkStructTime tm); /* Ignores the day_of_year member. */
 static inline ElkTime elk_time_truncate_to_hour(ElkTime time);
 static inline ElkTime elk_time_truncate_to_specific_hour(ElkTime time, int hour);
 static inline ElkTime elk_time_add(ElkTime time, int change_in_time);
@@ -805,6 +806,7 @@ elk_make_struct_time(ElkTime time)
     Assert(test_time <= elk_days_since_epoch(year));
     time -= elk_days_since_epoch(year); // Now it's days since start of the year.
     Assert(time >= 0);
+    int16_t day_of_year = time + 1;
 
     // Calculate the month
     int month = 0;
@@ -827,7 +829,8 @@ elk_make_struct_time(ElkTime time)
         .day = day, 
         .hour = hour, 
         .minute = minute, 
-        .second = second
+        .second = second,
+        .day_of_year = day_of_year,
     };
 }
 
