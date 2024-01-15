@@ -14,7 +14,7 @@ static char *some_strings[] =
     "beer!",    "scotch",        "yes please", "raspberries",      "snack time",
 };
 
-static uint64_t simple_str_hash(void const *str)
+static u64 simple_str_hash(void const *str)
 {
     return elk_fnv1a_hash_str(*(ElkStr *)str);
 }
@@ -30,25 +30,25 @@ static void
 test_elk_hash_set(void)
 {
     ElkStr strs[NUM_TEST_STRINGS] = {0};
-    for(int i = 0; i < NUM_TEST_STRINGS; ++i)
+    for(i32 i = 0; i < NUM_TEST_STRINGS; ++i)
     {
         strs[i] = elk_str_from_cstring(some_strings[i]);
     }
 
-    unsigned char buffer[ELK_KB(1)] = {0};
+    byte buffer[ELK_KB(1)] = {0};
     ElkStaticArena arena_i = {0};
     ElkStaticArena *arena = &arena_i;
     elk_static_arena_create(arena, sizeof(buffer), buffer);
 
     ElkHashSet set_ = elk_hash_set_create(2, simple_str_hash, str_eq, arena);
     ElkHashSet *set = &set_;
-    for(int i = 0; i < NUM_TEST_STRINGS; ++i)
+    for(i32 i = 0; i < NUM_TEST_STRINGS; ++i)
     {
         ElkStr *str = elk_hash_set_insert(set, &strs[i]);
         Assert(str == &strs[i]);
     }
 
-    for(int i = 0; i < NUM_TEST_STRINGS; ++i)
+    for(i32 i = 0; i < NUM_TEST_STRINGS; ++i)
     {
         ElkStr *str = elk_hash_set_lookup(set, &strs[i]);
         Assert(str == &strs[i]);
@@ -67,19 +67,19 @@ static void
 test_elk_hash_set_iter(void)
 {
     ElkStr strs[NUM_TEST_STRINGS] = {0};
-    for(int i = 0; i < NUM_TEST_STRINGS; ++i)
+    for(i32 i = 0; i < NUM_TEST_STRINGS; ++i)
     {
         strs[i] = elk_str_from_cstring(some_strings[i]);
     }
 
-    unsigned char buffer[ELK_KB(1)] = {0};
+    byte buffer[ELK_KB(1)] = {0};
     ElkStaticArena arena_i = {0};
     ElkStaticArena *arena = &arena_i;
     elk_static_arena_create(arena, sizeof(buffer), buffer);
 
     ElkHashSet set_ = elk_hash_set_create(2, simple_str_hash, str_eq, arena);
     ElkHashSet *set = &set_;
-    for(int i = 0; i < NUM_TEST_STRINGS; ++i)
+    for(i32 i = 0; i < NUM_TEST_STRINGS; ++i)
     {
         ElkStr *str = elk_hash_set_insert(set, &strs[i]);
         Assert(str == &strs[i]);
@@ -87,11 +87,11 @@ test_elk_hash_set_iter(void)
 
     ElkHashSetIter iter = elk_hash_set_value_iter(set);
     ElkStr *next = elk_hash_set_value_iter_next(set, &iter);
-    int found_count = 0;
+    i32 found_count = 0;
     while(next)
     {
         bool found = false;
-        for(int i = 0; i < NUM_TEST_STRINGS; ++i)
+        for(i32 i = 0; i < NUM_TEST_STRINGS; ++i)
         {
             if(&strs[i] == next) 
             { 

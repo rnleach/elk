@@ -19,11 +19,11 @@ static char *some_strings[] =
 static void
 test_string_interner(void)
 {
-    size_t const NUM_TEST_STRINGS = sizeof(some_strings) / sizeof(some_strings[0]);
+    size const NUM_TEST_STRINGS = sizeof(some_strings) / sizeof(some_strings[0]);
 
     ElkStr strs[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
 
-    unsigned char buffer[ELK_KB(2)] = {0};
+    byte buffer[ELK_KB(2)] = {0};
     ElkStaticArena arena_i = {0};
     ElkStaticArena *arena = &arena_i;
     elk_static_arena_create(arena, sizeof(buffer), buffer);
@@ -31,14 +31,14 @@ test_string_interner(void)
     ElkStringInterner *internerp = &interner;
 
     // Fill the interner with strings!
-    for (size_t i = 0; i < NUM_TEST_STRINGS; ++i) 
+    for (size i = 0; i < NUM_TEST_STRINGS; ++i) 
     {
         char *str = some_strings[i];
         strs[i] = elk_string_interner_intern_cstring(internerp, str);
     }
 
     // Now see if we get the right ones back out!
-    for (size_t i = 0; i < NUM_TEST_STRINGS; ++i) 
+    for (size i = 0; i < NUM_TEST_STRINGS; ++i) 
     {
         char *str = some_strings[i];
         ElkStr interned_str = elk_string_interner_intern_cstring(internerp, str);

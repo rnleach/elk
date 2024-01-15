@@ -25,8 +25,8 @@ test_one(void)
     ElkCsvParser p_ = elk_csv_default_parser(sample);
     ElkCsvParser *p = &p_;
 
-    intptr_t rows = 0;
-    intptr_t cols = 0;
+    size rows = 0;
+    size cols = 0;
 
     ElkCsvToken t;
     while(!elk_csv_finished(p))

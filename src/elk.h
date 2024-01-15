@@ -2,6 +2,7 @@
 #define _ELK_HEADER_
 
 #include <stdint.h>
+#include <stddef.h>
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                 Define simpler types
@@ -179,8 +180,8 @@ static inline ElkStrSplitPair elk_str_split_on_char(ElkStr str, char const split
  *
  * In general, these functions return true on success and false on failure. On falure the out argument is left untouched.
  */
-static inline bool elk_str_parse_int_64(ElkStr str, i64 *result);
-static inline bool elk_str_parse_float_64(ElkStr str, f64 *out);
+static inline bool elk_str_parse_i64(ElkStr str, i64 *result);
+static inline bool elk_str_parse_f64(ElkStr str, f64 *out);
 static inline bool elk_str_parse_datetime(ElkStr str, ElkTime *out);
 
 /*---------------------------------------------------------------------------------------------------------------------------
@@ -967,7 +968,7 @@ elk_str_split_on_char(ElkStr str, char const split_char)
 _Static_assert(sizeof(size) == sizeof(uptr), "intptr_t and uintptr_t aren't the same size?!");
 
 static inline bool
-elk_str_parse_int_64(ElkStr str, i64 *result)
+elk_str_parse_i64(ElkStr str, i64 *result)
 {
     // Empty string is an error
     StopIf(str.len == 0, return false);
@@ -1000,7 +1001,7 @@ elk_str_parse_int_64(ElkStr str, i64 *result)
     return true;
 }
 static inline bool
-elk_str_parse_float_64(ElkStr str, f64 *out)
+elk_str_parse_f64(ElkStr str, f64 *out)
 {
     // The following block is required to create NAN/INF witnout using math.h on MSVC Using
     // #define NAN (0.0/0.0) doesn't work either on MSVC, which gives C2124 divide by zero error.
@@ -1148,12 +1149,12 @@ elk_str_parse_datetime(ElkStr str, ElkTime *out)
         i64 seconds = INT64_MIN;
 
         if(
-            elk_str_parse_int_64(elk_str_substr(str,  0, 4), &year    ) && 
-            elk_str_parse_int_64(elk_str_substr(str,  5, 2), &month   ) &&
-            elk_str_parse_int_64(elk_str_substr(str,  8, 2), &day     ) &&
-            elk_str_parse_int_64(elk_str_substr(str, 11, 2), &hour    ) &&
-            elk_str_parse_int_64(elk_str_substr(str, 14, 2), &minutes ) &&
-            elk_str_parse_int_64(elk_str_substr(str, 17, 2), &seconds ))
+            elk_str_parse_i64(elk_str_substr(str,  0, 4), &year    ) && 
+            elk_str_parse_i64(elk_str_substr(str,  5, 2), &month   ) &&
+            elk_str_parse_i64(elk_str_substr(str,  8, 2), &day     ) &&
+            elk_str_parse_i64(elk_str_substr(str, 11, 2), &hour    ) &&
+            elk_str_parse_i64(elk_str_substr(str, 14, 2), &minutes ) &&
+            elk_str_parse_i64(elk_str_substr(str, 17, 2), &seconds ))
         {
             *out = elk_time_from_ymd_and_hms(year, month, day, hour, minutes, seconds);
             return true;
@@ -1171,11 +1172,11 @@ elk_str_parse_datetime(ElkStr str, ElkTime *out)
         i64 seconds = INT64_MIN;
 
         if(
-            elk_str_parse_int_64(elk_str_substr(str,  0, 4), &year        ) && 
-            elk_str_parse_int_64(elk_str_substr(str,  4, 3), &day_of_year ) &&
-            elk_str_parse_int_64(elk_str_substr(str,  7, 2), &hour        ) &&
-            elk_str_parse_int_64(elk_str_substr(str,  9, 2), &minutes     ) &&
-            elk_str_parse_int_64(elk_str_substr(str, 11, 2), &seconds     ))
+            elk_str_parse_i64(elk_str_substr(str,  0, 4), &year        ) && 
+            elk_str_parse_i64(elk_str_substr(str,  4, 3), &day_of_year ) &&
+            elk_str_parse_i64(elk_str_substr(str,  7, 2), &hour        ) &&
+            elk_str_parse_i64(elk_str_substr(str,  9, 2), &minutes     ) &&
+            elk_str_parse_i64(elk_str_substr(str, 11, 2), &seconds     ))
         {
             *out = elk_time_from_yd_and_hms(year, day_of_year, hour, minutes, seconds);
             return true;

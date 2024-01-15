@@ -17,13 +17,13 @@ static char *some_strings[] =
 static void
 test_elk_str_table(void)
 {
-    size_t const NUM_TEST_STRINGS = sizeof(some_strings) / sizeof(some_strings[0]);
+    size const NUM_TEST_STRINGS = sizeof(some_strings) / sizeof(some_strings[0]);
 
     ElkStr strs[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
-    int64_t values[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
-    int64_t values2[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
+    i64 values[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
+    i64 values2[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
 
-    unsigned char buffer[ELK_KB(2)] = {0};
+    byte buffer[ELK_KB(2)] = {0};
     ElkStaticArena arena_i = {0};
     ElkStaticArena *arena = &arena_i;
     elk_static_arena_create(arena, sizeof(buffer), buffer);
@@ -33,29 +33,29 @@ test_elk_str_table(void)
     Assert(map);
 
     // Fill the map
-    for (size_t i = 0; i < NUM_TEST_STRINGS; ++i) 
+    for (size i = 0; i < NUM_TEST_STRINGS; ++i) 
     {
         char *str = some_strings[i];
         strs[i] = elk_str_from_cstring(str);
         values[i] = i;
         values2[i] = i; // We'll use this later!
         
-        int64_t *vptr = elk_str_map_insert(map, strs[i], &values[i]);
+        i64 *vptr = elk_str_map_insert(map, strs[i], &values[i]);
         Assert(vptr == &values[i]);
     }
 
     // Now see if we get the right ones back out!
-    for (size_t i = 0; i < NUM_TEST_STRINGS; ++i) 
+    for (size i = 0; i < NUM_TEST_STRINGS; ++i) 
     {
-        int64_t *vptr = elk_str_map_lookup(map, strs[i]);
+        i64 *vptr = elk_str_map_lookup(map, strs[i]);
         Assert(vptr == &values[i]);
         Assert(*vptr == i);
     }
 
     // Fill the map with NEW values
-    for (size_t i = 0; i < NUM_TEST_STRINGS; ++i) 
+    for (size i = 0; i < NUM_TEST_STRINGS; ++i) 
     {
-        int64_t *vptr = elk_str_map_insert(map, strs[i], &values2[i]);
+        i64 *vptr = elk_str_map_insert(map, strs[i], &values2[i]);
         Assert(vptr == &values[i]); // should get the old value pointer back
         Assert(vptr != &values2[i]); // should not point at the pointer we passed in, because we replaced a value
     }
@@ -66,12 +66,12 @@ test_elk_str_table(void)
 static void
 test_elk_str_key_iterator(void)
 {
-    size_t const NUM_TEST_STRINGS = sizeof(some_strings) / sizeof(some_strings[0]);
+    size const NUM_TEST_STRINGS = sizeof(some_strings) / sizeof(some_strings[0]);
 
     ElkStr strs[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
-    int64_t values[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
+    i64 values[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
 
-    unsigned char buffer[ELK_KB(2)] = {0};
+    byte buffer[ELK_KB(2)] = {0};
     ElkStaticArena arena_i = {0};
     ElkStaticArena *arena = &arena_i;
     elk_static_arena_create(arena, sizeof(buffer), buffer);
@@ -81,20 +81,20 @@ test_elk_str_key_iterator(void)
     Assert(map);
 
     // Fill the map
-    for (size_t i = 0; i < NUM_TEST_STRINGS; ++i) 
+    for (size i = 0; i < NUM_TEST_STRINGS; ++i) 
     {
         char *str = some_strings[i];
         strs[i] = elk_str_from_cstring(str);
         values[i] = i;
         
-        int64_t *vptr = elk_str_map_insert(map, strs[i], &values[i]);
+        i64 *vptr = elk_str_map_insert(map, strs[i], &values[i]);
         Assert(vptr == &values[i]);
     }
 
     ElkStrMapKeyIter iter = elk_str_map_key_iter(map);
 
     ElkStr key = {0};
-    int key_count = 0;
+    i32 key_count = 0;
     do
     {
         key = elk_str_map_key_iter_next(map, &iter);
@@ -113,12 +113,12 @@ test_elk_str_key_iterator(void)
 static void
 test_elk_str_handle_iterator(void)
 {
-    size_t const NUM_TEST_STRINGS = sizeof(some_strings) / sizeof(some_strings[0]);
+    size const NUM_TEST_STRINGS = sizeof(some_strings) / sizeof(some_strings[0]);
 
     ElkStr strs[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
-    int64_t values[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
+    i64 values[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
 
-    unsigned char buffer[ELK_KB(2)] = {0};
+    byte buffer[ELK_KB(2)] = {0};
     ElkStaticArena arena_i = {0};
     ElkStaticArena *arena = &arena_i;
     elk_static_arena_create(arena, sizeof(buffer), buffer);
@@ -128,20 +128,20 @@ test_elk_str_handle_iterator(void)
     Assert(map);
 
     // Fill the map
-    for (size_t i = 0; i < NUM_TEST_STRINGS; ++i) 
+    for (size i = 0; i < NUM_TEST_STRINGS; ++i) 
     {
         char *str = some_strings[i];
         strs[i] = elk_str_from_cstring(str);
         values[i] = i;
         
-        int64_t *vptr = elk_str_map_insert(map, strs[i], &values[i]);
+        i64 *vptr = elk_str_map_insert(map, strs[i], &values[i]);
         Assert(vptr == &values[i]);
     }
 
     ElkStrMapHandleIter iter = elk_str_map_handle_iter(map);
 
     ElkStrMapHandle handle = {0};
-    int key_count = 0;
+    i32 key_count = 0;
     do
     {
         handle = elk_str_map_handle_iter_next(map, &iter);
@@ -157,17 +157,17 @@ test_elk_str_handle_iterator(void)
     elk_str_map_destroy(map);
 }
 
-static uint64_t 
+static u64 
 id_hash(void const *value)
 {
-    return *(int64_t const*)value;
+    return *(i64 const*)value;
 }
 
 static bool
 int64_eq(void const *left, void const *right)
 {
-    int64_t const *ileft = left;
-    int64_t const *iright = right;
+    i64 const *ileft = left;
+    i64 const *iright = right;
     return *ileft == *iright;
 }
 
@@ -176,11 +176,11 @@ static void
 test_elk_hash_table(void)
 {
     ElkTime keys[NUM_KEYS] = {0};
-    int64_t values[NUM_KEYS] = {0};
-    int64_t values2[NUM_KEYS] = {0};
+    i64 values[NUM_KEYS] = {0};
+    i64 values2[NUM_KEYS] = {0};
 
     // Initialize the keys and values
-    for(int i = 0; i < NUM_KEYS; ++i)
+    for(i32 i = 0; i < NUM_KEYS; ++i)
     {
         keys[i] = elk_time_from_ymd_and_hms(2000 + i, 1 + i % 12, 1 + i, i, i, i);
         values[i] = i;
@@ -188,7 +188,7 @@ test_elk_hash_table(void)
     }
 
     // Set up memory
-    unsigned char buffer[ELK_KB(2)] = {0};
+    byte buffer[ELK_KB(2)] = {0};
     ElkStaticArena arena_i = {0};
     ElkStaticArena *arena = &arena_i;
     elk_static_arena_create(arena, sizeof(buffer), buffer);
@@ -196,23 +196,23 @@ test_elk_hash_table(void)
     // Fill the hashmap
     ElkHashMap map_ = elk_hash_map_create(2, id_hash, int64_eq, arena);
     ElkHashMap *map = &map_;
-    for(int i = 0; i < NUM_KEYS; ++i)
+    for(i32 i = 0; i < NUM_KEYS; ++i)
     {
-        int64_t *vptr = elk_hash_map_insert(map, &keys[i], &values[i]);
+        i64 *vptr = elk_hash_map_insert(map, &keys[i], &values[i]);
         Assert(vptr == &values[i]);
     }
 
     // check the values
-    for(int i = 0; i < NUM_KEYS; ++i)
+    for(i32 i = 0; i < NUM_KEYS; ++i)
     {
-        int64_t *vptr = elk_hash_map_lookup(map, &keys[i]);
+        i64 *vptr = elk_hash_map_lookup(map, &keys[i]);
         Assert(vptr == &values[i]);
     }
 
     // Fill the hashmap with something else
-    for(int i = 0; i < NUM_KEYS; ++i)
+    for(i32 i = 0; i < NUM_KEYS; ++i)
     {
-        int64_t *vptr = elk_hash_map_insert(map, &keys[i], &values2[i]);
+        i64 *vptr = elk_hash_map_insert(map, &keys[i], &values2[i]);
         Assert(vptr == &values[i]);
         Assert(vptr != &values2[i]);
     }
@@ -225,17 +225,17 @@ static void
 test_elk_hash_key_iterator(void)
 {
     ElkTime keys[NUM_KEYS] = {0};
-    int64_t values[NUM_KEYS] = {0};
+    i64 values[NUM_KEYS] = {0};
 
     // Initialize the keys and values
-    for(int i = 0; i < NUM_KEYS; ++i)
+    for(i32 i = 0; i < NUM_KEYS; ++i)
     {
         keys[i] = elk_time_from_ymd_and_hms(2000 + i, 1 + i % 12, 1 + i, i, i, i);
         values[i] = i;
     }
 
     // Set up memory
-    unsigned char buffer[ELK_KB(2)] = {0};
+    byte buffer[ELK_KB(2)] = {0};
     ElkStaticArena arena_i = {0};
     ElkStaticArena *arena = &arena_i;
     elk_static_arena_create(arena, sizeof(buffer), buffer);
@@ -243,16 +243,16 @@ test_elk_hash_key_iterator(void)
     // Fill the hashmap
     ElkHashMap map_ = elk_hash_map_create(2, id_hash, int64_eq, arena);
     ElkHashMap *map = &map_;
-    for(int i = 0; i < NUM_KEYS; ++i)
+    for(i32 i = 0; i < NUM_KEYS; ++i)
     {
-        int64_t *vptr = elk_hash_map_insert(map, &keys[i], &values[i]);
+        i64 *vptr = elk_hash_map_insert(map, &keys[i], &values[i]);
         Assert(vptr == &values[i]);
     }
 
     ElkHashMapKeyIter iter = elk_hash_map_key_iter(map);
     
     ElkTime *key = NULL;
-    int num_keys = 0;
+    i32 num_keys = 0;
     do
     {
         key = elk_hash_map_key_iter_next(map, &iter);

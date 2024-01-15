@@ -11,7 +11,7 @@ static void
 test_empty_full_array(void)
 {
     // Set up backing memory, in this case it's just an array on the stack.
-    int ibuf[TEST_BUF_COUNT] = {0};
+    i32 ibuf[TEST_BUF_COUNT] = {0};
 
     // Set up the ledger to track the capacity of the buffer.
     ElkArrayLedger array = elk_array_ledger_create(TEST_BUF_COUNT);
@@ -21,7 +21,7 @@ test_empty_full_array(void)
     Assert(elk_array_ledger_empty(ap));
     Assert(!elk_array_ledger_full(ap));
     Assert(elk_array_ledger_len(ap) == 0);
-    for (int i = 0; i < 5; ++i) 
+    for (i32 i = 0; i < 5; ++i) 
     {
         Assert(elk_array_ledger_empty(ap));
         Assert(!elk_array_ledger_full(ap));
@@ -29,11 +29,11 @@ test_empty_full_array(void)
     }
 
     // Let's fill it up!
-    for (int i = 0; i < TEST_BUF_COUNT; ++i) 
+    for (i32 i = 0; i < TEST_BUF_COUNT; ++i) 
     {
         Assert(!elk_array_ledger_full(ap)); // Should never be full in this loop
 
-        size_t push_idx = elk_array_ledger_push_back_index(ap);
+        size push_idx = elk_array_ledger_push_back_index(ap);
         ibuf[push_idx] = i;
 
         Assert(!elk_array_ledger_empty(ap)); // Should never be empty after we've pushed.
@@ -43,7 +43,7 @@ test_empty_full_array(void)
     Assert(elk_array_ledger_len(ap) == TEST_BUF_COUNT);
 
     // All the rest of the pushes should fail
-    for (int i = 0; i < 5; ++i) 
+    for (i32 i = 0; i < 5; ++i) 
     {
         Assert(elk_array_ledger_full(ap));
         Assert(!elk_array_ledger_empty(ap));

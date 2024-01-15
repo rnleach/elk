@@ -11,7 +11,7 @@
 struct fnv1a_test_pair
 {
     char *str;
-    uint64_t hash;
+    u64 hash;
 };
 
 /* Test some known hashes.

@@ -10,7 +10,7 @@
  *
  *-------------------------------------------------------------------------------------------------------------------------*/
 static bool
-is_in_array(int val, size_t items, int const array[])
+is_in_array(int val, size items, int const array[])
 {
     for (int i = 0; i < items; i++) 
     {
@@ -34,7 +34,7 @@ test_leap_years(void)
         28800, 29200, 29600, 30000, 30400, 30800, 31200, 31600, 32000
     };
 
-    size_t const years_400_len = sizeof(years_400_rule) / sizeof(years_400_rule[0]);
+    size const years_400_len = sizeof(years_400_rule) / sizeof(years_400_rule[0]);
 
     int const years_100_rule[] =
     {
@@ -50,7 +50,7 @@ test_leap_years(void)
         14500, 14600, 14700, 14900, 15000, 15100, 15300, 15400, 15500, 15700, 15800, 15900,
     };
 
-    size_t const years_100_len = sizeof(years_100_rule) / sizeof(years_100_rule[0]);
+    size const years_100_len = sizeof(years_100_rule) / sizeof(years_100_rule[0]);
 
     // Divisible by 400 rule
     for (int i = 0; i < years_400_len; ++i) 
@@ -192,7 +192,7 @@ test_time_struct(void)
     for (int i = 0; i < sizeof(testVals) / sizeof(testVals[0]); i++) 
     {
         ElkStructTime forward = testVals[i];
-        int16_t forward_doy = testVals[i].day_of_year;
+        i16 forward_doy = testVals[i].day_of_year;
         ElkTime middle = elk_make_time(testVals[i]);
         ElkStructTime back = elk_make_struct_time(middle);
         if (!struct_times_equal(forward, back) || forward_doy != back.day_of_year) 
@@ -210,7 +210,7 @@ test_time_struct(void)
     for (int year = 1; year <= 4000; year++) 
     {
         int leap_idx = elk_is_leap_year(year) ? 1 : 0;
-        int16_t day_of_year = 1;
+        i16 day_of_year = 1;
         for (int month = 1; month <= 12; month++) 
         {
             for (int day = 1; day <= dim[leap_idx][month - 1]; day_of_year++, day++) 
@@ -260,7 +260,7 @@ static void
 test_time_linux_timestamp(void)
 {
     ElkTime t0 = elk_time_from_ymd_and_hms(1970, 1, 1, 0, 0, 0);
-    int64_t unix_t0 = elk_time_to_unix_epoch(t0);
+    i64 unix_t0 = elk_time_to_unix_epoch(t0);
 
     Assert(unix_t0 == 0);
 
