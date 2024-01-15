@@ -43,6 +43,12 @@
   The CSV parser is simple and only handles quoted strings and comment lines. It just returns
   a token at a time, then the user can do what it wants with each token.
 
+### Types
+  I redefined many of the builtin types to be more succinct. So uint64_t is u64 and the like. I
+  many people find this annoying, but types are so ubiquitous it seems weird to make their names 
+  so long. Save the long names for custom or unusual types. Also some of the renames (like size
+  and byte) convey intent better than ptrdiff_t and char.
+
 ### Header (.h) File Layout
   The header file has prototypes at the top of the file and the implementation below it. All 
   functions are 'static inline' to give the compiler the most opportunities for inlining and 
@@ -53,6 +59,7 @@
 
 ### Version 3.0.0 - IN PROGRESS
   - (XXXX-XX-XX) NOTES ON REVISIONS
+  - Added more succinct type aliases for builtin types.
   - Added optional (opt in) memory profiling for ElkStaticArena.
   - Added some convenience functions for memory when working with the Coyote library.
   - Added generic elk_len macro for several collections.
