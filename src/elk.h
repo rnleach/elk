@@ -2420,16 +2420,16 @@ elk_static_arena_destroy_and_deallocate(ElkStaticArena *arena)
 static inline size 
 elk_file_slurp(char const *filename, unsigned char **out, ElkStaticArena *arena)
 {
-    size size = coy_file_size(filename);
-    StopIf(size < 0, goto ERR_RETURN);
+    size fsize = coy_file_size(filename);
+    StopIf(fsize < 0, goto ERR_RETURN);
 
-    *out = elk_static_arena_nmalloc(arena, size, byte);
+    *out = elk_static_arena_nmalloc(arena, fsize, byte);
     StopIf(!*out, goto ERR_RETURN);
 
-    size size_read = coy_file_slurp(filename, size, *out);
-    StopIf(size != size_read, goto ERR_RETURN);
+    size size_read = coy_file_slurp(filename, fsize, *out);
+    StopIf(fsize != size_read, goto ERR_RETURN);
 
-    return size;
+    return fsize;
 
 ERR_RETURN:
     *out = NULL;
@@ -2440,16 +2440,16 @@ static inline ElkStr
 elk_file_slurp_text(char const *filename, ElkStaticArena *arena)
 {
 
-    size size = coy_file_size(filename);
-    StopIf(size < 0, goto ERR_RETURN);
+    size fsize = coy_file_size(filename);
+    StopIf(fsize < 0, goto ERR_RETURN);
 
-    byte *out = elk_static_arena_nmalloc(arena, size, byte);
+    byte *out = elk_static_arena_nmalloc(arena, fsize, byte);
     StopIf(!out, goto ERR_RETURN);
 
-    size size_read = coy_file_slurp(filename, size, out);
-    StopIf(size != size_read, goto ERR_RETURN);
+    size size_read = coy_file_slurp(filename, fsize, out);
+    StopIf(fsize != size_read, goto ERR_RETURN);
 
-    return (ElkStr){ .start = out, .len = size };
+    return (ElkStr){ .start = out, .len = fsize };
 
 ERR_RETURN:
     return (ElkStr){ .start = NULL, .len = 0 };
