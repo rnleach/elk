@@ -2418,7 +2418,7 @@ elk_static_arena_destroy_and_deallocate(ElkStaticArena *arena)
 }
 
 static inline size 
-elk_file_slurp(char const *filename, unsigned char **out, ElkStaticArena *arena)
+elk_file_slurp(char const *filename, byte **out, ElkStaticArena *arena)
 {
     size fsize = coy_file_size(filename);
     StopIf(fsize < 0, goto ERR_RETURN);
