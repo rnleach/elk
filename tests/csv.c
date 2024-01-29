@@ -18,11 +18,11 @@ static char *sample_one =
     "row5-col0,,,,,row5-col5\n";
 
 static void
-test_one(void)
+test_one_full(void)
 {
     ElkStr sample = elk_str_from_cstring(sample_one);
 
-    ElkCsvParser p_ = elk_csv_default_parser(sample);
+    ElkCsvParser p_ = elk_csv_create_parser(sample);
     ElkCsvParser *p = &p_;
 
     size rows = 0;
@@ -31,7 +31,44 @@ test_one(void)
     ElkCsvToken t;
     while(!elk_csv_finished(p))
     {
-        t = elk_csv_next_token(p);
+        t = elk_csv_full_next_token(p);
+
+        Assert(!p->error);
+
+        rows = t.row > rows ? t.row : rows;
+        cols = t.col > cols ? t.col : cols;
+
+        //printf("row=%"PRIdPTR" col=%"PRIdPTR" error=%d value = __%.*s__\n", 
+        //        t.row, t.col, p->error, (int)t.value.len, t.value.start);
+    }
+
+    rows++; // since numbers start at 0
+    cols++; // since numbers start at 0
+
+    Assert(rows == 6 && cols == 6);
+}
+
+static void
+test_one_fast(void)
+{
+    ElkStr sample = elk_str_from_cstring(sample_one);
+
+    // Print the alignment, good to know if we're always testing 32-byte aligned strings.
+    //for(u64 a = 1; a <= 64; a <<= 1)
+    //{
+    //    printf("Alignment = %2"PRIu64"?  %2s\n", a, (uptr)sample.start % a == 0 ? "Yes" : "No");
+    //}
+
+    ElkCsvParser p_ = elk_csv_create_parser(sample);
+    ElkCsvParser *p = &p_;
+
+    size rows = 0;
+    size cols = 0;
+
+    ElkCsvToken t;
+    while(!elk_csv_finished(p))
+    {
+        t = elk_csv_fast_next_token(p);
 
         Assert(!p->error);
 
@@ -66,6 +103,7 @@ test_unquote(void)
 void
 elk_csv_tests(void)
 {
-    test_one();
+    test_one_full();
+    test_one_fast();
     test_unquote();
 }

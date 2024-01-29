@@ -72,7 +72,7 @@
   - Remove Doxygen, just read the header file.
   - Migrated to single header file, include only library.
   - Added more checks to the debug builds of the tests. (ASAN, UBSAN type stuff).
-  - Added a simple CSV parser.
+  - Added a simple CSV parser with some SIMD implementations.
 
 ### Version 2.0.0
   - (2023-09-23) Major revision.

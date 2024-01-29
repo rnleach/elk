@@ -4,6 +4,12 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include <immintrin.h>
+
+#if defined(_WIN32) || defined(_WIN64)
+#define __lzcnt32(a) __lzcnt(a)
+#endif
+
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                 Define simpler types
  *-------------------------------------------------------------------------------------------------------------------------*/
@@ -586,29 +592,42 @@ static inline void *elk_hash_set_value_iter_next(ElkHashSet *set, ElkHashSetIter
  * The CSV format I handle is pretty simple. Anything goes inside quoted strings. Quotes in a quoted string have to be 
  * escaped by another quote, e.g. "Frank ""The Tank"" Johnson". Comment lines are allowed, but they must be full lines, no
  * end of line comments, and they must start with a '#' character.
+ *
+ * Comments in CSV are rare, and can really slow down the parser. But I do find comments useful when I use CSV for some
+ * smaller configuration files. So I'm implemented two CSV parser functions. The first is the "full" version, and it can
+ * handle comments anywhere. The second is the "fast" parser, which can handle comment lines at the beginning of the file, 
+ * but once it gets past there it is more agressively optimized by assuming no more comment lines.
  */
 typedef struct
 {
-    size row; // The number of CSV rows parsed so far, this includes blank lines.
-    size col; // CSV column, that is, how many commas have we passed
+    size row;     // The number of CSV rows parsed so far, this includes blank lines.
+    size col;     // CSV column, that is, how many commas have we passed
     ElkStr value; // The value not including the comma or any new line character
 } ElkCsvToken;
 
 typedef struct
 {
     ElkStr remaining;       // The portion of the string remaining to be parsed. Useful for diagnosing parse errors.
-    size row;           // Only counts parseable rows, comment lines don't count.
-    size col;           // CSV column, that is, how many commas have we passed on this line.
-    size max_token_len; // CSV files usually don't have very long entries for values, set a limit beyond which is error
+    size row;               // Only counts parseable rows, comment lines don't count.
+    size col;               // CSV column, that is, how many commas have we passed on this line.
     bool error;             // Have we encountered an error while parsing?
+#ifdef __AVX2__
+    i32 byte_pos;
+
+    __m256i buf;
+    u32 buf_comma_bits;
+    u32 buf_newline_bits;
+    u32 buf_any_delimiter_bits;
+    u32 carry;
+#endif
 } ElkCsvParser;
 
-static inline ElkCsvParser elk_csv_create_parser(ElkStr input, size max_token_len);
-static inline ElkCsvToken elk_csv_next_token(ElkCsvParser *parser);
+static inline ElkCsvParser elk_csv_create_parser(ElkStr input);
+static inline ElkCsvToken elk_csv_full_next_token(ElkCsvParser *parser);
+static inline ElkCsvToken elk_csv_fast_next_token(ElkCsvParser *parser);
 static inline bool elk_csv_finished(ElkCsvParser *parser);
 static inline ElkStr elk_csv_unquote_str(ElkStr str);
-
-#define elk_csv_default_parser(input) elk_csv_create_parser(input, 128)
+static inline ElkStr elk_csv_simple_unquote_str(ElkStr str);
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *
@@ -622,7 +641,7 @@ static inline ElkStr elk_csv_unquote_str(ElkStr str);
  */
 #ifdef _COYOTE_H_
 static inline ElkStaticArena elk_static_arena_allocate_and_create(size num_bytes); /* Allocates using Coyote.          */
-static inline void elk_static_arena_destroy_and_deallocate(ElkStaticArena *arena);     /* Frees memory with Coyote.        */
+static inline void elk_static_arena_destroy_and_deallocate(ElkStaticArena *arena); /* Frees memory with Coyote.        */
 
 /* Use Coyote file slurp with arena. */
 static inline size elk_file_slurp(char const *filename, byte **out, ElkStaticArena *arena);   
@@ -889,22 +908,12 @@ elk_str_strip(ElkStr input)
 {
     char *const start = input.start;
     size start_offset = 0;
-    for (start_offset = 0; start_offset < input.len; ++start_offset)
-    {
-        if (start[start_offset] > 0x20) { break; }
-    }
+    for (start_offset = 0; start_offset < input.len && start[start_offset] <= 0x20; ++start_offset);
 
     size end_offset = 0;
-    for (end_offset = input.len - 1; end_offset > start_offset; --end_offset)
-    {
-        if (start[end_offset] > 0x20) { break; }
-    }
+    for (end_offset = input.len - 1; end_offset > start_offset && start[end_offset] <= 0x20; --end_offset);
 
-    return (ElkStr)
-    {
-        .start = &start[start_offset],
-        .len = end_offset - start_offset + 1
-    };
+    return (ElkStr) { .start = &start[start_offset], .len = end_offset - start_offset + 1 };
 }
 
 static inline 
@@ -2251,10 +2260,36 @@ elk_hash_set_value_iter_next(ElkHashSet *set, ElkHashSetIter *iter)
     return next_value;
 }
 
+#if __AVX2__
+static inline void elk_csv_helper_load_new_buffer_aligned(ElkCsvParser *p, i8 skip_bytes);
+#endif
+
 static inline ElkCsvParser 
-elk_csv_create_parser(ElkStr input, size max_token_len)
+elk_csv_create_parser(ElkStr input)
 {
-    return (ElkCsvParser){ .remaining=input, .row=0, .col=0, .max_token_len= max_token_len, .error=false };
+    ElkCsvParser parser = { .remaining=input, .row=0, .col=0, .error=false };
+
+    // Scan past leading comment lines.
+    while(*parser.remaining.start == '#')
+    {
+        // We must be on a comment line if we got here, so read just past the end of the line
+        while(*parser.remaining.start && parser.remaining.len > 0)
+        {
+            char last_char = *parser.remaining.start;
+            ++parser.remaining.start;
+            --parser.remaining.len;
+            if(last_char == '\n') { break; }
+        }
+    }
+
+#if __AVX2__
+    uptr skip_bytes = (uptr)parser.remaining.start - (uptr)parser.remaining.start & ~0x1F; 
+    parser.remaining.start = (char *)((uptr)parser.remaining.start & ~0xF); /* Force 32 byte alignment */
+    parser.carry = 0;
+    elk_csv_helper_load_new_buffer_aligned(&parser, skip_bytes);
+#endif
+
+    return parser;
 }
 
 static inline bool 
@@ -2264,7 +2299,7 @@ elk_csv_finished(ElkCsvParser *parser)
 }
 
 static inline ElkCsvToken 
-elk_csv_next_token(ElkCsvParser *parser)
+elk_csv_full_next_token(ElkCsvParser *parser)
 {
     StopIf(elk_csv_finished(parser), goto ERR_RETURN);
 
@@ -2293,46 +2328,108 @@ elk_csv_next_token(ElkCsvParser *parser)
     size next_value_len = 0;
 
     // Are we in a quoted string where we should ignore commas?
-    bool in_string = false;
-    bool new_row = false;
+    bool stop = false;
 
-    while(*next_char && parser->remaining.len - num_chars_proc > 0)
+#if __AVX2__
+    /* Do SIMD */
+
+    __m256i quotes = _mm256_set1_epi8('"');
+    __m256i commas = _mm256_set1_epi8(',');
+    __m256i newlines = _mm256_set1_epi8('\n');
+
+    __m256i S = _mm256_setr_epi64x(0x0000000000000000, 0x0101010101010101, 0x0202020202020202, 0x0303030303030303);
+    __m256i M = _mm256_set1_epi64x(0x7fbfdfeff7fbfdfe);
+    __m256i A = _mm256_set1_epi64x(0xffffffffffffffff);
+
+    u32 carry = 0;
+    while(!stop && parser->remaining.len > num_chars_proc + 32)
     {
-        if(*next_char == '\n')  
+        __m256i chars = _mm256_lddqu_si256((__m256i *)next_char);
+
+        __m256i quote_mask = _mm256_cmpeq_epi8(chars, quotes);
+        __m256i comma_mask = _mm256_cmpeq_epi8(chars, commas);
+        __m256i newline_mask = _mm256_cmpeq_epi8(chars, newlines);
+
+        /* https://nullprogram.com/blog/2021/12/04/ - public domain code to create running mask */
+        u32 running_quote_mask = _mm256_movemask_epi8(quote_mask);
+        u32 r = running_quote_mask;
+
+        while(running_quote_mask)
         {
-            ++next_char;
-            ++num_chars_proc;
-            new_row = true;
-            break;
+            r ^= -running_quote_mask ^ running_quote_mask;
+            running_quote_mask &= running_quote_mask - 1;
         }
-        else if(*next_char == '"')
+
+        running_quote_mask = r ^ carry;
+        carry = -(running_quote_mask >> 31);
+        quote_mask = _mm256_set1_epi32(running_quote_mask);
+        quote_mask = _mm256_shuffle_epi8(quote_mask, S);
+        quote_mask = _mm256_or_si256(quote_mask, M);
+        quote_mask = _mm256_cmpeq_epi8(quote_mask, A);
+
+        comma_mask = _mm256_andnot_si256(quote_mask, comma_mask);
+        u32 comma_bits = _mm256_movemask_epi8(comma_mask);
+        newline_mask = _mm256_andnot_si256(quote_mask, newline_mask);
+        u32 newline_bits = _mm256_movemask_epi8(newline_mask);
+
+        __m256i comma_or_newline_mask = _mm256_or_si256(comma_mask, newline_mask);
+        u32 comma_or_newline_bits = _mm256_movemask_epi8(comma_or_newline_mask);
+
+        u32 first_non_zero_bit_lsb = comma_or_newline_bits & ~(comma_or_newline_bits - 1);
+        i32 bit_pos = 31 - __lzcnt32(first_non_zero_bit_lsb);
+        bit_pos = bit_pos > 31 || bit_pos < 0 ? 31 : bit_pos;
+
+        bool comma = (comma_bits >> bit_pos) & 1;
+        bool newline = (newline_bits >> bit_pos) & 1;
+        bool comma_or_newline = (comma_or_newline_bits >> bit_pos) & 1;
+
+        parser->row += newline;
+        parser->col += -col * newline + comma;
+        next_value_len += bit_pos + 1 - comma_or_newline;
+
+        next_char += bit_pos + 1 ;
+        num_chars_proc += bit_pos + 1 ;
+
+        stop = comma_or_newline;
+    }
+
+#endif
+
+    /* Finish up when not 32 remaining. */
+    bool in_string = false;
+    while(!stop && parser->remaining.len > num_chars_proc)
+    {
+        switch(*next_char)
         {
-            in_string = !in_string;
-        }
-        else if(*next_char == ',' && !in_string)
-        {
-            ++next_char;
-            ++num_chars_proc;
-            break;
-        }
-        else if(next_value_len > parser->max_token_len)
-        {
-            goto ERR_RETURN;
+            case '\n':
+            {
+                parser->row += 1;
+                parser->col = 0;
+                --next_value_len;
+                stop = true;
+            } break;
+
+            case '"':
+            {
+                in_string = !in_string;
+            } break;
+
+            case ',':
+            {
+                if(!in_string) 
+                {
+                    parser->col += 1;
+                    --next_value_len;
+                    stop = true;
+                }
+            } break;
+
+            default: break;
         }
 
         ++next_value_len;
         ++next_char;
         ++num_chars_proc;
-    }
-
-    if(new_row)
-    {
-        parser->row += 1;
-        parser->col = 0;
-    } 
-    else
-    {
-        parser->col += 1;
     }
 
     parser->remaining.start = next_char;
@@ -2344,6 +2441,207 @@ ERR_RETURN:
     parser->error = true;
     return (ElkCsvToken){ .row=parser->row, .col=parser->col, .value=(ElkStr){.start=parser->remaining.start, .len=0}};
 }
+
+#if __AVX2__
+static inline void
+elk_csv_helper_load_new_buffer_aligned(ElkCsvParser *p, i8 skip_bytes)
+{
+    Assert((uptr)p->remaining.start % 32 == 0); /* Always aligned on a 32 byte boundary. */
+
+    /* SIMD constants for expanding a bit as index mask to a byte mask. */
+    __m256i S = _mm256_setr_epi64x(0x0000000000000000, 0x0101010101010101, 0x0202020202020202, 0x0303030303030303);
+    __m256i M = _mm256_set1_epi64x(0x7fbfdfeff7fbfdfe);
+    __m256i A = _mm256_set1_epi64x(0xffffffffffffffff);
+
+    /* Constants for matching delimiters & quotes. */
+    __m256i quotes = _mm256_set1_epi8('"');
+    __m256i commas = _mm256_set1_epi8(',');
+    __m256i newlines = _mm256_set1_epi8('\n');
+
+    /* Load data into the buffer. */
+    p->buf = _mm256_load_si256((__m256i *)(p->remaining.start));
+
+    /* Zero out leading bytes if necessary so they don't accidently match a delimiter. */
+    if(skip_bytes)
+    {
+        Assert(skip_bytes > 0 && skip_bytes < 32);
+        switch(skip_bytes - 1)
+        {
+            case 30: p->buf = _mm256_insert_epi8(p->buf, 0, 30); /* fall through */
+            case 29: p->buf = _mm256_insert_epi8(p->buf, 0, 29); /* fall through */
+            case 28: p->buf = _mm256_insert_epi8(p->buf, 0, 28); /* fall through */
+            case 27: p->buf = _mm256_insert_epi8(p->buf, 0, 27); /* fall through */
+            case 26: p->buf = _mm256_insert_epi8(p->buf, 0, 26); /* fall through */
+            case 25: p->buf = _mm256_insert_epi8(p->buf, 0, 25); /* fall through */
+            case 24: p->buf = _mm256_insert_epi8(p->buf, 0, 24); /* fall through */
+            case 23: p->buf = _mm256_insert_epi8(p->buf, 0, 23); /* fall through */
+            case 22: p->buf = _mm256_insert_epi8(p->buf, 0, 22); /* fall through */
+            case 21: p->buf = _mm256_insert_epi8(p->buf, 0, 21); /* fall through */
+            case 20: p->buf = _mm256_insert_epi8(p->buf, 0, 20); /* fall through */
+            case 19: p->buf = _mm256_insert_epi8(p->buf, 0, 19); /* fall through */
+            case 18: p->buf = _mm256_insert_epi8(p->buf, 0, 18); /* fall through */
+            case 17: p->buf = _mm256_insert_epi8(p->buf, 0, 17); /* fall through */
+            case 16: p->buf = _mm256_insert_epi8(p->buf, 0, 16); /* fall through */
+            case 15: p->buf = _mm256_insert_epi8(p->buf, 0, 15); /* fall through */
+            case 14: p->buf = _mm256_insert_epi8(p->buf, 0, 14); /* fall through */
+            case 13: p->buf = _mm256_insert_epi8(p->buf, 0, 13); /* fall through */
+            case 12: p->buf = _mm256_insert_epi8(p->buf, 0, 12); /* fall through */
+            case 11: p->buf = _mm256_insert_epi8(p->buf, 0, 11); /* fall through */
+            case 10: p->buf = _mm256_insert_epi8(p->buf, 0, 10); /* fall through */
+            case  9: p->buf = _mm256_insert_epi8(p->buf, 0,  9); /* fall through */
+            case  8: p->buf = _mm256_insert_epi8(p->buf, 0,  8); /* fall through */
+            case  7: p->buf = _mm256_insert_epi8(p->buf, 0,  7); /* fall through */
+            case  6: p->buf = _mm256_insert_epi8(p->buf, 0,  6); /* fall through */
+            case  5: p->buf = _mm256_insert_epi8(p->buf, 0,  5); /* fall through */
+            case  4: p->buf = _mm256_insert_epi8(p->buf, 0,  4); /* fall through */
+            case  3: p->buf = _mm256_insert_epi8(p->buf, 0,  3); /* fall through */
+            case  2: p->buf = _mm256_insert_epi8(p->buf, 0,  2); /* fall through */
+            case  1: p->buf = _mm256_insert_epi8(p->buf, 0,  2); /* fall through */
+            case  0: p->buf = _mm256_insert_epi8(p->buf, 0,  0); /* fall through */
+        }
+    }
+
+    /* If at the end of the string, no worries just force all trailing characters in the buffer to be delimiters. */
+    if(p->remaining.len < 32)
+    {
+        size start = p->remaining.len;
+        Assert(start > 0 && start < 32);
+        switch(start)
+        {
+            case  1: p->buf = _mm256_insert_epi8(p->buf, '\n',  2); /* fall through */
+            case  2: p->buf = _mm256_insert_epi8(p->buf, '\n',  2); /* fall through */
+            case  3: p->buf = _mm256_insert_epi8(p->buf, '\n',  3); /* fall through */
+            case  4: p->buf = _mm256_insert_epi8(p->buf, '\n',  4); /* fall through */
+            case  5: p->buf = _mm256_insert_epi8(p->buf, '\n',  5); /* fall through */
+            case  6: p->buf = _mm256_insert_epi8(p->buf, '\n',  6); /* fall through */
+            case  7: p->buf = _mm256_insert_epi8(p->buf, '\n',  7); /* fall through */
+            case  8: p->buf = _mm256_insert_epi8(p->buf, '\n',  8); /* fall through */
+            case  9: p->buf = _mm256_insert_epi8(p->buf, '\n',  9); /* fall through */
+            case 10: p->buf = _mm256_insert_epi8(p->buf, '\n', 10); /* fall through */
+            case 11: p->buf = _mm256_insert_epi8(p->buf, '\n', 11); /* fall through */
+            case 12: p->buf = _mm256_insert_epi8(p->buf, '\n', 12); /* fall through */
+            case 13: p->buf = _mm256_insert_epi8(p->buf, '\n', 13); /* fall through */
+            case 14: p->buf = _mm256_insert_epi8(p->buf, '\n', 14); /* fall through */
+            case 15: p->buf = _mm256_insert_epi8(p->buf, '\n', 15); /* fall through */
+            case 16: p->buf = _mm256_insert_epi8(p->buf, '\n', 16); /* fall through */
+            case 17: p->buf = _mm256_insert_epi8(p->buf, '\n', 17); /* fall through */
+            case 18: p->buf = _mm256_insert_epi8(p->buf, '\n', 18); /* fall through */
+            case 19: p->buf = _mm256_insert_epi8(p->buf, '\n', 19); /* fall through */
+            case 20: p->buf = _mm256_insert_epi8(p->buf, '\n', 20); /* fall through */
+            case 21: p->buf = _mm256_insert_epi8(p->buf, '\n', 21); /* fall through */
+            case 22: p->buf = _mm256_insert_epi8(p->buf, '\n', 22); /* fall through */
+            case 23: p->buf = _mm256_insert_epi8(p->buf, '\n', 23); /* fall through */
+            case 24: p->buf = _mm256_insert_epi8(p->buf, '\n', 24); /* fall through */
+            case 25: p->buf = _mm256_insert_epi8(p->buf, '\n', 25); /* fall through */
+            case 26: p->buf = _mm256_insert_epi8(p->buf, '\n', 26); /* fall through */
+            case 27: p->buf = _mm256_insert_epi8(p->buf, '\n', 27); /* fall through */
+            case 28: p->buf = _mm256_insert_epi8(p->buf, '\n', 28); /* fall through */
+            case 29: p->buf = _mm256_insert_epi8(p->buf, '\n', 29); /* fall through */
+            case 30: p->buf = _mm256_insert_epi8(p->buf, '\n', 30); /* fall through */
+            case 31: p->buf = _mm256_insert_epi8(p->buf, '\n', 31); /* fall through */
+        }
+    }
+
+    __m256i quote_mask = _mm256_cmpeq_epi8(p->buf, quotes);
+    __m256i comma_mask = _mm256_cmpeq_epi8(p->buf, commas);
+    __m256i newline_mask = _mm256_cmpeq_epi8(p->buf, newlines);
+
+    /* https://nullprogram.com/blog/2021/12/04/ - public domain code to create running mask */
+    u32 running_quote_mask = _mm256_movemask_epi8(quote_mask);
+    u32 r = running_quote_mask;
+
+    while(running_quote_mask)
+    {
+        r ^= -running_quote_mask ^ running_quote_mask;
+        running_quote_mask &= running_quote_mask - 1;
+    }
+
+    running_quote_mask = r ^ p->carry;
+    p->carry = -(running_quote_mask >> 31);
+    quote_mask = _mm256_set1_epi32(running_quote_mask);
+    quote_mask = _mm256_shuffle_epi8(quote_mask, S);
+    quote_mask = _mm256_or_si256(quote_mask, M);
+    quote_mask = _mm256_cmpeq_epi8(quote_mask, A);
+
+    comma_mask = _mm256_andnot_si256(quote_mask, comma_mask);
+    p->buf_comma_bits = _mm256_movemask_epi8(comma_mask);
+    newline_mask = _mm256_andnot_si256(quote_mask, newline_mask);
+    p->buf_newline_bits = _mm256_movemask_epi8(newline_mask);
+
+    __m256i comma_or_newline_mask = _mm256_or_si256(comma_mask, newline_mask);
+    p->buf_any_delimiter_bits = _mm256_movemask_epi8(comma_or_newline_mask);
+    p->remaining.start += skip_bytes;
+    p->byte_pos = skip_bytes;
+}
+
+static inline ElkCsvToken 
+elk_csv_fast_next_token(ElkCsvParser *parser)
+{
+    size row = parser->row;
+    size col = parser->col;
+
+    StopIf(elk_csv_finished(parser), goto ERR_RETURN);
+
+    char *start = parser->remaining.start;
+    size next_value_len = 0;
+    bool stop = false;
+    
+    /* Stop will signal when a new delimiter is found, but we may need to process a few buffers worth of data to find one. */
+    while(!stop)
+    {
+        u32 any_delim = parser->buf_any_delimiter_bits;
+
+        /* Find the position of the next delimiter or the end of the buffer */
+        u32 first_non_zero_bit_lsb = any_delim & ~(any_delim - 1);
+        i32 bit_pos = 31 - __lzcnt32(first_non_zero_bit_lsb);
+        bit_pos = bit_pos > 31 || bit_pos < 0 ? 31 : bit_pos;
+        i32 run_len = bit_pos - parser->byte_pos;
+
+        /* Detect type of delimiter, or maybe no delimiter and end of buffer. */
+        bool comma = (parser->buf_comma_bits >> bit_pos) & 1;
+        bool newline = (parser->buf_newline_bits >> bit_pos) & 1;
+        bool comma_or_newline = (any_delim >> bit_pos) & 1;
+
+        /* Turn off that bit so we don't find it again! This delimiter has been processed. */
+        parser->buf_comma_bits &= ~first_non_zero_bit_lsb;
+        parser->buf_newline_bits &= ~first_non_zero_bit_lsb;
+        parser->buf_any_delimiter_bits &= ~first_non_zero_bit_lsb;
+
+        /* Update parser state based on position of next delimiter, or end of buffer. */
+        parser->row += newline;
+        parser->col += -col * newline + comma;
+        next_value_len += run_len + 1 - comma_or_newline;
+        parser->remaining.start += run_len + 1;
+        parser->remaining.len -= run_len + 1;
+        parser->byte_pos = bit_pos + 1;
+
+        /* Signal need to stop if we found a delimiter */
+        stop = comma_or_newline;
+
+        /* If we finished the buffer and need to scan the next one, load a new buffer! */
+        if(bit_pos + 1 > 31)
+        {
+            elk_csv_helper_load_new_buffer_aligned(parser, 0);
+        }
+    }
+
+    return (ElkCsvToken){ .row=row, .col=col, .value=(ElkStr){.start=start, .len=next_value_len}};
+
+ERR_RETURN:
+    parser->error = true;
+    return (ElkCsvToken){ .row=row, .col=col, .value=(ElkStr){.start=parser->remaining.start, .len=0}};
+}
+
+#else
+
+static inline ElkCsvToken 
+elk_csv_fast_next_token(ElkCsvParser *parser)
+{
+    return elk_csv_full_next_token(parser);
+}
+
+#endif
+
 
 static inline ElkStr 
 elk_csv_unquote_str(ElkStr str)
@@ -2357,7 +2655,6 @@ elk_csv_unquote_str(ElkStr str)
 
     // Handle string that isn't even quoted!
     if(str.len < 2 || str.start[0] != '"') { return str; }
-
 
     // Handle the empty string.
     if(str.len == 2 && str.start[0] == '"' && str.start[1] == '"') 
@@ -2389,6 +2686,15 @@ elk_csv_unquote_str(ElkStr str)
     }
 
     return (ElkStr){ .start=sub_str, .len=len};
+}
+
+static inline ElkStr 
+elk_csv_simple_unquote_str(ElkStr str)
+{
+    // Handle string that isn't even quoted!
+    if(str.len < 2 || str.start[0] != '"') { return str; }
+
+    return (ElkStr){ .start = str.start + 1, .len = str.len - 2};
 }
 
 #ifdef _COYOTE_H_
