@@ -4,6 +4,7 @@ PROJDIR="$(pwd)"
 SOURCEDIR="$PROJDIR/src"
 TESTDIR="$PROJDIR/tests"
 
+CC=cc
 CFLAGS="-Wall -Werror -D_DEFAULT_SOURCE -D_GNU_SOURCE -std=c11 -I$SOURCEDIR -I$TESTDIR"
 LDLIBS="-lm -lpthread"
 
@@ -23,7 +24,7 @@ then
     echo
     rm -rf test *.dSYM
 else
-    cc $CFLAGS $TESTDIR/test.c -o test $LDLIBS
+    $CC $CFLAGS $TESTDIR/test.c -o test $LDLIBS
 fi
 
 if [ "$#" -gt 0 -a "$1" = "test" ]
