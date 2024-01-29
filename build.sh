@@ -21,7 +21,7 @@ if [ "$#" -gt 0 -a "$1" = "clean" ]
 then
     echo "clean compiled programs"
     echo
-    rm test
+    rm -rf test *.dSYM
 else
     cc $CFLAGS $TESTDIR/test.c -o test $LDLIBS
 fi
