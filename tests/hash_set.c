@@ -24,7 +24,7 @@ static bool str_eq(void const *left, void const *right)
     return elk_str_eq(*(ElkStr *)left, *(ElkStr *)right);
 }
 
-static size const NUM_SET_TEST_STRINGS = (sizeof(some_strings_hash_set_tests) / sizeof(some_strings_hash_set_tests[0]));
+#define NUM_SET_TEST_STRINGS  (sizeof(some_strings_hash_set_tests) / sizeof(some_strings_hash_set_tests[0]))
 
 static void
 test_elk_hash_set(void)
