@@ -38,7 +38,7 @@ test_one_full(void)
         rows = t.row > rows ? t.row : rows;
         cols = t.col > cols ? t.col : cols;
 
-        //printf("row=%"PRIdPTR" col=%"PRIdPTR" error=%d value = __%.*s__\n", 
+        //fprintf(stderr, "row=%"PRIdPTR" col=%"PRIdPTR" error=%d value = __%.*s__\n", 
         //        t.row, t.col, p->error, (int)t.value.len, t.value.start);
     }
 

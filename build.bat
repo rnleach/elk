@@ -14,7 +14,7 @@ rem
 IF "%1"=="debug" (GOTO Debug) ELSE (GOTO Release)
 
 :Debug
-SET flags=/Od /Zi
+SET flags=/Od /Zi /favor:INTEL64 /arch:AVX2
 GOTO Operation
 
 :Release

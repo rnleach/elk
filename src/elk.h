@@ -2283,7 +2283,7 @@ elk_csv_create_parser(ElkStr input)
     }
 
 #if __AVX2__
-    uptr skip_bytes = (uptr)parser.remaining.start - (uptr)parser.remaining.start & ~0x1F; 
+    uptr skip_bytes = (uptr)parser.remaining.start - ((uptr)parser.remaining.start & ~0x1F); 
     parser.remaining.start = (char *)((uptr)parser.remaining.start & ~0xF); /* Force 32 byte alignment */
     parser.carry = 0;
     elk_csv_helper_load_new_buffer_aligned(&parser, skip_bytes);
