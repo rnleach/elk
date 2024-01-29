@@ -6,7 +6,7 @@
  *
  *-------------------------------------------------------------------------------------------------------------------------*/
 
-static char *some_strings[] = 
+static char *some_strings_hash_set_tests[] = 
 {
     "vegemite", "cantaloupe",    "poutine",    "cottonwood trees", "x",
     "y",        "peanut butter", "jelly time", "strawberries",     "and cream",
@@ -24,15 +24,15 @@ static bool str_eq(void const *left, void const *right)
     return elk_str_eq(*(ElkStr *)left, *(ElkStr *)right);
 }
 
-#define NUM_TEST_STRINGS (sizeof(some_strings) / sizeof(some_strings[0]))
+static size const NUM_SET_TEST_STRINGS = (sizeof(some_strings_hash_set_tests) / sizeof(some_strings_hash_set_tests[0]));
 
 static void
 test_elk_hash_set(void)
 {
-    ElkStr strs[NUM_TEST_STRINGS] = {0};
-    for(i32 i = 0; i < NUM_TEST_STRINGS; ++i)
+    ElkStr strs[NUM_SET_TEST_STRINGS] = {0};
+    for(i32 i = 0; i < NUM_SET_TEST_STRINGS; ++i)
     {
-        strs[i] = elk_str_from_cstring(some_strings[i]);
+        strs[i] = elk_str_from_cstring(some_strings_hash_set_tests[i]);
     }
 
     byte buffer[ELK_KB(1)] = {0};
@@ -42,19 +42,19 @@ test_elk_hash_set(void)
 
     ElkHashSet set_ = elk_hash_set_create(2, simple_str_hash, str_eq, arena);
     ElkHashSet *set = &set_;
-    for(i32 i = 0; i < NUM_TEST_STRINGS; ++i)
+    for(i32 i = 0; i < NUM_SET_TEST_STRINGS; ++i)
     {
         ElkStr *str = elk_hash_set_insert(set, &strs[i]);
         Assert(str == &strs[i]);
     }
 
-    for(i32 i = 0; i < NUM_TEST_STRINGS; ++i)
+    for(i32 i = 0; i < NUM_SET_TEST_STRINGS; ++i)
     {
         ElkStr *str = elk_hash_set_lookup(set, &strs[i]);
         Assert(str == &strs[i]);
     }
 
-    Assert(elk_len(set) == NUM_TEST_STRINGS);
+    Assert(elk_len(set) == NUM_SET_TEST_STRINGS);
 
     ElkStr not_in_set = elk_str_from_cstring("green beans");
     ElkStr *str = elk_hash_set_lookup(set, &not_in_set);
@@ -66,10 +66,10 @@ test_elk_hash_set(void)
 static void
 test_elk_hash_set_iter(void)
 {
-    ElkStr strs[NUM_TEST_STRINGS] = {0};
-    for(i32 i = 0; i < NUM_TEST_STRINGS; ++i)
+    ElkStr strs[NUM_SET_TEST_STRINGS] = {0};
+    for(i32 i = 0; i < NUM_SET_TEST_STRINGS; ++i)
     {
-        strs[i] = elk_str_from_cstring(some_strings[i]);
+        strs[i] = elk_str_from_cstring(some_strings_hash_set_tests[i]);
     }
 
     byte buffer[ELK_KB(1)] = {0};
@@ -79,7 +79,7 @@ test_elk_hash_set_iter(void)
 
     ElkHashSet set_ = elk_hash_set_create(2, simple_str_hash, str_eq, arena);
     ElkHashSet *set = &set_;
-    for(i32 i = 0; i < NUM_TEST_STRINGS; ++i)
+    for(i32 i = 0; i < NUM_SET_TEST_STRINGS; ++i)
     {
         ElkStr *str = elk_hash_set_insert(set, &strs[i]);
         Assert(str == &strs[i]);
@@ -91,7 +91,7 @@ test_elk_hash_set_iter(void)
     while(next)
     {
         bool found = false;
-        for(i32 i = 0; i < NUM_TEST_STRINGS; ++i)
+        for(i32 i = 0; i < NUM_SET_TEST_STRINGS; ++i)
         {
             if(&strs[i] == next) 
             { 
@@ -105,7 +105,7 @@ test_elk_hash_set_iter(void)
 
         next = elk_hash_set_value_iter_next(set, &iter);
     }
-    Assert(found_count == NUM_TEST_STRINGS);
+    Assert(found_count == NUM_SET_TEST_STRINGS);
 
     elk_hash_set_destroy(set);
 }

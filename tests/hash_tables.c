@@ -6,7 +6,7 @@
  *
  *-------------------------------------------------------------------------------------------------------------------------*/
 
-static char *some_strings[] = 
+static char *some_strings_ht[] = 
 {
     "vegemite", "cantaloupe",    "poutine",    "cottonwood trees", "x",
     "y",        "peanut butter", "jelly time", "strawberries",     "and cream",
@@ -17,11 +17,11 @@ static char *some_strings[] =
 static void
 test_elk_str_table(void)
 {
-    size const NUM_TEST_STRINGS = sizeof(some_strings) / sizeof(some_strings[0]);
+    size const NUM_TEST_STRINGS = sizeof(some_strings_ht) / sizeof(some_strings_ht[0]);
 
-    ElkStr strs[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
-    i64 values[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
-    i64 values2[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
+    ElkStr strs[sizeof(some_strings_ht) / sizeof(some_strings_ht[0])] = {0};
+    i64 values[sizeof(some_strings_ht) / sizeof(some_strings_ht[0])] = {0};
+    i64 values2[sizeof(some_strings_ht) / sizeof(some_strings_ht[0])] = {0};
 
     byte buffer[ELK_KB(2)] = {0};
     ElkStaticArena arena_i = {0};
@@ -35,7 +35,7 @@ test_elk_str_table(void)
     // Fill the map
     for (size i = 0; i < NUM_TEST_STRINGS; ++i) 
     {
-        char *str = some_strings[i];
+        char *str = some_strings_ht[i];
         strs[i] = elk_str_from_cstring(str);
         values[i] = i;
         values2[i] = i; // We'll use this later!
@@ -66,10 +66,10 @@ test_elk_str_table(void)
 static void
 test_elk_str_key_iterator(void)
 {
-    size const NUM_TEST_STRINGS = sizeof(some_strings) / sizeof(some_strings[0]);
+    size const NUM_TEST_STRINGS = sizeof(some_strings_ht) / sizeof(some_strings_ht[0]);
 
-    ElkStr strs[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
-    i64 values[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
+    ElkStr strs[sizeof(some_strings_ht) / sizeof(some_strings_ht[0])] = {0};
+    i64 values[sizeof(some_strings_ht) / sizeof(some_strings_ht[0])] = {0};
 
     byte buffer[ELK_KB(2)] = {0};
     ElkStaticArena arena_i = {0};
@@ -83,7 +83,7 @@ test_elk_str_key_iterator(void)
     // Fill the map
     for (size i = 0; i < NUM_TEST_STRINGS; ++i) 
     {
-        char *str = some_strings[i];
+        char *str = some_strings_ht[i];
         strs[i] = elk_str_from_cstring(str);
         values[i] = i;
         
@@ -113,10 +113,10 @@ test_elk_str_key_iterator(void)
 static void
 test_elk_str_handle_iterator(void)
 {
-    size const NUM_TEST_STRINGS = sizeof(some_strings) / sizeof(some_strings[0]);
+    size const NUM_TEST_STRINGS = sizeof(some_strings_ht) / sizeof(some_strings_ht[0]);
 
-    ElkStr strs[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
-    i64 values[sizeof(some_strings) / sizeof(some_strings[0])] = {0};
+    ElkStr strs[sizeof(some_strings_ht) / sizeof(some_strings_ht[0])] = {0};
+    i64 values[sizeof(some_strings_ht) / sizeof(some_strings_ht[0])] = {0};
 
     byte buffer[ELK_KB(2)] = {0};
     ElkStaticArena arena_i = {0};
@@ -130,7 +130,7 @@ test_elk_str_handle_iterator(void)
     // Fill the map
     for (size i = 0; i < NUM_TEST_STRINGS; ++i) 
     {
-        char *str = some_strings[i];
+        char *str = some_strings_ht[i];
         strs[i] = elk_str_from_cstring(str);
         values[i] = i;
         

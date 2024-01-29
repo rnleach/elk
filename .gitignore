@@ -3,6 +3,7 @@ Session.vim
 tags
 .vscode
 .gdb*
+test
 
 *.rsuser
 *.suo

@@ -26,3 +26,17 @@ main(void)
     printf("\n\n*** Tests completed successfully. ***\n\n");
     return EXIT_SUCCESS;
 }
+
+#include "arena.c"
+#include "array_ledger.c"
+#include "csv.c"
+#include "fnv1a.c"
+#include "hash_set.c"
+#include "hash_tables.c"
+#include "parse.c"
+#include "pool.c"
+#include "queue_ledger.c"
+#include "str.c"
+#include "string_interner.c"
+#include "time.c"
+

@@ -1,5 +1,5 @@
-#ifndef ELK_TESTS
-#define ELK_TESTS
+#ifndef ELK_TESTS_H
+#define ELK_TESTS_H
 //
 // For testing, ensure we have some debugging tools activated.
 //
