@@ -8,7 +8,7 @@
  *
  *-------------------------------------------------------------------------------------------------------------------------*/
 static char *sample_one = 
-    "# This is a sample of a possible CSV string that would need parsed.\n"
+    "# This is a sample of a possible CSV string that would need parsed. \n"
     "# This sample has a couple of comments at the start, and then some made up data.\n"
     "\n"
     "col1,col2, col3 , col4,col5 ,col6\n"
@@ -48,10 +48,51 @@ test_one_full(void)
     Assert(rows == 6 && cols == 6);
 }
 
+/* Either test one or test two for the fast version will force an odd alignment so we can be sure that works with the 
+ * SIMD versions.
+ */
 static void
 test_one_fast(void)
 {
     ElkStr sample = elk_str_from_cstring(sample_one);
+
+    // Print the alignment, good to know if we're always testing 32-byte aligned strings.
+    //for(u64 a = 1; a <= 64; a <<= 1)
+    //{
+    //    printf("Alignment = %2"PRIu64"?  %2s\n", a, (uptr)sample.start % a == 0 ? "Yes" : "No");
+    //}
+
+    ElkCsvParser p_ = elk_csv_create_parser(sample);
+    ElkCsvParser *p = &p_;
+
+    size rows = 0;
+    size cols = 0;
+
+    ElkCsvToken t;
+    while(!elk_csv_finished(p))
+    {
+        t = elk_csv_fast_next_token(p);
+
+        Assert(!p->error);
+
+        rows = t.row > rows ? t.row : rows;
+        cols = t.col > cols ? t.col : cols;
+
+        //printf("row=%"PRIdPTR" col=%"PRIdPTR" error=%d value = __%.*s__\n", 
+        //        t.row, t.col, p->error, (int)t.value.len, t.value.start);
+    }
+
+    rows++; // since numbers start at 0
+    cols++; // since numbers start at 0
+
+    Assert(rows == 6 && cols == 6);
+}
+
+static void
+test_two_fast(void)
+{
+    ElkStr sample = elk_str_from_cstring(sample_one + 69);
+    //fprintf(stderr, "__%s__\n", sample_one + 69);
 
     // Print the alignment, good to know if we're always testing 32-byte aligned strings.
     //for(u64 a = 1; a <= 64; a <<= 1)
@@ -105,5 +146,6 @@ elk_csv_tests(void)
 {
     test_one_full();
     test_one_fast();
+    test_two_fast();
     test_unquote();
 }
