@@ -5,16 +5,16 @@
  *                                               Tests for the Queue Ledger
  *
  *-------------------------------------------------------------------------------------------------------------------------*/
-#define TEST_BUF_COUNT 10
+#define TEST_BUF_QUEUE_LEDGER_CNT 10
 
 static void
 test_empty_full_queue(void)
 {
     // Set up backing memory, in this case it's just an array on the stack.
-    i32 ibuf[TEST_BUF_COUNT] = {0};
+    i32 ibuf[TEST_BUF_QUEUE_LEDGER_CNT] = {0};
 
     // Set up the ledger to track the capacity of the buffer.
-    ElkQueueLedger queue = elk_queue_ledger_create(TEST_BUF_COUNT);
+    ElkQueueLedger queue = elk_queue_ledger_create(TEST_BUF_QUEUE_LEDGER_CNT);
     ElkQueueLedger *qp = &queue;
 
     // It should be empty now - for as many calls as I make.
@@ -28,7 +28,7 @@ test_empty_full_queue(void)
     }
 
     // Let's fill it up!
-    for (i32 i = 0; i < TEST_BUF_COUNT; ++i) 
+    for (i32 i = 0; i < TEST_BUF_QUEUE_LEDGER_CNT; ++i) 
     {
         Assert(!elk_queue_ledger_full(qp)); // Should never be full in this loop
 
@@ -49,7 +49,7 @@ test_empty_full_queue(void)
     }
 
     // Let's empty it out.
-    for (i32 i = 0; i < TEST_BUF_COUNT; ++i) 
+    for (i32 i = 0; i < TEST_BUF_QUEUE_LEDGER_CNT; ++i) 
     {
         Assert(!elk_queue_ledger_empty(qp)); // Should never be empty at the start of this loop.
 
@@ -74,14 +74,14 @@ static void
 test_lots_of_throughput(void)
 {
     // Set up backing memory, in this case it's just an array on the stack.
-    i32 ibuf[TEST_BUF_COUNT] = {0};
+    i32 ibuf[TEST_BUF_QUEUE_LEDGER_CNT] = {0};
 
     // Set up the ledger to track the capacity of the buffer.
-    ElkQueueLedger queue = elk_queue_ledger_create(TEST_BUF_COUNT);
+    ElkQueueLedger queue = elk_queue_ledger_create(TEST_BUF_QUEUE_LEDGER_CNT);
     ElkQueueLedger *qp = &queue;
 
     // Let's put a few in there.
-    for (i32 i = 0; i < TEST_BUF_COUNT / 2; ++i) 
+    for (i32 i = 0; i < TEST_BUF_QUEUE_LEDGER_CNT / 2; ++i) 
     {
         Assert(!elk_queue_ledger_full(qp)); // Should never be full in this loop
 
@@ -97,7 +97,7 @@ test_lots_of_throughput(void)
     {
 
         // Let's put a few more in there.
-        for (i32 i = 0; i < TEST_BUF_COUNT / 2; ++i) 
+        for (i32 i = 0; i < TEST_BUF_QUEUE_LEDGER_CNT / 2; ++i) 
         {
             Assert(!elk_queue_ledger_full(qp)); // Should never be full in this loop
 
@@ -108,7 +108,7 @@ test_lots_of_throughput(void)
         }
 
         // Let's pull a few out.
-        for (i32 i = 0; i < TEST_BUF_COUNT / 2; ++i) 
+        for (i32 i = 0; i < TEST_BUF_QUEUE_LEDGER_CNT / 2; ++i) 
         {
             Assert(!elk_queue_ledger_empty(qp)); // Should never be empty in this loop
 
@@ -124,10 +124,10 @@ static void
 test_test_peek(void)
 {
     // Set up backing memory, in this case it's just an array on the stack.
-    i32 ibuf[TEST_BUF_COUNT] = {0};
+    i32 ibuf[TEST_BUF_QUEUE_LEDGER_CNT] = {0};
 
     // Set up the ledger to track the capacity of the buffer.
-    ElkQueueLedger queue = elk_queue_ledger_create(TEST_BUF_COUNT);
+    ElkQueueLedger queue = elk_queue_ledger_create(TEST_BUF_QUEUE_LEDGER_CNT);
     ElkQueueLedger *qp = &queue;
 
     // It should be empty now - for as many calls as I make.
@@ -138,7 +138,7 @@ test_test_peek(void)
     }
 
     // Let's fill it up!
-    for (i32 i = 0; i < TEST_BUF_COUNT; ++i) 
+    for (i32 i = 0; i < TEST_BUF_QUEUE_LEDGER_CNT; ++i) 
     {
         Assert(!elk_queue_ledger_full(qp)); // Should never be full in this loop
 
@@ -149,7 +149,7 @@ test_test_peek(void)
     }
 
     // Let's empty it out.
-    for (i32 i = 0; i < TEST_BUF_COUNT; ++i) 
+    for (i32 i = 0; i < TEST_BUF_QUEUE_LEDGER_CNT; ++i) 
     {
         Assert(!elk_queue_ledger_empty(qp)); // Should never be empty at the start of this loop.
 
