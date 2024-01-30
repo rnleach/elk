@@ -179,7 +179,11 @@ static inline ElkStrSplitPair elk_str_split_on_char(ElkStr str, char const split
 /* Parsing values from strings.
  *
  * In all cases the input string is assumed to be stripped of leading and trailing whitespace. Any suffixes that are non-
- * numeric will cause a parse error for the number parsing cases.
+ * numeric will cause a parse error for the number parsing cases. Robust parsers check for more error cases, and fast 
+ * parsers make more assumptions. 
+ *
+ * For f64, the fast parser assumes no NaN or Infinity values or any errors of any kind. The robust parser checks for NaN,
+ * +/- Infinity, and overflow.
  *
  * Parsing datetimes assumes a format YYYY-MM-DD HH:MM:SS, YYYY-MM-DDTHH:MM:SS, YYYYDDDHHMMSS. The latter format is the 
  * year, day of the year, hours, minutes, and seconds.
@@ -187,7 +191,8 @@ static inline ElkStrSplitPair elk_str_split_on_char(ElkStr str, char const split
  * In general, these functions return true on success and false on failure. On falure the out argument is left untouched.
  */
 static inline bool elk_str_parse_i64(ElkStr str, i64 *result);
-static inline bool elk_str_parse_f64(ElkStr str, f64 *out);
+static inline bool elk_str_robust_parse_f64(ElkStr str, f64 *out);
+static inline bool elk_str_fast_parse_f64(ElkStr str, f64 *out);
 static inline bool elk_str_parse_datetime(ElkStr str, ElkTime *out);
 
 /*---------------------------------------------------------------------------------------------------------------------------
@@ -1095,7 +1100,7 @@ elk_str_parse_i64(ElkStr str, i64 *result)
 }
 
 static inline bool
-elk_str_parse_f64(ElkStr str, f64 *out)
+elk_str_robust_parse_f64(ElkStr str, f64 *out)
 {
     // The following block is required to create NAN/INF witnout using math.h on MSVC Using
     // #define NAN (0.0/0.0) doesn't work either on MSVC, which gives C2124 divide by zero error.
@@ -1212,6 +1217,101 @@ elk_str_parse_f64(ElkStr str, f64 *out)
 
     // Check for overflow
     StopIf(exponent < -307 || exponent > 308, goto ERR_RETURN);
+
+    f64 exp_part = 1.0;
+    for (int i = 0; i < exponent; ++i) { exp_part *= 10.0; }
+    for (int i = 0; i > exponent; --i) { exp_part /= 10.0; }
+
+    f64 value = (f64)mantissa * exp_part;
+    StopIf(value == ELK_INF || value == ELK_NEG_INF, goto ERR_RETURN);
+
+    *out = value;
+    return true;
+
+ERR_RETURN:
+    *out = ELK_NAN;
+    return false;
+}
+
+static inline bool 
+elk_str_fast_parse_f64(ElkStr str, f64 *out)
+{
+    // The following block is required to create NAN/INF witnout using math.h on MSVC Using
+    // #define NAN (0.0/0.0) doesn't work either on MSVC, which gives C2124 divide by zero error.
+    static f64 const ELK_ZERO = 0.0;
+    f64 const ELK_INF = 1.0 / ELK_ZERO;
+    f64 const ELK_NEG_INF = -1.0 / ELK_ZERO;
+    f64 const ELK_NAN = 0.0 / ELK_ZERO;
+
+    StopIf(str.len == 0, goto ERR_RETURN);
+
+    char const *c = str.start;
+    char const *end = str.start + str.len;
+    size len_remaining = str.len;
+
+    i8 sign = 0;        // 0 is positive, 1 is negative
+    i8 exp_sign = 0;    // 0 is positive, 1 is negative
+    i16 exponent = 0;
+    i64 mantissa = 0;
+    i64 extra_exp = 0;  // decimal places after the point
+
+    // Check & parse a sign
+    if (*c == '-')      { sign =  1; --len_remaining; ++c; }
+    else if (*c == '+') { sign =  0; --len_remaining; ++c; }
+
+    // Parse the mantissa up to the decimal point or exponent part
+    char digit = *c - '0';
+    while (c < end && digit  < 10 && digit  >= 0)
+    {
+        mantissa = mantissa * 10 + digit;
+        ++c;
+        digit = *c - '0';
+    }
+
+    // Check for the decimal point
+    if (c < end && *c == '.')
+    {
+        ++c;
+
+        // Parse the mantissa up to the decimal point or exponent part
+        digit = *c - '0';
+        while (c < end && digit < 10 && digit >= 0)
+        {
+            mantissa = mantissa * 10 + digit;
+            extra_exp += 1;
+
+            ++c;
+            digit = *c - '0';
+        }
+    }
+
+    // Account for negative signs
+    mantissa = sign == 1 ? -mantissa : mantissa;
+
+    // Start the exponent
+    if (c < end && (*c == 'e' || *c == 'E')) 
+    {
+        ++c;
+
+        if (*c == '-') { exp_sign = 1; ++c; }
+        else if (*c == '+') { exp_sign = 0; ++c; }
+
+        // Parse the mantissa up to the decimal point or exponent part
+        digit = *c - '0';
+        while (c < end && digit < 10 && digit >= 0)
+        {
+            exponent = exponent * 10 + digit;
+
+            ++c;
+            digit = *c - '0';
+        }
+
+        // Account for negative signs
+        exponent = exp_sign == 1 ? -exponent : exponent;
+    }
+
+    // Account for decimal point location.
+    exponent -= extra_exp;
 
     f64 exp_part = 1.0;
     for (int i = 0; i < exponent; ++i) { exp_part *= 10.0; }

@@ -35,7 +35,7 @@ test_parse_i64(void)
 }
 
 static void
-test_parse_f64(void)
+test_robust_parse_f64(void)
 {
     f64 const precision = 1.0e-15;
 
@@ -46,7 +46,7 @@ test_parse_f64(void)
     {
         ElkStr str = elk_str_from_cstring(valid_num_strs[i]);
         f64 parsed = NAN;
-        bool success = elk_str_parse_f64(str, &parsed);
+        bool success = elk_str_robust_parse_f64(str, &parsed);
         Assert(success);
 
         f64 tval = valid_nums[i];
@@ -61,7 +61,7 @@ test_parse_f64(void)
     {
         ElkStr str = elk_str_from_cstring(invalid_num_strs[i]);
         f64 parsed = 0.0;
-        bool success = elk_str_parse_f64(str, &parsed);
+        bool success = elk_str_robust_parse_f64(str, &parsed);
         Assert(!success);
     }
 
@@ -70,7 +70,7 @@ test_parse_f64(void)
     {
         ElkStr str = elk_str_from_cstring(inf_str[i]);
         f64 val = 0.0;
-        bool success = elk_str_parse_f64(str, &val);
+        bool success = elk_str_robust_parse_f64(str, &val);
         Assert(success && isinf(val));
     }
 
@@ -79,8 +79,30 @@ test_parse_f64(void)
     {
         ElkStr str = elk_str_from_cstring(nan_str[i]);
         f64 val = 0.0;
-        bool success = elk_str_parse_f64(str, &val);
+        bool success = elk_str_robust_parse_f64(str, &val);
         Assert(success && isnan(val));
+    }
+}
+
+static void
+test_fast_parse_f64(void)
+{
+    f64 const precision = 1.0e-15;
+
+    char *valid_num_strs[] =    {"1.0", "-1.0", "3.14159", "2.345e5", "-2.345e-5", "+500.23e2", "1.7876931348623157e308"};
+    f64 const valid_nums[] = { 1.0 ,  -1.0 ,  3.14159 ,  2.345e5 ,  -2.345e-5 ,  +500.23e2 ,  1.7876931348623157e308 };
+
+    for (i32 i = 0; i < sizeof(valid_nums) / sizeof(valid_nums[0]); ++i) 
+    {
+        ElkStr str = elk_str_from_cstring(valid_num_strs[i]);
+        f64 parsed = NAN;
+        bool success = elk_str_fast_parse_f64(str, &parsed);
+        Assert(success);
+
+        f64 tval = valid_nums[i];
+        // printf("success = %d str = %s parsed = %g actual = %g difference = %g\n",
+        //         success, valid_num_strs[i], parsed, tval, (tval-parsed)/tval);
+        Assert(fabs((tval - parsed) / tval) < precision);
     }
 }
 
@@ -118,6 +140,7 @@ void
 elk_parse_tests(void)
 {
     test_parse_i64();
-    test_parse_f64();
+    test_robust_parse_f64();
+    test_fast_parse_f64();
     test_parse_datetime();
 }
