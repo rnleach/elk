@@ -976,12 +976,9 @@ elk_str_split_on_char(ElkStr str, char const split_char)
 
 _Static_assert(sizeof(size) == sizeof(uptr), "intptr_t and uintptr_t aren't the same size?!");
 
-static inline bool
-elk_str_parse_i64(ElkStr str, i64 *result)
+static inline bool 
+elk_str_helper_parse_i64(ElkStr str, i64 *result)
 {
-    // Empty string is an error
-    StopIf(str.len == 0, return false);
-
     u64 parsed = 0;
     bool neg_flag = false;
     bool in_digits = false;
@@ -1009,6 +1006,94 @@ elk_str_parse_i64(ElkStr str, i64 *result)
     *result = neg_flag ? -parsed : parsed;
     return true;
 }
+
+static inline bool
+elk_str_parse_i64(ElkStr str, i64 *result)
+{
+    // Empty string is an error
+    StopIf(str.len == 0, return false);
+
+#ifdef __AVX2__
+    /* Check that first the string is short enough, 16 bytes, and second that it does not cross a 4 KiB memory boundary.
+     * The boundary check is needed because we can't be sure that we have access to the other page. If we don't, seg-fault!
+     */
+    if(str.len <= 16 && ((((uptr)str.start + str.len) % ELK_KiB(4)) >= 16))
+    {
+        // _0_ Load, but ensure the last digit is in the last position
+        u8 len = (u8)str.len;
+        uptr start = (uptr)str.start + str.len - 16;
+        __m128i value = _mm_loadu_si128((__m128i const *)start);
+        __m128i const positions = _mm_setr_epi8(16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1);
+        __m128i const positions_mask = _mm_cmpgt_epi8(positions, _mm_set1_epi8(len));
+        value = _mm_andnot_si128(positions_mask, value);                                 /* Mask out data we didn't want.*/
+ 
+        // _1_ detect negative sign
+        __m128i const neg_sign = _mm_set1_epi8('-');
+        __m128i const pos_sign = _mm_set1_epi8('+');
+        __m128i const neg_mask = _mm_cmpeq_epi8(value, neg_sign);
+        __m128i const pos_mask = _mm_cmpeq_epi8(value, pos_sign);
+        i32 neg_flag = _mm_movemask_epi8(neg_mask);
+        i32 pos_flag = _mm_movemask_epi8(pos_mask);
+        neg_flag = (neg_flag >> (16 - str.len)) & 0x01; /* 0-false or 1-true, remember movemask reverses bits. */
+        pos_flag = (pos_flag >> (16 - str.len)) & 0x01; /* 0-false or 1-true, remember movemask reverses bits. */
+
+        // _2_ mask out negative sign and non-digit characters
+        __m128i const not_digits = _mm_or_si128(
+                _mm_cmpgt_epi8(value, _mm_set1_epi8('9')),
+                _mm_cmplt_epi8(value, _mm_set1_epi8('0')));
+        value = _mm_andnot_si128(not_digits, value);
+
+        // _3_ movemask to get bits representing data
+        u32 const digit_bits = (~_mm_movemask_epi8(not_digits)) & 0xFFFF;
+
+        // _4_ _mm_popcnt_u32 to get the number of digits, depending on - sign, if less than string length, ERROR!
+        i32 const num_digits = _mm_popcnt_u32(digit_bits);
+        if(num_digits < ((neg_flag || pos_flag) ? len - 1 : len)) { return false; }
+
+        // _5_ subtract '0' from fields with digits.
+        __m128i const zero_char = _mm_set1_epi8('0');
+        value = _mm_sub_epi8(value, zero_char);
+        value = _mm_andnot_si128(not_digits, value);     /* Re-zero the bytes that had zeros before this operation */
+        
+        // _6_ _mm_maddubs_epi16(_2_, first constant)
+        __m128i const m1 = _mm_setr_epi8(10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1);
+        value = _mm_maddubs_epi16(value, m1);
+        
+        // _7_ _mm_madd_epi16(_6_, second constant)
+        __m128i const m2 = _mm_setr_epi16(100, 1, 100, 1, 100, 1, 100, 1);
+        value = _mm_madd_epi16(value, m2);
+
+        // _8_ _mm_packs_epi32(_7_, _7_)
+        value = _mm_packs_epi32(_mm_setzero_si128(), value);
+
+        // _9_ _mm_madd_epi16(_8_, third constant)
+        __m128i const m3 = _mm_setr_epi16(0, 0, 0, 0, 10000, 1, 10000, 1);
+        value = _mm_madd_epi16(value, m3);
+
+        // _10_ _mm_mul_epu32(_10_, fourth constant multiplier)
+        __m128i const m4 = _mm_set1_epi32(100000000);
+        __m128i value_top = _mm_mul_epu32(value, m4);
+
+        // _11_ shuffle value into little endian for the 64 bit add coming up. _mm_shuffle_epi32(_9_, 0xB4) 0b 00 11 00 00
+        value = _mm_shuffle_epi32(value, 0x30); 
+
+        // _12_ _mm_add_epi64(_9_, _11_)
+        value = _mm_add_epi64(value, value_top);
+
+        // _13_ __int64 val = _mm_extract_epi64(_12_, 0)
+        *result = (neg_flag ? -1 : 1) * _mm_extract_epi64(value, 1);
+        return true;
+
+    }
+    else
+    {
+        return elk_str_helper_parse_i64(str, result);
+    }
+#else
+    return elk_str_helper_parse_i64(str, result);
+#endif
+}
+
 static inline bool
 elk_str_parse_f64(ElkStr str, f64 *out)
 {
@@ -2284,7 +2369,7 @@ elk_csv_create_parser(ElkStr input)
 
 #if __AVX2__
     uptr skip_bytes = (uptr)parser.remaining.start - ((uptr)parser.remaining.start & ~0x1F); 
-    parser.remaining.start = (char *)((uptr)parser.remaining.start & ~0xF); /* Force 32 byte alignment */
+    parser.remaining.start = (char *)((uptr)parser.remaining.start & ~0x1F); /* Force 32 byte alignment */
     parser.carry = 0;
     elk_csv_helper_load_new_buffer_aligned(&parser, skip_bytes);
 #endif
@@ -2329,6 +2414,7 @@ elk_csv_full_next_token(ElkCsvParser *parser)
 
     // Are we in a quoted string where we should ignore commas?
     bool stop = false;
+    u32 carry = 0;
 
 #if __AVX2__
     /* Do SIMD */
@@ -2341,7 +2427,6 @@ elk_csv_full_next_token(ElkCsvParser *parser)
     __m256i M = _mm256_set1_epi64x(0x7fbfdfeff7fbfdfe);
     __m256i A = _mm256_set1_epi64x(0xffffffffffffffff);
 
-    u32 carry = 0;
     while(!stop && parser->remaining.len > num_chars_proc + 32)
     {
         __m256i chars = _mm256_lddqu_si256((__m256i *)next_char);
@@ -2396,7 +2481,7 @@ elk_csv_full_next_token(ElkCsvParser *parser)
 #endif
 
     /* Finish up when not 32 remaining. */
-    bool in_string = false;
+    bool in_string = carry > 0;
     while(!stop && parser->remaining.len > num_chars_proc)
     {
         switch(*next_char)
