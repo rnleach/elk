@@ -1329,12 +1329,52 @@ ERR_RETURN:
 }
 
 static inline bool
-elk_str_parse_datetime(ElkStr str, ElkTime *out)
+elk_str_parse_datetime_long_format(ElkStr str, ElkTime *out)
 {
-    // Check the length to find out what type of string we are parsing.
-    if(str.len == 19)
+    /* Calculate the start address to load it into the buffer with just the right positions for the characters. */
+    uptr start = (uptr)str.start + str.len + 7 - 32;
+
+    /* YYYY-MM-DD HH:MM:SS and YYYY-MM-DDTHH:MM:SS formats */
+    /* Check to make sure we have AVX and that the string buffer won't cross a 4 KiB boundary. */
+    if(__AVX2__ && ((((uptr)str.start + str.len + 7) % ELK_KiB(4)) >= 32))
     {
-        // YYYY-MM-DD HH:MM:SS and YYYY-MM-DDTHH:MM:SS formats
+        __m256i dt_string = _mm256_loadu_si256((__m256i *)start);
+
+        /* Shuffle around the numbers to get them in position for doing math. */
+        __m256i shuffle = _mm256_setr_epi8(
+                0xFF, 0xFF, 0xFF, 0xFF,    6,    7,    8,    9, 0xFF, 0xFF,   11,   12, 0xFF, 0xFF,   14,   15,
+                0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,    1,    2, 0xFF, 0xFF,    4,    5, 0xFF, 0xFF,    7,    8);
+        dt_string = _mm256_shuffle_epi8(dt_string, shuffle);
+
+        /* Subtract out the zero char value and mask out lanes that hold no data we need */
+        dt_string = _mm256_sub_epi8(dt_string, _mm256_set1_epi8('0'));
+        __m256i data_mask = _mm256_setr_epi8(
+                0xFF, 0xFF, 0xFF, 0xFF,    0,    0,    0,    0, 0xFF, 0xFF,    0,    0, 0xFF, 0xFF,    0,    0,
+                0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,    0,    0, 0xFF, 0xFF,    0,    0, 0xFF, 0xFF,    0,    0);
+        dt_string = _mm256_andnot_si256(data_mask, dt_string);
+
+        /* Multiply and add adjacent lanes */
+        __m256i madd_const1 = _mm256_setr_epi8(
+                0,  0,  0,  0, 10,  1, 10,  1,  0,  0, 10,  1,  0,  0, 10,  1,
+                0,  0,  0,  0,  0,  0, 10,  1,  0,  0, 10,  1,  0,  0, 10,  1);
+        __m256i vals16 = _mm256_maddubs_epi16(dt_string, madd_const1);
+
+        /* Month, day, hour, minute, second are already done! Now need to calculate year. */
+        __m256i madd_const2 = _mm256_setr_epi16(0, 0, 100, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        __m256i vals32 = _mm256_madd_epi16(vals16, madd_const2);
+
+        i16 year = _mm256_extract_epi32(vals32, 1);
+        i8 month = _mm256_extract_epi16(vals16, 5);
+        i8 day = _mm256_extract_epi16(vals16, 7);
+        i8 hour = _mm256_extract_epi16(vals16, 11);
+        i8 minutes = _mm256_extract_epi16(vals16, 13);
+        i8 seconds = _mm256_extract_epi16(vals16, 15);
+
+            *out = elk_time_from_ymd_and_hms(year, month, day, hour, minutes, seconds);
+            return true;
+    }
+    else
+    {
         i64 year = INT64_MIN;
         i64 month = INT64_MIN;
         i64 day = INT64_MIN;
@@ -1353,31 +1393,50 @@ elk_str_parse_datetime(ElkStr str, ElkTime *out)
             *out = elk_time_from_ymd_and_hms(year, month, day, hour, minutes, seconds);
             return true;
         }
-
-        return false;
     }
-    else if(str.len == 13)
+
+    return false;
+}
+
+static inline bool
+elk_str_parse_datetime_compact_doy(ElkStr str, ElkTime *out)
+{
+    // YYYYDDDHHMMSS format
+    i64 year = INT64_MIN;
+    i64 day_of_year = INT64_MIN;
+    i64 hour = INT64_MIN;
+    i64 minutes = INT64_MIN;
+    i64 seconds = INT64_MIN;
+
+    if(
+        elk_str_parse_i64(elk_str_substr(str,  0, 4), &year        ) && 
+        elk_str_parse_i64(elk_str_substr(str,  4, 3), &day_of_year ) &&
+        elk_str_parse_i64(elk_str_substr(str,  7, 2), &hour        ) &&
+        elk_str_parse_i64(elk_str_substr(str,  9, 2), &minutes     ) &&
+        elk_str_parse_i64(elk_str_substr(str, 11, 2), &seconds     ))
     {
-        // YYYYDDDHHMMSS format
-        i64 year = INT64_MIN;
-        i64 day_of_year = INT64_MIN;
-        i64 hour = INT64_MIN;
-        i64 minutes = INT64_MIN;
-        i64 seconds = INT64_MIN;
-
-        if(
-            elk_str_parse_i64(elk_str_substr(str,  0, 4), &year        ) && 
-            elk_str_parse_i64(elk_str_substr(str,  4, 3), &day_of_year ) &&
-            elk_str_parse_i64(elk_str_substr(str,  7, 2), &hour        ) &&
-            elk_str_parse_i64(elk_str_substr(str,  9, 2), &minutes     ) &&
-            elk_str_parse_i64(elk_str_substr(str, 11, 2), &seconds     ))
-        {
-            *out = elk_time_from_yd_and_hms(year, day_of_year, hour, minutes, seconds);
-            return true;
-        }
-
-        return false;
+        *out = elk_time_from_yd_and_hms(year, day_of_year, hour, minutes, seconds);
+        return true;
     }
+
+    return false;
+}
+
+static inline bool
+elk_str_parse_datetime(ElkStr str, ElkTime *out)
+{
+    // Check the length to find out what type of string we are parsing.
+    switch(str.len)
+    {
+        // YYYY-MM-DD HH:MM:SS and YYYY-MM-DDTHH:MM:SS formats
+        case 19: return elk_str_parse_datetime_long_format(str, out);
+
+        // YYYYDDDHHMMSS format
+        case 13: return elk_str_parse_datetime_compact_doy(str, out);
+
+        default: return false;
+    }
+
     return false;
 }
 
