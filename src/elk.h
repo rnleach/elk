@@ -1013,7 +1013,7 @@ elk_str_parse_i64(ElkStr str, i64 *result)
     // Empty string is an error
     StopIf(str.len == 0, return false);
 
-#ifdef __AVX2__
+#if 0
     /* Check that first the string is short enough, 16 bytes, and second that it does not cross a 4 KiB memory boundary.
      * The boundary check is needed because we can't be sure that we have access to the other page. If we don't, seg-fault!
      */

@@ -4,8 +4,8 @@ PROJDIR="$(pwd)"
 SOURCEDIR="$PROJDIR/src"
 TESTDIR="$PROJDIR/tests"
 
-CC=cc
-CFLAGS="-Wall -Werror -D_DEFAULT_SOURCE -D_GNU_SOURCE -std=c11 -I$SOURCEDIR -I$TESTDIR"
+CC=clang
+CFLAGS="-Wall -Werror -D_DEFAULT_SOURCE -D_GNU_SOURCE -march=native -std=c11 -I$SOURCEDIR -I$TESTDIR"
 LDLIBS="-lm -lpthread"
 
 if [ "$#" -gt 0 -a "$1" = "debug" ]
