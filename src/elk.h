@@ -193,7 +193,6 @@ static inline ElkStrSplitPair elk_str_split_on_char(ElkStr str, char const split
 static inline bool elk_str_parse_i64(ElkStr str, i64 *result);
 static inline bool elk_str_robust_parse_f64(ElkStr str, f64 *out);
 static inline bool elk_str_fast_parse_f64(ElkStr str, f64 *out);
-static inline bool elk_str_fast_parse_2_f64(ElkStr str1, f64 *restrict out1, ElkStr str2, f64 *restrict out2);
 static inline bool elk_str_parse_datetime(ElkStr str, ElkTime *out);
 
 /*---------------------------------------------------------------------------------------------------------------------------
@@ -1237,331 +1236,95 @@ ERR_RETURN:
 static inline bool 
 elk_str_fast_parse_f64(ElkStr str, f64 *out)
 {
-    if(__AVX2__ && str.len <=16 && ((iptr)str.start + str.len) % 4096 >= 16)
+    // The following block is required to create NAN/INF witnout using math.h on MSVC Using
+    // #define NAN (0.0/0.0) doesn't work either on MSVC, which gives C2124 divide by zero error.
+    static f64 const ELK_ZERO = 0.0;
+    f64 const ELK_INF = 1.0 / ELK_ZERO;
+    f64 const ELK_NEG_INF = -1.0 / ELK_ZERO;
+    f64 const ELK_NAN = 0.0 / ELK_ZERO;
+
+    StopIf(str.len == 0, goto ERR_RETURN);
+
+    char const *c = str.start;
+    char const *end = str.start + str.len;
+
+    i8 sign = 0;        // 0 is positive, 1 is negative
+    i8 exp_sign = 0;    // 0 is positive, 1 is negative
+    i16 exponent = 0;
+    i64 mantissa = 0;
+    i64 extra_exp = 0;  // decimal places after the point
+
+    // Check & parse a sign
+    if (*c == '-')      { sign =  1; ++c; }
+    else if (*c == '+') { sign =  0; ++c; }
+
+    // Parse the mantissa up to the decimal point or exponent part
+    char digit = *c - '0';
+    while (c < end && digit  < 10 && digit  >= 0)
     {
-        __m128i const indexes = _mm_setr_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-        __m128i const first_multiplier = _mm_setr_epi8(10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1);
-        __m128i const second_multiplier = _mm_setr_epi16(100, 1, 100, 1, 100, 1, 100, 1);
-        __m128i const third_multiplier = _mm_setr_epi16(10000, 1, 10000, 1, 10000, 1, 10000, 1);
+        mantissa = mantissa * 10 + digit;
+        ++c;
+        digit = *c - '0';
+    }
 
-        iptr start_addr = (iptr)str.start + str.len - 16;
-
-        __m128i strbuf = _mm_loadu_si128((__m128i *)start_addr);
-
-        /* Zero out parts of buffer that aren't in my string. */
-        __m128i str_mask = _mm_cmplt_epi8(indexes, _mm_set1_epi8(16 - (i8)str.len));
-        strbuf = _mm_andnot_si128(str_mask, strbuf);
-
-        /* Find index of 'e' */
-        __m128i emask = _mm_cmpeq_epi8(strbuf, _mm_set1_epi8('e'));
-        int8_t e_index = 31 - __lzcnt32(_mm_movemask_epi8(emask)); /* always use with -1, so just subtract 1 now and use 31 */
-        e_index = e_index < 0 ? 16 : e_index;
-
-        /* Get the exponent */
-        __m128i exp_mask = _mm_cmpgt_epi8(indexes, _mm_set1_epi8(e_index));
-        __m128i exponent = _mm_and_si128(exp_mask, strbuf);
-        __m128i neg_exp_mask = _mm_cmpeq_epi8(exponent, _mm_set1_epi8('-'));
-        bool has_neg_exp = !!_mm_movemask_epi8(neg_exp_mask);
-        exponent = _mm_sub_epi8(exponent, _mm_set1_epi8('0'));
-        exponent = _mm_and_si128(_mm_andnot_si128(neg_exp_mask, exp_mask), exponent);
-
-        /* Shuffle (shift) out exponent */
-        __m128i mantissa =_mm_shuffle_epi8(strbuf, _mm_add_epi8(indexes, _mm_set1_epi8(e_index)));
-
-        /* Find index of decimal point. */
-        __m128i pmask = _mm_cmpeq_epi8(mantissa, _mm_set1_epi8('.'));
-        int8_t p_index = 32 - _lzcnt_u32(_mm_movemask_epi8(pmask));
-        bool has_point = !!p_index;
-        int extra_exp = has_point ? 16 - p_index : 0;
-
-        /* Shuffle out the decimal point. */
-        __m128i stay_mask = _mm_cmplt_epi8(indexes, _mm_set1_epi8(p_index));
-        __m128i stay_shuffle = _mm_andnot_si128(stay_mask, indexes);
-        __m128i shift_mask = _mm_cmplt_epi8(indexes, _mm_set1_epi8(p_index));
-        __m128i shift_shuffle = _mm_and_si128(shift_mask, _mm_sub_epi8(indexes, _mm_set1_epi8(1)));
-        __m128i total_shuffle = _mm_add_epi8(shift_shuffle, stay_shuffle);
-        mantissa =_mm_shuffle_epi8(mantissa, total_shuffle);
-
-        /* Find the negative sign. */
-        mantissa = _mm_andnot_si128(_mm_cmplt_epi8(indexes, _mm_set1_epi8(32 - (i8)str.len - e_index + has_point)), mantissa);
-        __m128i neg_mask = _mm_cmpeq_epi8(mantissa, _mm_set1_epi8('-'));
-        __m128i pos_mask = _mm_cmpeq_epi8(mantissa, _mm_set1_epi8('+'));
-        i64 has_neg = !!_mm_movemask_epi8(neg_mask);
-        i64 has_sign = !!_mm_movemask_epi8(pos_mask) || has_neg;
-
-        /* Subtract out the value of the zero character. */
-        mantissa = _mm_sub_epi8(mantissa, _mm_set1_epi8('0'));
-        mantissa = _mm_andnot_si128(_mm_cmplt_epi8(indexes, _mm_set1_epi8(32 - (i8)str.len - e_index + has_point + (i8)has_sign)), mantissa);
-
-        /* Combine mantissa digits into decimal value. */
-        mantissa = _mm_maddubs_epi16(first_multiplier, mantissa);
-        mantissa = _mm_madd_epi16(second_multiplier, mantissa);
-        mantissa = _mm_packs_epi32(mantissa, mantissa);
-        mantissa = _mm_madd_epi16(third_multiplier, mantissa);
-        __m128i reverse_mantissa = _mm_shuffle_epi32(mantissa, 27);
-        mantissa = _mm_cvtepi32_epi64(mantissa);
-        reverse_mantissa = _mm_cvtepi32_epi64(reverse_mantissa);
-        mantissa = _mm_add_epi64(mantissa, reverse_mantissa);
-        i64 mantissai = _mm_extract_epi64(mantissa, 1);
-
-        /* Combine exponent digits into decimal value and account for extra exponent due to decimal point. */
-        exponent = _mm_maddubs_epi16(first_multiplier, exponent);
-        exponent = _mm_madd_epi16(second_multiplier, exponent);
-        i64 expi = _mm_extract_epi32(exponent, 3);
-        expi = has_neg_exp ? -expi : expi;
-
-        /* Account for removing the decimal point. */
-        expi -= extra_exp;
-
-        f64 expf = 1.0;
-        for(int i = 0; i < expi; ++i) { expf *= 10.0; };
-        for(int i = 0; i > expi; --i) { expf /= 10.0; };
-        f64 ret_val = (f64) mantissai * expf;
-
-        *out = has_neg ? -ret_val : ret_val;
-        return true;
-    }   
-    else
+    // Check for the decimal point
+    if (c < end && *c == '.')
     {
-        // The following block is required to create NAN/INF witnout using math.h on MSVC Using
-        // #define NAN (0.0/0.0) doesn't work either on MSVC, which gives C2124 divide by zero error.
-        static f64 const ELK_ZERO = 0.0;
-        f64 const ELK_INF = 1.0 / ELK_ZERO;
-        f64 const ELK_NEG_INF = -1.0 / ELK_ZERO;
-        f64 const ELK_NAN = 0.0 / ELK_ZERO;
-
-        StopIf(str.len == 0, goto ERR_RETURN);
-
-        char const *c = str.start;
-        char const *end = str.start + str.len;
-
-        i8 sign = 0;        // 0 is positive, 1 is negative
-        i8 exp_sign = 0;    // 0 is positive, 1 is negative
-        i16 exponent = 0;
-        i64 mantissa = 0;
-        i64 extra_exp = 0;  // decimal places after the point
-
-        // Check & parse a sign
-        if (*c == '-')      { sign =  1; ++c; }
-        else if (*c == '+') { sign =  0; ++c; }
+        ++c;
 
         // Parse the mantissa up to the decimal point or exponent part
-        char digit = *c - '0';
-        while (c < end && digit  < 10 && digit  >= 0)
+        digit = *c - '0';
+        while (c < end && digit < 10 && digit >= 0)
         {
             mantissa = mantissa * 10 + digit;
+            extra_exp += 1;
+
             ++c;
             digit = *c - '0';
         }
+    }
 
-        // Check for the decimal point
-        if (c < end && *c == '.')
+    // Account for negative signs
+    mantissa = sign == 1 ? -mantissa : mantissa;
+
+    // Start the exponent
+    if (c < end && (*c == 'e' || *c == 'E')) 
+    {
+        ++c;
+
+        if (*c == '-') { exp_sign = 1; ++c; }
+        else if (*c == '+') { exp_sign = 0; ++c; }
+
+        // Parse the mantissa up to the decimal point or exponent part
+        digit = *c - '0';
+        while (c < end && digit < 10 && digit >= 0)
         {
+            exponent = exponent * 10 + digit;
+
             ++c;
-
-            // Parse the mantissa up to the decimal point or exponent part
             digit = *c - '0';
-            while (c < end && digit < 10 && digit >= 0)
-            {
-                mantissa = mantissa * 10 + digit;
-                extra_exp += 1;
-
-                ++c;
-                digit = *c - '0';
-            }
         }
 
         // Account for negative signs
-        mantissa = sign == 1 ? -mantissa : mantissa;
-
-        // Start the exponent
-        if (c < end && (*c == 'e' || *c == 'E')) 
-        {
-            ++c;
-
-            if (*c == '-') { exp_sign = 1; ++c; }
-            else if (*c == '+') { exp_sign = 0; ++c; }
-
-            // Parse the mantissa up to the decimal point or exponent part
-            digit = *c - '0';
-            while (c < end && digit < 10 && digit >= 0)
-            {
-                exponent = exponent * 10 + digit;
-
-                ++c;
-                digit = *c - '0';
-            }
-
-            // Account for negative signs
-            exponent = exp_sign == 1 ? -exponent : exponent;
-        }
-
-        // Account for decimal point location.
-        exponent -= extra_exp;
-
-        f64 exp_part = 1.0;
-        for (int i = 0; i < exponent; ++i) { exp_part *= 10.0; }
-        for (int i = 0; i > exponent; --i) { exp_part /= 10.0; }
-
-        f64 value = (f64)mantissa * exp_part;
-        StopIf(value == ELK_INF || value == ELK_NEG_INF, goto ERR_RETURN);
-
-        *out = value;
-        return true;
-
-    ERR_RETURN:
-        *out = ELK_NAN;
-        return false;
+        exponent = exp_sign == 1 ? -exponent : exponent;
     }
-}
 
-/* The idea hear is like loop unrolling, doing two at the same time may help with instruction level parallelism. */
-static inline bool 
-elk_str_fast_parse_2_f64(ElkStr str1, f64 *restrict out1, ElkStr str2, f64 *restrict out2)
-{
-    if(__AVX2__
-       && str1.len <=16
-       && str2.len <=16
-       && ((iptr)str1.start + str1.len) % 4096 >= 16
-       && ((iptr)str2.start + str2.len) % 4096 >= 16
-    )
-    {
-        __m128i const indexes = _mm_setr_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-        __m128i const first_multiplier = _mm_setr_epi8(10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1);
-        __m128i const second_multiplier = _mm_setr_epi16(100, 1, 100, 1, 100, 1, 100, 1);
-        __m128i const third_multiplier = _mm_setr_epi16(10000, 1, 10000, 1, 10000, 1, 10000, 1);
+    // Account for decimal point location.
+    exponent -= extra_exp;
 
-        iptr start_addr1 = (iptr)str1.start + str1.len - 16;
-        iptr start_addr2 = (iptr)str2.start + str2.len - 16;
+    f64 exp_part = 1.0;
+    for (int i = 0; i < exponent; ++i) { exp_part *= 10.0; }
+    for (int i = 0; i > exponent; --i) { exp_part /= 10.0; }
 
-        __m128i strbuf1 = _mm_loadu_si128((__m128i *)start_addr1);
-        __m128i strbuf2 = _mm_loadu_si128((__m128i *)start_addr2);
+    f64 value = (f64)mantissa * exp_part;
+    StopIf(value == ELK_INF || value == ELK_NEG_INF, goto ERR_RETURN);
 
-        /* Zero out parts of buffer that aren't in my string. */
-        __m128i str_mask1 = _mm_cmplt_epi8(indexes, _mm_set1_epi8(16 - (i8)str1.len));
-        strbuf1 = _mm_andnot_si128(str_mask1, strbuf1);
-        __m128i str_mask2 = _mm_cmplt_epi8(indexes, _mm_set1_epi8(16 - (i8)str2.len));
-        strbuf2 = _mm_andnot_si128(str_mask2, strbuf2);
+    *out = value;
+    return true;
 
-        /* Find index of 'e' */
-        __m128i emask1 = _mm_cmpeq_epi8(strbuf1, _mm_set1_epi8('e'));
-        int8_t e_index1 = 31 - __lzcnt32(_mm_movemask_epi8(emask1)); /* always use with -1, so just subtract 1 now and use 31 */
-        e_index1 = e_index1 < 0 ? 16 : e_index1;
-        __m128i emask2 = _mm_cmpeq_epi8(strbuf2, _mm_set1_epi8('e'));
-        int8_t e_index2 = 31 - __lzcnt32(_mm_movemask_epi8(emask2)); /* always use with -1, so just subtract 1 now and use 31 */
-        e_index2 = e_index2 < 0 ? 16 : e_index2;
-
-        /* Get the exponent */
-        __m128i exp_mask1 = _mm_cmpgt_epi8(indexes, _mm_set1_epi8(e_index1));
-        __m128i exponent1 = _mm_and_si128(exp_mask1, strbuf1);
-        __m128i neg_exp_mask1 = _mm_cmpeq_epi8(exponent1, _mm_set1_epi8('-'));
-        bool has_neg_exp1 = !!_mm_movemask_epi8(neg_exp_mask1);
-        exponent1 = _mm_sub_epi8(exponent1, _mm_set1_epi8('0'));
-        exponent1 = _mm_and_si128(_mm_andnot_si128(neg_exp_mask1, exp_mask1), exponent1);
-        __m128i exp_mask2 = _mm_cmpgt_epi8(indexes, _mm_set1_epi8(e_index2));
-        __m128i exponent2 = _mm_and_si128(exp_mask2, strbuf2);
-        __m128i neg_exp_mask2 = _mm_cmpeq_epi8(exponent2, _mm_set1_epi8('-'));
-        bool has_neg_exp2 = !!_mm_movemask_epi8(neg_exp_mask2);
-        exponent2 = _mm_sub_epi8(exponent2, _mm_set1_epi8('0'));
-        exponent2 = _mm_and_si128(_mm_andnot_si128(neg_exp_mask2, exp_mask2), exponent2);
-
-        /* Shuffle (shift) out exponent */
-        __m128i mantissa1 =_mm_shuffle_epi8(strbuf1, _mm_add_epi8(indexes, _mm_set1_epi8(e_index1)));
-        __m128i mantissa2 =_mm_shuffle_epi8(strbuf2, _mm_add_epi8(indexes, _mm_set1_epi8(e_index2)));
-
-        /* Find index of decimal point. */
-        __m128i pmask1 = _mm_cmpeq_epi8(mantissa1, _mm_set1_epi8('.'));
-        int8_t p_index1 = 32 - _lzcnt_u32(_mm_movemask_epi8(pmask1));
-        bool has_point1 = !!p_index1;
-        int extra_exp1 = has_point1 ? 16 - p_index1 : 0;
-        __m128i pmask2 = _mm_cmpeq_epi8(mantissa2, _mm_set1_epi8('.'));
-        int8_t p_index2 = 32 - _lzcnt_u32(_mm_movemask_epi8(pmask2));
-        bool has_point2 = !!p_index2;
-        int extra_exp2 = has_point2 ? 16 - p_index2 : 0;
-
-        /* Shuffle out the decimal point. */
-        __m128i stay_mask1 = _mm_cmplt_epi8(indexes, _mm_set1_epi8(p_index1));
-        __m128i stay_shuffle1 = _mm_andnot_si128(stay_mask1, indexes);
-        __m128i shift_mask1 = _mm_cmplt_epi8(indexes, _mm_set1_epi8(p_index1));
-        __m128i shift_shuffle1 = _mm_and_si128(shift_mask1, _mm_sub_epi8(indexes, _mm_set1_epi8(1)));
-        __m128i total_shuffle1 = _mm_add_epi8(shift_shuffle1, stay_shuffle1);
-        mantissa1 =_mm_shuffle_epi8(mantissa1, total_shuffle1);
-        __m128i stay_mask2 = _mm_cmplt_epi8(indexes, _mm_set1_epi8(p_index2));
-        __m128i stay_shuffle2 = _mm_andnot_si128(stay_mask2, indexes);
-        __m128i shift_mask2 = _mm_cmplt_epi8(indexes, _mm_set1_epi8(p_index2));
-        __m128i shift_shuffle2 = _mm_and_si128(shift_mask2, _mm_sub_epi8(indexes, _mm_set1_epi8(1)));
-        __m128i total_shuffle2 = _mm_add_epi8(shift_shuffle2, stay_shuffle2);
-        mantissa2 =_mm_shuffle_epi8(mantissa2, total_shuffle2);
-
-        /* Find the negative sign. */
-        mantissa1 = _mm_andnot_si128(_mm_cmplt_epi8(indexes, _mm_set1_epi8(32 - (i8)str1.len - e_index1 + has_point1)), mantissa1);
-        __m128i neg_mask1 = _mm_cmpeq_epi8(mantissa1, _mm_set1_epi8('-'));
-        __m128i pos_mask1 = _mm_cmpeq_epi8(mantissa1, _mm_set1_epi8('+'));
-        i64 has_neg1 = !!_mm_movemask_epi8(neg_mask1);
-        i64 has_sign1 = !!_mm_movemask_epi8(pos_mask1) || has_neg1;
-        mantissa2 = _mm_andnot_si128(_mm_cmplt_epi8(indexes, _mm_set1_epi8(32 - (i8)str2.len - e_index2 + has_point2)), mantissa2);
-        __m128i neg_mask2 = _mm_cmpeq_epi8(mantissa2, _mm_set1_epi8('-'));
-        __m128i pos_mask2 = _mm_cmpeq_epi8(mantissa2, _mm_set1_epi8('+'));
-        i64 has_neg2 = !!_mm_movemask_epi8(neg_mask2);
-        i64 has_sign2 = !!_mm_movemask_epi8(pos_mask2) || has_neg2;
-
-        /* Subtract out the value of the zero character. */
-        mantissa1 = _mm_sub_epi8(mantissa1, _mm_set1_epi8('0'));
-        mantissa1 = _mm_andnot_si128(_mm_cmplt_epi8(indexes, _mm_set1_epi8(32 - (i8)str1.len - e_index1 + has_point1 + (i8)has_sign1)), mantissa1);
-        mantissa2 = _mm_sub_epi8(mantissa2, _mm_set1_epi8('0'));
-        mantissa2 = _mm_andnot_si128(_mm_cmplt_epi8(indexes, _mm_set1_epi8(32 - (i8)str2.len - e_index2 + has_point2 + (i8)has_sign2)), mantissa2);
-
-        /* Combine mantissa digits into decimal value. */
-        mantissa1 = _mm_maddubs_epi16(first_multiplier, mantissa1);
-        mantissa1 = _mm_madd_epi16(second_multiplier, mantissa1);
-        mantissa1 = _mm_packs_epi32(mantissa1, mantissa1);
-        mantissa1 = _mm_madd_epi16(third_multiplier, mantissa1);
-        __m128i reverse_mantissa1 = _mm_shuffle_epi32(mantissa1, 27);
-        mantissa1 = _mm_cvtepi32_epi64(mantissa1);
-        reverse_mantissa1 = _mm_cvtepi32_epi64(reverse_mantissa1);
-        mantissa1 = _mm_add_epi64(mantissa1, reverse_mantissa1);
-        i64 mantissai1 = _mm_extract_epi64(mantissa1, 1);
-        mantissa2 = _mm_maddubs_epi16(first_multiplier, mantissa2);
-        mantissa2 = _mm_madd_epi16(second_multiplier, mantissa2);
-        mantissa2 = _mm_packs_epi32(mantissa2, mantissa2);
-        mantissa2 = _mm_madd_epi16(third_multiplier, mantissa2);
-        __m128i reverse_mantissa2 = _mm_shuffle_epi32(mantissa2, 27);
-        mantissa2 = _mm_cvtepi32_epi64(mantissa2);
-        reverse_mantissa2 = _mm_cvtepi32_epi64(reverse_mantissa2);
-        mantissa2 = _mm_add_epi64(mantissa2, reverse_mantissa2);
-        i64 mantissai2 = _mm_extract_epi64(mantissa2, 1);
-
-        /* Combine exponent digits into decimal value and account for extra exponent due to decimal point. */
-        exponent1 = _mm_maddubs_epi16(first_multiplier, exponent1);
-        exponent1 = _mm_madd_epi16(second_multiplier, exponent1);
-        i64 expi1 = _mm_extract_epi32(exponent1, 3);
-        expi1 = has_neg_exp1 ? -expi1 : expi1;
-        exponent2 = _mm_maddubs_epi16(first_multiplier, exponent2);
-        exponent2 = _mm_madd_epi16(second_multiplier, exponent2);
-        i64 expi2 = _mm_extract_epi32(exponent2, 3);
-        expi2 = has_neg_exp2 ? -expi2 : expi2;
-
-        /* Account for removing the decimal point. */
-        expi1 -= extra_exp1;
-        expi2 -= extra_exp2;
-
-        f64 expf1 = 1.0;
-        for(int i = 0; i < expi1; ++i) { expf1 *= 10.0; };
-        for(int i = 0; i > expi1; --i) { expf1 /= 10.0; };
-        f64 ret_val1 = (f64) mantissai1 * expf1;
-        f64 expf2 = 1.0;
-        for(int i = 0; i < expi2; ++i) { expf2 *= 10.0; };
-        for(int i = 0; i > expi2; --i) { expf2 /= 10.0; };
-        f64 ret_val2 = (f64) mantissai2 * expf2;
-
-        *out1 = has_neg1 ? -ret_val1 : ret_val1;
-        *out2 = has_neg2 ? -ret_val2 : ret_val2;
-        return true;
-    }
-    else
-    {
-        return elk_str_fast_parse_f64(str1, out1) && elk_str_fast_parse_f64(str2, out2);
-    }
+ERR_RETURN:
+    *out = ELK_NAN;
+    return false;
 }
 
 static inline bool
