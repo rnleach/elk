@@ -1309,7 +1309,7 @@ elk_str_fast_parse_f64(ElkStr str, f64 *out)
         i64 expi = _mm_extract_epi32(exponent, 3);
         expi = has_neg_exp ? -expi : expi;
 
-        /* Convert exponent to power of 2; multiply by 1/log10(2), and then account for 1023 offset */
+        /* Account for removing the decimal point. */
         expi -= extra_exp;
 
         f64 expf = 1.0;
