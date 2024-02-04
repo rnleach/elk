@@ -193,6 +193,7 @@ static inline ElkStrSplitPair elk_str_split_on_char(ElkStr str, char const split
 static inline bool elk_str_parse_i64(ElkStr str, i64 *result);
 static inline bool elk_str_robust_parse_f64(ElkStr str, f64 *out);
 static inline bool elk_str_fast_parse_f64(ElkStr str, f64 *out);
+static inline bool elk_str_fast_parse_2_f64(ElkStr str1, f64 *restrict out1, ElkStr str2, f64 *restrict out2);
 static inline bool elk_str_parse_datetime(ElkStr str, ElkTime *out);
 
 /*---------------------------------------------------------------------------------------------------------------------------
@@ -1238,7 +1239,7 @@ elk_str_fast_parse_f64(ElkStr str, f64 *out)
 {
     if(__AVX2__ && str.len <=16 && ((iptr)str.start + str.len) % 4096 >= 16)
     {
-        __m128i indexes = _mm_setr_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+        __m128i const indexes = _mm_setr_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
         __m128i const first_multiplier = _mm_setr_epi8(10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1);
         __m128i const second_multiplier = _mm_setr_epi16(100, 1, 100, 1, 100, 1, 100, 1);
         __m128i const third_multiplier = _mm_setr_epi16(10000, 1, 10000, 1, 10000, 1, 10000, 1);
@@ -1319,7 +1320,7 @@ elk_str_fast_parse_f64(ElkStr str, f64 *out)
 
         *out = has_neg ? -ret_val : ret_val;
         return true;
-    }
+    }   
     else
     {
         // The following block is required to create NAN/INF witnout using math.h on MSVC Using
@@ -1411,6 +1412,155 @@ elk_str_fast_parse_f64(ElkStr str, f64 *out)
     ERR_RETURN:
         *out = ELK_NAN;
         return false;
+    }
+}
+
+/* The idea hear is like loop unrolling, doing two at the same time may help with instruction level parallelism. */
+static inline bool 
+elk_str_fast_parse_2_f64(ElkStr str1, f64 *restrict out1, ElkStr str2, f64 *restrict out2)
+{
+    if(__AVX2__
+       && str1.len <=16
+       && str2.len <=16
+       && ((iptr)str1.start + str1.len) % 4096 >= 16
+       && ((iptr)str2.start + str2.len) % 4096 >= 16
+    )
+    {
+        __m128i const indexes = _mm_setr_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+        __m128i const first_multiplier = _mm_setr_epi8(10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1);
+        __m128i const second_multiplier = _mm_setr_epi16(100, 1, 100, 1, 100, 1, 100, 1);
+        __m128i const third_multiplier = _mm_setr_epi16(10000, 1, 10000, 1, 10000, 1, 10000, 1);
+
+        iptr start_addr1 = (iptr)str1.start + str1.len - 16;
+        iptr start_addr2 = (iptr)str2.start + str2.len - 16;
+
+        __m128i strbuf1 = _mm_loadu_si128((__m128i *)start_addr1);
+        __m128i strbuf2 = _mm_loadu_si128((__m128i *)start_addr2);
+
+        /* Zero out parts of buffer that aren't in my string. */
+        __m128i str_mask1 = _mm_cmplt_epi8(indexes, _mm_set1_epi8(16 - (i8)str1.len));
+        strbuf1 = _mm_andnot_si128(str_mask1, strbuf1);
+        __m128i str_mask2 = _mm_cmplt_epi8(indexes, _mm_set1_epi8(16 - (i8)str2.len));
+        strbuf2 = _mm_andnot_si128(str_mask2, strbuf2);
+
+        /* Find index of 'e' */
+        __m128i emask1 = _mm_cmpeq_epi8(strbuf1, _mm_set1_epi8('e'));
+        int8_t e_index1 = 31 - __lzcnt32(_mm_movemask_epi8(emask1)); /* always use with -1, so just subtract 1 now and use 31 */
+        e_index1 = e_index1 < 0 ? 16 : e_index1;
+        __m128i emask2 = _mm_cmpeq_epi8(strbuf2, _mm_set1_epi8('e'));
+        int8_t e_index2 = 31 - __lzcnt32(_mm_movemask_epi8(emask2)); /* always use with -1, so just subtract 1 now and use 31 */
+        e_index2 = e_index2 < 0 ? 16 : e_index2;
+
+        /* Get the exponent */
+        __m128i exp_mask1 = _mm_cmpgt_epi8(indexes, _mm_set1_epi8(e_index1));
+        __m128i exponent1 = _mm_and_si128(exp_mask1, strbuf1);
+        __m128i neg_exp_mask1 = _mm_cmpeq_epi8(exponent1, _mm_set1_epi8('-'));
+        bool has_neg_exp1 = !!_mm_movemask_epi8(neg_exp_mask1);
+        exponent1 = _mm_sub_epi8(exponent1, _mm_set1_epi8('0'));
+        exponent1 = _mm_and_si128(_mm_andnot_si128(neg_exp_mask1, exp_mask1), exponent1);
+        __m128i exp_mask2 = _mm_cmpgt_epi8(indexes, _mm_set1_epi8(e_index2));
+        __m128i exponent2 = _mm_and_si128(exp_mask2, strbuf2);
+        __m128i neg_exp_mask2 = _mm_cmpeq_epi8(exponent2, _mm_set1_epi8('-'));
+        bool has_neg_exp2 = !!_mm_movemask_epi8(neg_exp_mask2);
+        exponent2 = _mm_sub_epi8(exponent2, _mm_set1_epi8('0'));
+        exponent2 = _mm_and_si128(_mm_andnot_si128(neg_exp_mask2, exp_mask2), exponent2);
+
+        /* Shuffle (shift) out exponent */
+        __m128i mantissa1 =_mm_shuffle_epi8(strbuf1, _mm_add_epi8(indexes, _mm_set1_epi8(e_index1)));
+        __m128i mantissa2 =_mm_shuffle_epi8(strbuf2, _mm_add_epi8(indexes, _mm_set1_epi8(e_index2)));
+
+        /* Find index of decimal point. */
+        __m128i pmask1 = _mm_cmpeq_epi8(mantissa1, _mm_set1_epi8('.'));
+        int8_t p_index1 = 32 - _lzcnt_u32(_mm_movemask_epi8(pmask1));
+        bool has_point1 = !!p_index1;
+        int extra_exp1 = has_point1 ? 16 - p_index1 : 0;
+        __m128i pmask2 = _mm_cmpeq_epi8(mantissa2, _mm_set1_epi8('.'));
+        int8_t p_index2 = 32 - _lzcnt_u32(_mm_movemask_epi8(pmask2));
+        bool has_point2 = !!p_index2;
+        int extra_exp2 = has_point2 ? 16 - p_index2 : 0;
+
+        /* Shuffle out the decimal point. */
+        __m128i stay_mask1 = _mm_cmplt_epi8(indexes, _mm_set1_epi8(p_index1));
+        __m128i stay_shuffle1 = _mm_andnot_si128(stay_mask1, indexes);
+        __m128i shift_mask1 = _mm_cmplt_epi8(indexes, _mm_set1_epi8(p_index1));
+        __m128i shift_shuffle1 = _mm_and_si128(shift_mask1, _mm_sub_epi8(indexes, _mm_set1_epi8(1)));
+        __m128i total_shuffle1 = _mm_add_epi8(shift_shuffle1, stay_shuffle1);
+        mantissa1 =_mm_shuffle_epi8(mantissa1, total_shuffle1);
+        __m128i stay_mask2 = _mm_cmplt_epi8(indexes, _mm_set1_epi8(p_index2));
+        __m128i stay_shuffle2 = _mm_andnot_si128(stay_mask2, indexes);
+        __m128i shift_mask2 = _mm_cmplt_epi8(indexes, _mm_set1_epi8(p_index2));
+        __m128i shift_shuffle2 = _mm_and_si128(shift_mask2, _mm_sub_epi8(indexes, _mm_set1_epi8(1)));
+        __m128i total_shuffle2 = _mm_add_epi8(shift_shuffle2, stay_shuffle2);
+        mantissa2 =_mm_shuffle_epi8(mantissa2, total_shuffle2);
+
+        /* Find the negative sign. */
+        mantissa1 = _mm_andnot_si128(_mm_cmplt_epi8(indexes, _mm_set1_epi8(32 - (i8)str1.len - e_index1 + has_point1)), mantissa1);
+        __m128i neg_mask1 = _mm_cmpeq_epi8(mantissa1, _mm_set1_epi8('-'));
+        __m128i pos_mask1 = _mm_cmpeq_epi8(mantissa1, _mm_set1_epi8('+'));
+        i64 has_neg1 = !!_mm_movemask_epi8(neg_mask1);
+        i64 has_sign1 = !!_mm_movemask_epi8(pos_mask1) || has_neg1;
+        mantissa2 = _mm_andnot_si128(_mm_cmplt_epi8(indexes, _mm_set1_epi8(32 - (i8)str2.len - e_index2 + has_point2)), mantissa2);
+        __m128i neg_mask2 = _mm_cmpeq_epi8(mantissa2, _mm_set1_epi8('-'));
+        __m128i pos_mask2 = _mm_cmpeq_epi8(mantissa2, _mm_set1_epi8('+'));
+        i64 has_neg2 = !!_mm_movemask_epi8(neg_mask2);
+        i64 has_sign2 = !!_mm_movemask_epi8(pos_mask2) || has_neg2;
+
+        /* Subtract out the value of the zero character. */
+        mantissa1 = _mm_sub_epi8(mantissa1, _mm_set1_epi8('0'));
+        mantissa1 = _mm_andnot_si128(_mm_cmplt_epi8(indexes, _mm_set1_epi8(32 - (i8)str1.len - e_index1 + has_point1 + (i8)has_sign1)), mantissa1);
+        mantissa2 = _mm_sub_epi8(mantissa2, _mm_set1_epi8('0'));
+        mantissa2 = _mm_andnot_si128(_mm_cmplt_epi8(indexes, _mm_set1_epi8(32 - (i8)str2.len - e_index2 + has_point2 + (i8)has_sign2)), mantissa2);
+
+        /* Combine mantissa digits into decimal value. */
+        mantissa1 = _mm_maddubs_epi16(first_multiplier, mantissa1);
+        mantissa1 = _mm_madd_epi16(second_multiplier, mantissa1);
+        mantissa1 = _mm_packs_epi32(mantissa1, mantissa1);
+        mantissa1 = _mm_madd_epi16(third_multiplier, mantissa1);
+        __m128i reverse_mantissa1 = _mm_shuffle_epi32(mantissa1, 27);
+        mantissa1 = _mm_cvtepi32_epi64(mantissa1);
+        reverse_mantissa1 = _mm_cvtepi32_epi64(reverse_mantissa1);
+        mantissa1 = _mm_add_epi64(mantissa1, reverse_mantissa1);
+        i64 mantissai1 = _mm_extract_epi64(mantissa1, 1);
+        mantissa2 = _mm_maddubs_epi16(first_multiplier, mantissa2);
+        mantissa2 = _mm_madd_epi16(second_multiplier, mantissa2);
+        mantissa2 = _mm_packs_epi32(mantissa2, mantissa2);
+        mantissa2 = _mm_madd_epi16(third_multiplier, mantissa2);
+        __m128i reverse_mantissa2 = _mm_shuffle_epi32(mantissa2, 27);
+        mantissa2 = _mm_cvtepi32_epi64(mantissa2);
+        reverse_mantissa2 = _mm_cvtepi32_epi64(reverse_mantissa2);
+        mantissa2 = _mm_add_epi64(mantissa2, reverse_mantissa2);
+        i64 mantissai2 = _mm_extract_epi64(mantissa2, 1);
+
+        /* Combine exponent digits into decimal value and account for extra exponent due to decimal point. */
+        exponent1 = _mm_maddubs_epi16(first_multiplier, exponent1);
+        exponent1 = _mm_madd_epi16(second_multiplier, exponent1);
+        i64 expi1 = _mm_extract_epi32(exponent1, 3);
+        expi1 = has_neg_exp1 ? -expi1 : expi1;
+        exponent2 = _mm_maddubs_epi16(first_multiplier, exponent2);
+        exponent2 = _mm_madd_epi16(second_multiplier, exponent2);
+        i64 expi2 = _mm_extract_epi32(exponent2, 3);
+        expi2 = has_neg_exp2 ? -expi2 : expi2;
+
+        /* Account for removing the decimal point. */
+        expi1 -= extra_exp1;
+        expi2 -= extra_exp2;
+
+        f64 expf1 = 1.0;
+        for(int i = 0; i < expi1; ++i) { expf1 *= 10.0; };
+        for(int i = 0; i > expi1; --i) { expf1 /= 10.0; };
+        f64 ret_val1 = (f64) mantissai1 * expf1;
+        f64 expf2 = 1.0;
+        for(int i = 0; i < expi2; ++i) { expf2 *= 10.0; };
+        for(int i = 0; i > expi2; --i) { expf2 /= 10.0; };
+        f64 ret_val2 = (f64) mantissai2 * expf2;
+
+        *out1 = has_neg1 ? -ret_val1 : ret_val1;
+        *out2 = has_neg2 ? -ret_val2 : ret_val2;
+        return true;
+    }
+    else
+    {
+        return elk_str_fast_parse_f64(str1, out1) && elk_str_fast_parse_f64(str2, out2);
     }
 }
 

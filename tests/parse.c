@@ -107,6 +107,28 @@ test_fast_parse_f64(void)
 }
 
 static void
+test_fast_parse_2_f64(void)
+{
+    f64 const precision = 1.0e-15;
+
+    char *valid_num_strs[] =    {"1.0", "-1.0", "3.14159", "2.345e5", "-2.345e-5", "+500.23e2", "1.7876931348623157e308"};
+    f64 const valid_nums[] = { 1.0 ,  -1.0 ,  3.14159 ,  2.345e5 ,  -2.345e-5 ,  +500.23e2 ,  1.7876931348623157e308 };
+
+    for (i32 i = 0; i < sizeof(valid_nums) / sizeof(valid_nums[0]); ++i) 
+    {
+        ElkStr str = elk_str_from_cstring(valid_num_strs[i]);
+        f64 parsed1 = NAN;
+        f64 parsed2 = NAN;
+        bool success = elk_str_fast_parse_2_f64(str, &parsed1, str, &parsed2);
+        Assert(success);
+
+        f64 tval = valid_nums[i];
+        Assert(fabs((tval - parsed1) / tval) < precision);
+        Assert(fabs((tval - parsed2) / tval) < precision);
+    }
+}
+
+static void
 test_parse_datetime(void)
 {
     // Test something that should succeed
@@ -142,5 +164,6 @@ elk_parse_tests(void)
     test_parse_i64();
     test_robust_parse_f64();
     test_fast_parse_f64();
+    test_fast_parse_2_f64();
     test_parse_datetime();
 }
