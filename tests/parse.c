@@ -100,8 +100,8 @@ test_fast_parse_f64(void)
         Assert(success);
 
         f64 tval = valid_nums[i];
-        // printf("success = %d str = %s parsed = %g actual = %g difference = %g\n",
-        //         success, valid_num_strs[i], parsed, tval, (tval-parsed)/tval);
+        //printf("success = %d str = %s parsed = %g actual = %g difference = %g\n",
+        //        success, valid_num_strs[i], parsed, tval, (tval-parsed)/tval);
         Assert(fabs((tval - parsed) / tval) < precision);
     }
 }
