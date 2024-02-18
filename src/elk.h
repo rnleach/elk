@@ -592,7 +592,9 @@ static inline void *elk_hash_set_value_iter_next(ElkHashSet *set, ElkHashSetIter
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                       CSV Parsing
  *---------------------------------------------------------------------------------------------------------------------------
- * Parsing a string may modify it since tokens are returned as ElkStr and we may modify those strings in place.
+ * Parsing a string may modify it since tokens are returned as ElkStr and we may modify those strings in place, HOWEVER,
+ * in this parser (and associated functions) I don't modify the underlying strings, so it can be used to parse read only
+ * memory like a memory mapped file.
  *
  * The CSV format I handle is pretty simple. Anything goes inside quoted strings. Quotes in a quoted string have to be 
  * escaped by another quote, e.g. "Frank ""The Tank"" Johnson". Comment lines are allowed, but they must be full lines, no
@@ -601,7 +603,8 @@ static inline void *elk_hash_set_value_iter_next(ElkHashSet *set, ElkHashSetIter
  * Comments in CSV are rare, and can really slow down the parser. But I do find comments useful when I use CSV for some
  * smaller configuration files. So I'm implemented two CSV parser functions. The first is the "full" version, and it can
  * handle comments anywhere. The second is the "fast" parser, which can handle comment lines at the beginning of the file, 
- * but once it gets past there it is more agressively optimized by assuming no more comment lines.
+ * but once it gets past there it is more agressively optimized by assuming no more comment lines. This allows for a much
+ * faster parser for large CSV files without interspersed comments.
  */
 typedef struct
 {
@@ -631,7 +634,7 @@ static inline ElkCsvParser elk_csv_create_parser(ElkStr input);
 static inline ElkCsvToken elk_csv_full_next_token(ElkCsvParser *parser);
 static inline ElkCsvToken elk_csv_fast_next_token(ElkCsvParser *parser);
 static inline bool elk_csv_finished(ElkCsvParser *parser);
-static inline ElkStr elk_csv_unquote_str(ElkStr str);
+static inline ElkStr elk_csv_unquote_str(ElkStr str, ElkStr const buffer);
 static inline ElkStr elk_csv_simple_unquote_str(ElkStr str);
 
 /*---------------------------------------------------------------------------------------------------------------------------
@@ -2885,50 +2888,38 @@ elk_csv_fast_next_token(ElkCsvParser *parser)
 
 #endif
 
-
 static inline ElkStr 
-elk_csv_unquote_str(ElkStr str)
+elk_csv_unquote_str(ElkStr str, ElkStr const buffer)
 {
     // remove any leading and trailing white space
     str = elk_str_strip(str);
 
-    // 
-    // Handle corner cases
-    //
-
-    // Handle string that isn't even quoted!
-    if(str.len < 2 || str.start[0] != '"') { return str; }
-
-    // Handle the empty string.
-    if(str.len == 2 && str.start[0] == '"' && str.start[1] == '"') 
+    if(str.len >= 2 && str.start[0] == '"')
     {
-        return (ElkStr){ .start = str.start, .len=0 }; 
-    }
+        // Ok, now we've got a quoted non-empty string.
+        int next_read = 1;
+        int next_write = 0;
+        size len = 0;
 
-    // Ok, now we've got a quoted non-empty string.
-    char *sub_str = &str.start[1];
-    int next_read = 0;
-    int next_write = 0;
-    size len = 0;
-    while(next_read < str.len - 2)
-    {
-        if(sub_str[next_read] == '"')
+        while(next_read < str.len && next_write < buffer.len)
         {
-            next_read++;
-            if(next_read >= str.len -2) { break; }
+            if(str.start[next_read] == '"')
+            {
+                next_read++;
+                if(next_read >= str.len - 2) { break; }
+            }
+
+            buffer.start[next_write] = str.start[next_read];
+
+            len += 1;
+            next_read += 1;
+            next_write += 1;
         }
 
-        if(next_read != next_write)
-        {
-            sub_str[next_write] = sub_str[next_read];
-        }
-
-        len += 1;
-        next_read += 1;
-        next_write += 1;
+        return (ElkStr){ .start=buffer.start, .len=len};
     }
 
-    return (ElkStr){ .start=sub_str, .len=len};
+    return str;
 }
 
 static inline ElkStr 

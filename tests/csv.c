@@ -129,13 +129,19 @@ test_two_fast(void)
 static void
 test_unquote(void)
 {
-    char test[] = " \"Frank \"\"The Tank\"\" Johnson\" ";
-    char correct_answer[] = "Frank \"The Tank\" Johnson";
-    ElkStr test_str = elk_str_from_cstring(test);
-    ElkStr correct_answer_str = elk_str_from_cstring(correct_answer);
+    char *test[] = {" \"Frank \"\"The Tank\"\" Johnson\" ", "", "unquoted string"};
+    char *correct_answer[] = {"Frank \"The Tank\" Johnson",  "", "unquoted string"};
+    char buffer_storage[512] = {0};
+    ElkStr buffer = { .start = buffer_storage, .len = sizeof(buffer_storage) };
 
-    ElkStr parsed = elk_csv_unquote_str(test_str);
-    Assert(elk_str_eq(parsed, correct_answer_str));
+    for(i32 i = 0; i < sizeof(test) / sizeof(test[0]); ++i)
+    {
+        ElkStr test_str = elk_str_from_cstring(test[i]);
+        ElkStr correct_answer_str = elk_str_from_cstring(correct_answer[i]);
+
+        ElkStr parsed = elk_csv_unquote_str(test_str, buffer);
+        Assert(elk_str_eq(parsed, correct_answer_str));
+    }
 }
 
 /*---------------------------------------------------------------------------------------------------------------------------
