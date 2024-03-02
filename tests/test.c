@@ -21,6 +21,7 @@ main(void)
     elk_array_ledger_tests();
     elk_hash_table_tests();
     elk_hash_set_tests();
+    elk_sort_tests();
     elk_csv_tests();
 
     printf("\n\n*** Tests completed successfully. ***\n\n");
@@ -36,6 +37,7 @@ main(void)
 #include "parse.c"
 #include "pool.c"
 #include "queue_ledger.c"
+#include "sort.c"
 #include "str.c"
 #include "string_interner.c"
 #include "time.c"

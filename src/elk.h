@@ -14,7 +14,7 @@
  *                                                 Define simpler types
  *-------------------------------------------------------------------------------------------------------------------------*/
 
-// stdbool.h
+// stdbool.h - TODO: Replace this with b32 so the size will be predictable and consistent across platforms.
 #ifndef bool
   #define bool int
   #define false 0
@@ -377,7 +377,7 @@ static inline ElkStr elk_string_interner_intern(ElkStringInterner *interner, Elk
  *  efficient allocation strategy. 
  *
  *  Another advantage of this is that if you have several parallel collections (e.g. parallel arrays), you can use a single
- *  instance of a bookkeeping type (e.g. \ref ElkQueueLedger) to track the state of all the arrays that back it. Further,
+ *  instance of a bookkeeping type (e.g. ElkQueueLedger) to track the state of all the arrays that back it. Further,
  *  different collections in the parallel collections can have different sized objects.
  *
  *  Complicated memory management can be a disadvantage of the ledger approach. For instance, implementing growable
@@ -580,6 +580,54 @@ static inline void *elk_hash_set_value_iter_next(ElkHashSet *set, ElkHashSetIter
         ElkHashSet *: elk_hash_set_len)(x)
 
 
+/*---------------------------------------------------------------------------------------------------------------------------
+ *
+ *                                         
+ *                                                        Sorting
+ *
+ *
+ *-------------------------------------------------------------------------------------------------------------------------*/
+
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                       Radix Sort 
+ *---------------------------------------------------------------------------------------------------------------------------
+ * I've only implemented radix sort for fixed size signed intenger, unsigned integer, and floating point types thus far.
+ *
+ * The sort requires extra memory that depends on the size of the list being sorted, so the user must provide that. In order
+ * to ensure proper alignment and size, the user must provide the scratch buffer. Probably using an arena with 
+ * elk_static_arena_nmalloc() to create a buffer and then freeing it after the sort would be the most efficient way to handle
+ * that.
+ *
+ * The API is set up for sorting an array of structures. The 'offset' argument is the offset in bytes into the structure 
+ * where the sort key can be found. The 'stride' argument is just the size of the structures so we know how to iterate the
+ * array. The sort order (ascending / descending) and sort key type (signed integer, unsigned integer, floating) are passed
+ * as arguments. The sort key type includes the size of the sort key in bits.
+ */
+
+typedef enum
+{
+    ELK_RADIX_SORT_UINT8,
+    ELK_RADIX_SORT_INT8,
+    ELK_RADIX_SORT_UINT16,
+    ELK_RADIX_SORT_INT16,
+    ELK_RADIX_SORT_UINT32,
+    ELK_RADIX_SORT_INT32,
+    ELK_RADIX_SORT_F32,
+    ELK_RADIX_SORT_UINT64,
+    ELK_RADIX_SORT_INT64,
+    ELK_RADIX_SORT_F64,
+} ElkRadixSortByType;
+
+typedef enum { ELK_SORT_ASCENDING, ELK_SORT_DESCENDING } ElkSortOrder;
+
+static inline void elk_radix_sort(
+        void *buffer, 
+        size num, 
+        size offset, 
+        size stride, 
+        void *scratch, 
+        ElkRadixSortByType sort_type, 
+        ElkSortOrder order);
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *
@@ -2504,6 +2552,527 @@ elk_hash_set_value_iter_next(ElkHashSet *set, ElkHashSetIter *iter)
     } while(next_value == NULL && *iter < max_iter);
 
     return next_value;
+}
+
+#define ELK_I8_FLIP(x) ((x) ^ UINT8_C(0x80))
+#define ELK_I8_FLIP_BACK(x) ELK_I8_FLIP(x)
+
+#define ELK_I16_FLIP(x) ((x) ^ UINT16_C(0x8000))
+#define ELK_I16_FLIP_BACK(x) ELK_I16_FLIP(x)
+
+#define ELK_I32_FLIP(x) ((x) ^ UINT32_C(0x80000000))
+#define ELK_I32_FLIP_BACK(x) ELK_I32_FLIP(x)
+
+#define ELK_I64_FLIP(x) ((x) ^ UINT64_C(0x8000000000000000))
+#define ELK_I64_FLIP_BACK(x) ELK_I64_FLIP(x)
+
+#define ELK_F32_FLIP(x) ((x) ^ (-(i32)(((u32)(x)) >> 31) | UINT32_C(0x80000000)))
+#define ELK_F32_FLIP_BACK(x) ((x) ^ (((((u32)(x)) >> 31) - 1) | UINT32_C(0x80000000)))
+
+#define ELK_F64_FLIP(x) ((x) ^ (-(i64)(((u64)(x)) >> 63) | UINT64_C(0x8000000000000000)))
+#define ELK_F64_FLIP_BACK(x) ((x) ^ (((((u64)(x)) >> 63) - 1) | UINT64_C(0x8000000000000000)))
+
+static inline void
+elk_radix_pre_sort_transform(void *buffer, size num, size offset, size stride, ElkRadixSortByType sort_type)
+{
+    Assert(
+           sort_type == ELK_RADIX_SORT_UINT64 || sort_type == ELK_RADIX_SORT_INT64 || sort_type == ELK_RADIX_SORT_F64
+        || sort_type == ELK_RADIX_SORT_UINT32 || sort_type == ELK_RADIX_SORT_INT32 || sort_type == ELK_RADIX_SORT_F32
+        || sort_type == ELK_RADIX_SORT_UINT16 || sort_type == ELK_RADIX_SORT_INT16
+        || sort_type == ELK_RADIX_SORT_UINT8  || sort_type == ELK_RADIX_SORT_INT8
+    );
+
+    for(size i = 0; i < num; ++i)
+    {
+        switch(sort_type)
+        {
+            case ELK_RADIX_SORT_F64:
+            {
+                /* Flip bits so doubles sort correctly. */
+                u64 *v = (u64 *)(buffer + offset + i * stride);
+                *v = ELK_F64_FLIP(*v);
+            } break;
+
+            case ELK_RADIX_SORT_INT64:
+            {
+                /* Flip bits so two's complement signed integers sort correctly. */
+                u64 *v = (u64 *)(buffer + offset + i * stride);
+                *v = ELK_I64_FLIP(*v);
+            } break;
+
+            case ELK_RADIX_SORT_F32:
+            {
+                /* Flip bits so doubles sort correctly. */
+                u32 *v = (u32 *)(buffer + offset + i * stride);
+                *v = ELK_F32_FLIP(*v);
+            } break;
+
+            case ELK_RADIX_SORT_INT32:
+            {
+                /* Flip bits so two's complement signed integers sort correctly. */
+                u32 *v = (u32 *)(buffer + offset + i * stride);
+                *v = ELK_I32_FLIP(*v);
+            } break;
+
+            case ELK_RADIX_SORT_INT16:
+            {
+                /* Flip bits so two's complement signed integers sort correctly. */
+                u16 *v = (u16 *)(buffer + offset + i * stride);
+                *v = ELK_I16_FLIP(*v);
+            } break;
+
+            case ELK_RADIX_SORT_INT8:
+            {
+                /* Flip bits so two's complement signed integers sort correctly. */
+                u8 *v = (u8 *)(buffer + offset + i * stride);
+                *v = ELK_I8_FLIP(*v);
+            } break;
+
+            /* Fall through without doing anything. */
+            case ELK_RADIX_SORT_UINT64:
+            case ELK_RADIX_SORT_UINT32:
+            case ELK_RADIX_SORT_UINT16:
+            case ELK_RADIX_SORT_UINT8: {}
+        }
+    }
+}
+
+static inline void
+elk_radix_post_sort_transform(void *buffer, size num, size offset, size stride, ElkRadixSortByType sort_type)
+{
+    Assert(
+           sort_type == ELK_RADIX_SORT_UINT64 || sort_type == ELK_RADIX_SORT_INT64 || sort_type == ELK_RADIX_SORT_F64
+        || sort_type == ELK_RADIX_SORT_UINT32 || sort_type == ELK_RADIX_SORT_INT32 || sort_type == ELK_RADIX_SORT_F32
+        || sort_type == ELK_RADIX_SORT_UINT16 || sort_type == ELK_RADIX_SORT_INT16
+        || sort_type == ELK_RADIX_SORT_UINT8  || sort_type == ELK_RADIX_SORT_INT8
+    );
+
+    for(size i = 0; i < num; ++i)
+    {
+        switch(sort_type)
+        {
+            case ELK_RADIX_SORT_F64:
+            {
+                /* Flip bits so doubles sort correctly. */
+                u64 *v = (u64 *)(buffer + offset + i * stride);
+                *v = ELK_F64_FLIP_BACK(*v);
+            } break;
+
+            case ELK_RADIX_SORT_INT64:
+            {
+                /* Flip bits so two's complement signed integers sort correctly. */
+                u64 *v = (u64 *)(buffer + offset + i * stride);
+                *v = ELK_I64_FLIP_BACK(*v);
+            } break;
+
+            case ELK_RADIX_SORT_F32:
+            {
+                /* Flip bits so doubles sort correctly. */
+                u32 *v = (u32 *)(buffer + offset + i * stride);
+                *v = ELK_F32_FLIP_BACK(*v);
+            } break;
+
+            case ELK_RADIX_SORT_INT32:
+            {
+                /* Flip bits so two's complement signed integers sort correctly. */
+                u32 *v = (u32 *)(buffer + offset + i * stride);
+                *v = ELK_I32_FLIP_BACK(*v);
+            } break;
+
+            case ELK_RADIX_SORT_INT16:
+            {
+                /* Flip bits so two's complement signed integers sort correctly. */
+                u16 *v = (u16 *)(buffer + offset + i * stride);
+                *v = ELK_I16_FLIP_BACK(*v);
+            } break;
+
+            case ELK_RADIX_SORT_INT8:
+            {
+                /* Flip bits so two's complement signed integers sort correctly. */
+                u8 *v = (u8 *)(buffer + offset + i * stride);
+                *v = ELK_I8_FLIP_BACK(*v);
+            } break;
+
+            /* Fall through with no-op */
+            case ELK_RADIX_SORT_UINT64:
+            case ELK_RADIX_SORT_UINT32:
+            case ELK_RADIX_SORT_UINT16:
+            case ELK_RADIX_SORT_UINT8: {}
+        }
+    }
+}
+
+static inline void
+elk_radix_sort_8(void *buffer, size num, size offset, size stride, void *scratch, ElkSortOrder order)
+{
+    i64 counts[256] = {0};
+
+    /* Build the histograms. */
+    byte *position = (byte *)buffer + offset;
+
+    for(size i = 0; i < num; ++i)
+    {
+        u8 b0 = *(u8 *)position;
+        counts[b0] += 1;
+        position += stride;
+    }
+
+    /* Sum the histograms. */
+    if(order == ELK_SORT_ASCENDING)
+    {
+        for(size i = 1; i < 256; ++i)
+        {
+            counts[i] += counts[i - 1];
+        }
+    }
+    else
+    {
+        for(size i = 254; i >= 0; --i)
+        {
+            counts[i] += counts[i + 1];
+        }
+    }
+
+    /* Build the output array. */
+    void *dest = scratch;
+    void *source = buffer;
+    for(size i = num - 1; i >= 0; --i)
+    {
+        void *val_src = source + i * stride;
+        u8 cnts_idx = *(u8 *)(val_src + offset);
+        void *val_dest = dest + (--counts[cnts_idx]) * stride;
+
+        memcpy(val_dest, val_src, stride);
+    }
+
+    /* Copy back to the original buffer. */
+    memcpy(buffer, scratch, stride * num);
+}
+
+static inline void
+elk_radix_sort_16(void *buffer, size num, size offset, size stride, void *scratch, ElkSortOrder order)
+{
+    i64 counts[256][2] = {0};
+    i32 skips[2] = {1, 1};
+
+    /* Build the histograms. */
+    byte *position = (byte *)buffer + offset;
+
+    u16 val = *(u16 *)position;
+    u8 b0 = UINT16_C(0xFF) & (val >>  0);
+    u8 b1 = UINT16_C(0xFF) & (val >>  8);
+
+    counts[b0][0] += 1;
+    counts[b1][1] += 1;
+
+    position += stride;
+
+    u8 initial_values[2] = {b0, b1};
+
+    for(size i = 1; i < num; ++i)
+    {
+        val = *(u16 *)position;
+        b0 = UINT16_C(0xFF) & (val >>  0);
+        b1 = UINT16_C(0xFF) & (val >>  8);
+
+        counts[b0][0] += 1;
+        counts[b1][1] += 1;
+
+        skips[0] &= initial_values[0] == b0;
+        skips[1] &= initial_values[1] == b1;
+
+        position += stride;
+    }
+
+    /* Sum the histograms. */
+    if(order == ELK_SORT_ASCENDING)
+    {
+        for(size i = 1; i < 256; ++i)
+        {
+            counts[i][0] += counts[i - 1][0];
+            counts[i][1] += counts[i - 1][1];
+        }
+    }
+    else
+    {
+        for(size i = 254; i >= 0; --i)
+        {
+            counts[i][0] += counts[i + 1][0];
+            counts[i][1] += counts[i + 1][1];
+        }
+    }
+
+    /* Build the output array. */
+    void *dest = scratch;
+    void *source = buffer;
+        for(size b = 0; b < 2; ++b)
+        {
+            if(!skips[b])
+            {
+                for(size i = num - 1; i >= 0; --i)
+                {
+                    void *val_src = source + i * stride;
+                    u16 val = *(u16 *)(val_src + offset);
+                    u8 cnts_idx = UINT16_C(0xFF) & (val >> (b * 8));
+                    void *val_dest = dest + (--counts[cnts_idx][b]) * stride;
+
+                    memcpy(val_dest, val_src, stride);
+                }
+            }
+
+            /* Flip the source & destination buffers. */
+            dest = dest == scratch ? buffer : scratch;
+            source = source == scratch ? buffer : scratch;
+        }
+}
+
+static inline void
+elk_radix_sort_32(void *buffer, size num, size offset, size stride, void *scratch, ElkSortOrder order)
+{
+    i64 counts[256][4] = {0};
+    i32 skips[4] = {1, 1, 1, 1};
+
+    /* Build the histograms. */
+    byte *position = (byte *)buffer + offset;
+
+    u32 val = *(u32 *)position;
+    u8 b0 = UINT32_C(0xFF) & (val >>  0);
+    u8 b1 = UINT32_C(0xFF) & (val >>  8);
+    u8 b2 = UINT32_C(0xFF) & (val >> 16);
+    u8 b3 = UINT32_C(0xFF) & (val >> 24);
+
+    counts[b0][0] += 1;
+    counts[b1][1] += 1;
+    counts[b2][2] += 1;
+    counts[b3][3] += 1;
+
+    position += stride;
+
+    u8 initial_values[4] = {b0, b1, b2, b3};
+
+    for(size i = 1; i < num; ++i)
+    {
+        val = *(u32 *)position;
+        b0 = UINT32_C(0xFF) & (val >>  0);
+        b1 = UINT32_C(0xFF) & (val >>  8);
+        b2 = UINT32_C(0xFF) & (val >> 16);
+        b3 = UINT32_C(0xFF) & (val >> 24);
+
+        counts[b0][0] += 1;
+        counts[b1][1] += 1;
+        counts[b2][2] += 1;
+        counts[b3][3] += 1;
+
+        skips[0] &= initial_values[0] == b0;
+        skips[1] &= initial_values[1] == b1;
+        skips[2] &= initial_values[2] == b2;
+        skips[3] &= initial_values[3] == b3;
+
+        position += stride;
+    }
+
+    /* Sum the histograms. */
+    if(order == ELK_SORT_ASCENDING)
+    {
+        for(size i = 1; i < 256; ++i)
+        {
+            counts[i][0] += counts[i - 1][0];
+            counts[i][1] += counts[i - 1][1];
+            counts[i][2] += counts[i - 1][2];
+            counts[i][3] += counts[i - 1][3];
+        }
+    }
+    else
+    {
+        for(size i = 254; i >= 0; --i)
+        {
+            counts[i][0] += counts[i + 1][0];
+            counts[i][1] += counts[i + 1][1];
+            counts[i][2] += counts[i + 1][2];
+            counts[i][3] += counts[i + 1][3];
+        }
+    }
+
+    /* Build the output array. */
+    void *dest = scratch;
+    void *source = buffer;
+        for(size b = 0; b < 4; ++b)
+        {
+            if(!skips[b])
+            {
+                for(size i = num - 1; i >= 0; --i)
+                {
+                    void *val_src = source + i * stride;
+                    u32 val = *(u32 *)(val_src + offset);
+                    u8 cnts_idx = UINT32_C(0xFF) & (val >> (b * 8));
+                    void *val_dest = dest + (--counts[cnts_idx][b]) * stride;
+
+                    memcpy(val_dest, val_src, stride);
+                }
+            }
+
+            /* Flip the source & destination buffers. */
+            dest = dest == scratch ? buffer : scratch;
+            source = source == scratch ? buffer : scratch;
+        }
+}
+
+static inline void
+elk_radix_sort_64(void *buffer, size num, size offset, size stride, void *scratch, ElkSortOrder order)
+{
+    i64 counts[256][8] = {0};
+    i32 skips[8] = {1, 1, 1, 1, 1, 1, 1, 1};
+
+    /* Build the histograms. */
+    byte *position = (byte *)buffer + offset;
+
+    u64 val = *(u64 *)position;
+    u8 b0 = UINT64_C(0xFF) & (val >>  0);
+    u8 b1 = UINT64_C(0xFF) & (val >>  8);
+    u8 b2 = UINT64_C(0xFF) & (val >> 16);
+    u8 b3 = UINT64_C(0xFF) & (val >> 24);
+    u8 b4 = UINT64_C(0xFF) & (val >> 32);
+    u8 b5 = UINT64_C(0xFF) & (val >> 40);
+    u8 b6 = UINT64_C(0xFF) & (val >> 48);
+    u8 b7 = UINT64_C(0xFF) & (val >> 56);
+
+    counts[b0][0] += 1;
+    counts[b1][1] += 1;
+    counts[b2][2] += 1;
+    counts[b3][3] += 1;
+    counts[b4][4] += 1;
+    counts[b5][5] += 1;
+    counts[b6][6] += 1;
+    counts[b7][7] += 1;
+
+    position += stride;
+
+    u8 initial_values[8] = {b0, b1, b2, b3, b4, b5, b6, b7};
+
+    for(size i = 1; i < num; ++i)
+    {
+        val = *(u64 *)position;
+        b0 = UINT64_C(0xFF) & (val >>  0);
+        b1 = UINT64_C(0xFF) & (val >>  8);
+        b2 = UINT64_C(0xFF) & (val >> 16);
+        b3 = UINT64_C(0xFF) & (val >> 24);
+        b4 = UINT64_C(0xFF) & (val >> 32);
+        b5 = UINT64_C(0xFF) & (val >> 40);
+        b6 = UINT64_C(0xFF) & (val >> 48);
+        b7 = UINT64_C(0xFF) & (val >> 56);
+
+        counts[b0][0] += 1;
+        counts[b1][1] += 1;
+        counts[b2][2] += 1;
+        counts[b3][3] += 1;
+        counts[b4][4] += 1;
+        counts[b5][5] += 1;
+        counts[b6][6] += 1;
+        counts[b7][7] += 1;
+
+        skips[0] &= initial_values[0] == b0;
+        skips[1] &= initial_values[1] == b1;
+        skips[2] &= initial_values[2] == b2;
+        skips[3] &= initial_values[3] == b3;
+        skips[4] &= initial_values[4] == b4;
+        skips[5] &= initial_values[5] == b5;
+        skips[6] &= initial_values[6] == b6;
+        skips[7] &= initial_values[7] == b7;
+
+        position += stride;
+    }
+
+    /* Sum the histograms. */
+    if(order == ELK_SORT_ASCENDING)
+    {
+        for(size i = 1; i < 256; ++i)
+        {
+            counts[i][0] += counts[i - 1][0];
+            counts[i][1] += counts[i - 1][1];
+            counts[i][2] += counts[i - 1][2];
+            counts[i][3] += counts[i - 1][3];
+            counts[i][4] += counts[i - 1][4];
+            counts[i][5] += counts[i - 1][5];
+            counts[i][6] += counts[i - 1][6];
+            counts[i][7] += counts[i - 1][7];
+        }
+    }
+    else
+    {
+        for(size i = 254; i >= 0; --i)
+        {
+            counts[i][0] += counts[i + 1][0];
+            counts[i][1] += counts[i + 1][1];
+            counts[i][2] += counts[i + 1][2];
+            counts[i][3] += counts[i + 1][3];
+            counts[i][4] += counts[i + 1][4];
+            counts[i][5] += counts[i + 1][5];
+            counts[i][6] += counts[i + 1][6];
+            counts[i][7] += counts[i + 1][7];
+        }
+    }
+
+    /* Build the output array. */
+    void *dest = scratch;
+    void *source = buffer;
+        for(size b = 0; b < 8; ++b)
+        {
+            if(!skips[b])
+            {
+                for(size i = num - 1; i >= 0; --i)
+                {
+                    void *val_src = source + i * stride;
+                    u64 val = *(u64 *)(val_src + offset);
+                    u8 cnts_idx = UINT64_C(0xFF) & (val >> (b * 8));
+                    void *val_dest = dest + (--counts[cnts_idx][b]) * stride;
+
+                    memcpy(val_dest, val_src, stride);
+                }
+            }
+
+            /* Flip the source & destination buffers. */
+            dest = dest == scratch ? buffer : scratch;
+            source = source == scratch ? buffer : scratch;
+        }
+}
+
+static inline void
+elk_radix_sort(void *buffer, size num, size offset, size stride, void *scratch, ElkRadixSortByType sort_type, ElkSortOrder order)
+{
+    elk_radix_pre_sort_transform(buffer, num, offset, stride, sort_type);
+
+    switch(sort_type)
+    {
+        case ELK_RADIX_SORT_UINT64:
+        case ELK_RADIX_SORT_INT64:
+        case ELK_RADIX_SORT_F64:
+        {
+            elk_radix_sort_64(buffer, num, offset, stride, scratch, order);
+        } break;
+
+        case ELK_RADIX_SORT_UINT32:
+        case ELK_RADIX_SORT_INT32:
+        case ELK_RADIX_SORT_F32:
+        {
+            elk_radix_sort_32(buffer, num, offset, stride, scratch, order);
+        } break;
+
+        case ELK_RADIX_SORT_UINT16:
+        case ELK_RADIX_SORT_INT16:
+        {
+            elk_radix_sort_16(buffer, num, offset, stride, scratch, order);
+        } break;
+
+        case ELK_RADIX_SORT_UINT8:
+        case ELK_RADIX_SORT_INT8:
+        {
+            elk_radix_sort_8(buffer, num, offset, stride, scratch, order);
+        } break;
+
+        default: Panic();
+    }
+    
+    elk_radix_post_sort_transform(buffer, num, offset, stride, sort_type);
 }
 
 #if __AVX2__

@@ -25,6 +25,7 @@ void elk_queue_ledger_tests(void);
 void elk_array_ledger_tests(void);
 void elk_hash_table_tests(void);
 void elk_hash_set_tests(void);
+void elk_sort_tests(void);
 void elk_csv_tests(void);
 
 #endif

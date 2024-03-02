@@ -59,6 +59,7 @@
 
 ### Version 3.0.0 - IN PROGRESS
   - (XXXX-XX-XX) NOTES ON REVISIONS
+  - Added radix sort.
   - Added more succinct type aliases for builtin types.
   - Added optional (opt in) memory profiling for ElkStaticArena.
   - Added some convenience functions for memory when working with the Coyote library.
