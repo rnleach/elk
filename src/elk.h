@@ -3436,7 +3436,14 @@ elk_csv_fast_next_token(ElkCsvParser *parser)
         /* If we finished the buffer and need to scan the next one, load a new buffer! */
         if(bit_pos + 1 > 31)
         {
-            elk_csv_helper_load_new_buffer_aligned(parser, 0);
+            if(parser->remaining.len > 0)
+            {
+                elk_csv_helper_load_new_buffer_aligned(parser, 0);
+            }
+            else
+            {
+                stop = true;
+            }
         }
     }
 
