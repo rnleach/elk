@@ -2589,42 +2589,42 @@ elk_radix_pre_sort_transform(void *buffer, size num, size offset, size stride, E
             case ELK_RADIX_SORT_F64:
             {
                 /* Flip bits so doubles sort correctly. */
-                u64 *v = (u64 *)(buffer + offset + i * stride);
+                u64 *v = (u64 *)((byte *)buffer + offset + i * stride);
                 *v = ELK_F64_FLIP(*v);
             } break;
 
             case ELK_RADIX_SORT_INT64:
             {
                 /* Flip bits so two's complement signed integers sort correctly. */
-                u64 *v = (u64 *)(buffer + offset + i * stride);
+                u64 *v = (u64 *)((byte *)buffer + offset + i * stride);
                 *v = ELK_I64_FLIP(*v);
             } break;
 
             case ELK_RADIX_SORT_F32:
             {
                 /* Flip bits so doubles sort correctly. */
-                u32 *v = (u32 *)(buffer + offset + i * stride);
+                u32 *v = (u32 *)((byte *)buffer + offset + i * stride);
                 *v = ELK_F32_FLIP(*v);
             } break;
 
             case ELK_RADIX_SORT_INT32:
             {
                 /* Flip bits so two's complement signed integers sort correctly. */
-                u32 *v = (u32 *)(buffer + offset + i * stride);
+                u32 *v = (u32 *)((byte *)buffer + offset + i * stride);
                 *v = ELK_I32_FLIP(*v);
             } break;
 
             case ELK_RADIX_SORT_INT16:
             {
                 /* Flip bits so two's complement signed integers sort correctly. */
-                u16 *v = (u16 *)(buffer + offset + i * stride);
+                u16 *v = (u16 *)((byte *)buffer + offset + i * stride);
                 *v = ELK_I16_FLIP(*v);
             } break;
 
             case ELK_RADIX_SORT_INT8:
             {
                 /* Flip bits so two's complement signed integers sort correctly. */
-                u8 *v = (u8 *)(buffer + offset + i * stride);
+                u8 *v = (u8 *)((byte *)buffer + offset + i * stride);
                 *v = ELK_I8_FLIP(*v);
             } break;
 
@@ -2654,42 +2654,42 @@ elk_radix_post_sort_transform(void *buffer, size num, size offset, size stride, 
             case ELK_RADIX_SORT_F64:
             {
                 /* Flip bits so doubles sort correctly. */
-                u64 *v = (u64 *)(buffer + offset + i * stride);
+                u64 *v = (u64 *)((byte *)buffer + offset + i * stride);
                 *v = ELK_F64_FLIP_BACK(*v);
             } break;
 
             case ELK_RADIX_SORT_INT64:
             {
                 /* Flip bits so two's complement signed integers sort correctly. */
-                u64 *v = (u64 *)(buffer + offset + i * stride);
+                u64 *v = (u64 *)((byte *)buffer + offset + i * stride);
                 *v = ELK_I64_FLIP_BACK(*v);
             } break;
 
             case ELK_RADIX_SORT_F32:
             {
                 /* Flip bits so doubles sort correctly. */
-                u32 *v = (u32 *)(buffer + offset + i * stride);
+                u32 *v = (u32 *)((byte *)buffer + offset + i * stride);
                 *v = ELK_F32_FLIP_BACK(*v);
             } break;
 
             case ELK_RADIX_SORT_INT32:
             {
                 /* Flip bits so two's complement signed integers sort correctly. */
-                u32 *v = (u32 *)(buffer + offset + i * stride);
+                u32 *v = (u32 *)((byte *)buffer + offset + i * stride);
                 *v = ELK_I32_FLIP_BACK(*v);
             } break;
 
             case ELK_RADIX_SORT_INT16:
             {
                 /* Flip bits so two's complement signed integers sort correctly. */
-                u16 *v = (u16 *)(buffer + offset + i * stride);
+                u16 *v = (u16 *)((byte *)buffer + offset + i * stride);
                 *v = ELK_I16_FLIP_BACK(*v);
             } break;
 
             case ELK_RADIX_SORT_INT8:
             {
                 /* Flip bits so two's complement signed integers sort correctly. */
-                u8 *v = (u8 *)(buffer + offset + i * stride);
+                u8 *v = (u8 *)((byte *)buffer + offset + i * stride);
                 *v = ELK_I8_FLIP_BACK(*v);
             } break;
 
@@ -2738,9 +2738,9 @@ elk_radix_sort_8(void *buffer, size num, size offset, size stride, void *scratch
     void *source = buffer;
     for(size i = num - 1; i >= 0; --i)
     {
-        void *val_src = source + i * stride;
-        u8 cnts_idx = *(u8 *)(val_src + offset);
-        void *val_dest = dest + (--counts[cnts_idx]) * stride;
+        void *val_src = (byte *)source + i * stride;
+        u8 cnts_idx = *((u8 *)val_src + offset);
+        void *val_dest = (byte *)dest + (--counts[cnts_idx]) * stride;
 
         memcpy(val_dest, val_src, stride);
     }
@@ -2811,10 +2811,10 @@ elk_radix_sort_16(void *buffer, size num, size offset, size stride, void *scratc
             {
                 for(size i = num - 1; i >= 0; --i)
                 {
-                    void *val_src = source + i * stride;
-                    u16 val = *(u16 *)(val_src + offset);
+                    void *val_src = (byte *)source + i * stride;
+                    u16 val = *(u16 *)((byte *)val_src + offset);
                     u8 cnts_idx = UINT16_C(0xFF) & (val >> (b * 8));
-                    void *val_dest = dest + (--counts[cnts_idx][b]) * stride;
+                    void *val_dest = (byte *)dest + (--counts[cnts_idx][b]) * stride;
 
                     memcpy(val_dest, val_src, stride);
                 }
@@ -2902,10 +2902,10 @@ elk_radix_sort_32(void *buffer, size num, size offset, size stride, void *scratc
             {
                 for(size i = num - 1; i >= 0; --i)
                 {
-                    void *val_src = source + i * stride;
-                    u32 val = *(u32 *)(val_src + offset);
+                    void *val_src = (byte *)source + i * stride;
+                    u32 val = *(u32 *)((byte *)val_src + offset);
                     u8 cnts_idx = UINT32_C(0xFF) & (val >> (b * 8));
-                    void *val_dest = dest + (--counts[cnts_idx][b]) * stride;
+                    void *val_dest = (byte *)dest + (--counts[cnts_idx][b]) * stride;
 
                     memcpy(val_dest, val_src, stride);
                 }
@@ -3021,10 +3021,10 @@ elk_radix_sort_64(void *buffer, size num, size offset, size stride, void *scratc
             {
                 for(size i = num - 1; i >= 0; --i)
                 {
-                    void *val_src = source + i * stride;
-                    u64 val = *(u64 *)(val_src + offset);
+                    void *val_src = (byte *)source + i * stride;
+                    u64 val = *(u64 *)((byte *)val_src + offset);
                     u8 cnts_idx = UINT64_C(0xFF) & (val >> (b * 8));
-                    void *val_dest = dest + (--counts[cnts_idx][b]) * stride;
+                    void *val_dest = (byte *)dest + (--counts[cnts_idx][b]) * stride;
 
                     memcpy(val_dest, val_src, stride);
                 }
