@@ -9,7 +9,7 @@
  *                                                    Tests for Time
  *
  *-------------------------------------------------------------------------------------------------------------------------*/
-static bool
+static b32
 is_in_array(int val, size items, int const array[])
 {
     for (int i = 0; i < items; i++) 
@@ -171,7 +171,7 @@ test_increments_are_1_second(void)
 #endif
 }
 
-static bool
+static b32
 struct_times_equal(ElkStructTime left, ElkStructTime right)
 {
     return left.year == right.year && left.month == right.month && left.day == right.day &&

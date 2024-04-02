@@ -163,7 +163,7 @@ id_hash(void const *value)
     return *(i64 const*)value;
 }
 
-static bool
+static b32
 int64_eq(void const *left, void const *right)
 {
     i64 const *ileft = left;

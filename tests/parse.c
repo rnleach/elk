@@ -16,7 +16,7 @@ test_parse_i64(void)
     {
         ElkStr str = elk_str_from_cstring(valid_num_strs[i]);
         i64 parsed = INT64_MAX;
-        bool success = elk_str_parse_i64(str, &parsed);
+        b32 success = elk_str_parse_i64(str, &parsed);
         Assert(success);
 
         i64 tval = valid_nums[i];
@@ -29,7 +29,7 @@ test_parse_i64(void)
     {
         ElkStr str = elk_str_from_cstring(invalid_num_strs[i]);
         i64 parsed = INT64_MAX;
-        bool success = elk_str_parse_i64(str, &parsed);
+        b32 success = elk_str_parse_i64(str, &parsed);
         Assert(!success);
     }
 }
@@ -46,7 +46,7 @@ test_robust_parse_f64(void)
     {
         ElkStr str = elk_str_from_cstring(valid_num_strs[i]);
         f64 parsed = NAN;
-        bool success = elk_str_robust_parse_f64(str, &parsed);
+        b32 success = elk_str_robust_parse_f64(str, &parsed);
         Assert(success);
 
         f64 tval = valid_nums[i];
@@ -61,7 +61,7 @@ test_robust_parse_f64(void)
     {
         ElkStr str = elk_str_from_cstring(invalid_num_strs[i]);
         f64 parsed = 0.0;
-        bool success = elk_str_robust_parse_f64(str, &parsed);
+        b32 success = elk_str_robust_parse_f64(str, &parsed);
         Assert(!success);
     }
 
@@ -70,7 +70,7 @@ test_robust_parse_f64(void)
     {
         ElkStr str = elk_str_from_cstring(inf_str[i]);
         f64 val = 0.0;
-        bool success = elk_str_robust_parse_f64(str, &val);
+        b32 success = elk_str_robust_parse_f64(str, &val);
         Assert(success && isinf(val));
     }
 
@@ -79,7 +79,7 @@ test_robust_parse_f64(void)
     {
         ElkStr str = elk_str_from_cstring(nan_str[i]);
         f64 val = 0.0;
-        bool success = elk_str_robust_parse_f64(str, &val);
+        b32 success = elk_str_robust_parse_f64(str, &val);
         Assert(success && isnan(val));
     }
 }
@@ -96,7 +96,7 @@ test_fast_parse_f64(void)
     {
         ElkStr str = elk_str_from_cstring(valid_num_strs[i]);
         f64 parsed = NAN;
-        bool success = elk_str_fast_parse_f64(str, &parsed);
+        b32 success = elk_str_fast_parse_f64(str, &parsed);
         Assert(success);
 
         f64 tval = valid_nums[i];

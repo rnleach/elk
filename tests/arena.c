@@ -89,7 +89,7 @@ test_arena(void)
 
 #ifdef _ELK_TRACK_MEM_USAGE
     f64 pct_mem = elk_static_arena_max_ratio(arena) * 100.0;
-    bool over_allocated = elk_static_arena_over_allocated(arena);
+    b32 over_allocated = elk_static_arena_over_allocated(arena);
     fprintf(stdout, "%s used %.2lf%% of arena and arena %s over allocated.\n",
             __func__, pct_mem, over_allocated ? "***WAS***": "was not");
 #endif
@@ -140,7 +140,7 @@ test_static_arena_realloc(void)
 
 #ifdef _ELK_TRACK_MEM_USAGE
     f64 pct_mem = elk_static_arena_max_ratio(arena) * 100.0;
-    bool over_allocated = elk_static_arena_over_allocated(arena);
+    b32 over_allocated = elk_static_arena_over_allocated(arena);
     fprintf(stdout, "%s used %.2lf%% of arena and arena %s over allocated (should be overallocated as part of test).\n",
             __func__, pct_mem, over_allocated ? "was": "***WAS NOT***");
 #endif
@@ -183,7 +183,7 @@ test_static_arena_free(void)
 
 #ifdef _ELK_TRACK_MEM_USAGE
     f64 pct_mem = elk_static_arena_max_ratio(arena) * 100.0;
-    bool over_allocated = elk_static_arena_over_allocated(arena);
+    b32 over_allocated = elk_static_arena_over_allocated(arena);
     fprintf(stdout, "%s used %.2lf%% of arena and arena %s over allocated.\n",
             __func__, pct_mem, over_allocated ? "***WAS***": "was not");
 #endif
