@@ -14,16 +14,16 @@
  *                                                 Define simpler types
  *-------------------------------------------------------------------------------------------------------------------------*/
 
-// stdbool.h - TODO: Replace this with b32 so the size will be predictable and consistent across platforms.
-#ifndef bool
-  #define bool int
-  #define false 0
-  #define true 1
-#endif
-
 /* Other libraries I may have already included may use these exact definitions too. */
 #ifndef _TYPE_ALIASES_
 #define _TYPE_ALIASES_
+
+typedef int32_t     b32;
+#ifndef false
+   #define false 0
+   #define true  1
+#endif
+
 typedef char       byte;
 typedef ptrdiff_t  size;
 typedef size_t    usize;
@@ -131,7 +131,7 @@ static ElkTime const elk_unix_epoch_timestamp = INT64_C(62135596800);
 
 static inline i64 elk_time_to_unix_epoch(ElkTime time);
 static inline ElkTime elk_time_from_unix_timestamp(i64 unixtime);
-static inline bool elk_is_leap_year(int year);
+static inline b32 elk_is_leap_year(int year);
 static inline ElkTime elk_make_time(ElkStructTime tm); /* Ignores the day_of_year member. */
 static inline ElkTime elk_time_truncate_to_hour(ElkTime time);
 static inline ElkTime elk_time_truncate_to_specific_hour(ElkTime time, int hour);
@@ -173,7 +173,7 @@ static inline ElkStr elk_str_copy(size dst_len, char *restrict dest, ElkStr src)
 static inline ElkStr elk_str_strip(ElkStr input);                              // Strips leading and trailing whitespace
 static inline ElkStr elk_str_substr(ElkStr str, size start, size len);         // Create a substring from a longer string
 static inline int elk_str_cmp(ElkStr left, ElkStr right);                      // 0 if equal, -1 if left is first, 1 otherwise
-static inline bool elk_str_eq(ElkStr const left, ElkStr const right);          // Faster than elk_str_cmp, checks length first
+static inline b32 elk_str_eq(ElkStr const left, ElkStr const right);           // Faster than elk_str_cmp, checks length first
 static inline ElkStrSplitPair elk_str_split_on_char(ElkStr str, char const split_char);
 
 /* Parsing values from strings.
@@ -190,10 +190,10 @@ static inline ElkStrSplitPair elk_str_split_on_char(ElkStr str, char const split
  *
  * In general, these functions return true on success and false on failure. On falure the out argument is left untouched.
  */
-static inline bool elk_str_parse_i64(ElkStr str, i64 *result);
-static inline bool elk_str_robust_parse_f64(ElkStr str, f64 *out);
-static inline bool elk_str_fast_parse_f64(ElkStr str, f64 *out);
-static inline bool elk_str_parse_datetime(ElkStr str, ElkTime *out);
+static inline b32 elk_str_parse_i64(ElkStr str, i64 *result);
+static inline b32 elk_str_robust_parse_f64(ElkStr str, f64 *out);
+static inline b32 elk_str_fast_parse_f64(ElkStr str, f64 *out);
+static inline b32 elk_str_parse_datetime(ElkStr str, ElkTime *out);
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *
@@ -224,7 +224,7 @@ static inline bool elk_str_parse_datetime(ElkStr str, ElkTime *out);
 typedef struct
 {
     size max_offset;
-    bool over_allocation_attempted;
+    b32 over_allocation_attempted;
 } ElkStaticArenaAllocationMetrics;
 #endif
 
@@ -255,7 +255,7 @@ static inline void elk_static_arena_free(ElkStaticArena *arena, void *ptr); // U
 static ElkStaticArenaAllocationMetrics elk_static_arena_metrics[32] = {0};
 static size elk_static_arena_metrics_next = 0;
 static inline f64 elk_static_arena_max_ratio(ElkStaticArena *arena);
-static inline bool elk_static_arena_over_allocated(ElkStaticArena *arena);
+static inline b32 elk_static_arena_over_allocated(ElkStaticArena *arena);
 #endif
 
 /*---------------------------------------------------------------------------------------------------------------------------
@@ -307,7 +307,7 @@ static inline void * elk_static_pool_alloc(ElkStaticPool *pool); // returns NULL
  * for each remaining member of the struct. This will leave the padding out of the calculation, which is good because we
  * cannot guarantee what is in the padding.
  */
-typedef bool (*ElkEqFunction)(void const *left, void const *right);
+typedef b32 (*ElkEqFunction)(void const *left, void const *right);
 
 typedef u64 (*ElkHashFunction)(size const size_bytes, void const *value);
 typedef u64 (*ElkSimpleHash)(void const *object); // Already knows the size of the object to be hashed!
@@ -422,8 +422,8 @@ typedef struct
 } ElkQueueLedger;
 
 static inline ElkQueueLedger elk_queue_ledger_create(size capacity);
-static inline bool elk_queue_ledger_full(ElkQueueLedger *queue);
-static inline bool elk_queue_ledger_empty(ElkQueueLedger *queue);
+static inline b32 elk_queue_ledger_full(ElkQueueLedger *queue);
+static inline b32 elk_queue_ledger_empty(ElkQueueLedger *queue);
 static inline size elk_queue_ledger_push_back_index(ElkQueueLedger *queue);  // index of next location to put an object
 static inline size elk_queue_ledger_pop_front_index(ElkQueueLedger *queue);  // index of next location to take object
 static inline size elk_queue_ledger_peek_front_index(ElkQueueLedger *queue); // index of next object, but not incremented
@@ -442,8 +442,8 @@ typedef struct
 } ElkArrayLedger;
 
 static inline ElkArrayLedger elk_array_ledger_create(size capacity);
-static inline bool elk_array_ledger_full(ElkArrayLedger *array);
-static inline bool elk_array_ledger_empty(ElkArrayLedger *array);
+static inline b32 elk_array_ledger_full(ElkArrayLedger *array);
+static inline b32 elk_array_ledger_empty(ElkArrayLedger *array);
 static inline size elk_array_ledger_push_back_index(ElkArrayLedger *array);
 static inline size elk_array_ledger_pop_back_index(ElkArrayLedger *array);
 static inline size elk_array_ledger_len(ElkArrayLedger const *array);
@@ -666,7 +666,7 @@ typedef struct
     ElkStr remaining;       // The portion of the string remaining to be parsed. Useful for diagnosing parse errors.
     size row;               // Only counts parseable rows, comment lines don't count.
     size col;               // CSV column, that is, how many commas have we passed on this line.
-    bool error;             // Have we encountered an error while parsing?
+    b32 error;              // Have we encountered an error while parsing?
 #ifdef __AVX2__
     i32 byte_pos;
 
@@ -681,7 +681,7 @@ typedef struct
 static inline ElkCsvParser elk_csv_create_parser(ElkStr input);
 static inline ElkCsvToken elk_csv_full_next_token(ElkCsvParser *parser);
 static inline ElkCsvToken elk_csv_fast_next_token(ElkCsvParser *parser);
-static inline bool elk_csv_finished(ElkCsvParser *parser);
+static inline b32 elk_csv_finished(ElkCsvParser *parser);
 static inline ElkStr elk_csv_unquote_str(ElkStr str, ElkStr const buffer);
 static inline ElkStr elk_csv_simple_unquote_str(ElkStr str);
 
@@ -744,7 +744,7 @@ elk_time_from_unix_timestamp(i64 unixtime)
     return unixtime + elk_unix_epoch_timestamp;
 }
 
-static inline bool
+static inline b32
 elk_is_leap_year(int year)
 {
     if (year % 4 != 0) { return false; }
@@ -998,7 +998,7 @@ elk_str_cmp(ElkStr left, ElkStr right)
     return -1;
 }
 
-static inline bool
+static inline b32
 elk_str_eq(ElkStr const left, ElkStr const right)
 {
     if (left.len != right.len) { return false; }
@@ -1032,12 +1032,12 @@ elk_str_split_on_char(ElkStr str, char const split_char)
 
 _Static_assert(sizeof(size) == sizeof(uptr), "intptr_t and uintptr_t aren't the same size?!");
 
-static inline bool 
+static inline b32 
 elk_str_helper_parse_i64(ElkStr str, i64 *result)
 {
     u64 parsed = 0;
-    bool neg_flag = false;
-    bool in_digits = false;
+    b32 neg_flag = false;
+    b32 in_digits = false;
     char const *c = str.start;
     while (true)
     {
@@ -1063,7 +1063,7 @@ elk_str_helper_parse_i64(ElkStr str, i64 *result)
     return true;
 }
 
-static inline bool
+static inline b32
 elk_str_parse_i64(ElkStr str, i64 *result)
 {
     // Empty string is an error
@@ -1150,7 +1150,7 @@ elk_str_parse_i64(ElkStr str, i64 *result)
 #endif
 }
 
-static inline bool
+static inline b32
 elk_str_robust_parse_f64(ElkStr str, f64 *out)
 {
     // The following block is required to create NAN/INF witnout using math.h on MSVC Using
@@ -1284,7 +1284,7 @@ ERR_RETURN:
     return false;
 }
 
-static inline bool 
+static inline b32 
 elk_str_fast_parse_f64(ElkStr str, f64 *out)
 {
     // The following block is required to create NAN/INF witnout using math.h on MSVC Using
@@ -1378,7 +1378,7 @@ ERR_RETURN:
     return false;
 }
 
-static inline bool
+static inline b32
 elk_str_parse_datetime_long_format(ElkStr str, ElkTime *out)
 {
     /* Calculate the start address to load it into the buffer with just the right positions for the characters. */
@@ -1448,7 +1448,7 @@ elk_str_parse_datetime_long_format(ElkStr str, ElkTime *out)
     return false;
 }
 
-static inline bool
+static inline b32
 elk_str_parse_datetime_compact_doy(ElkStr str, ElkTime *out)
 {
     // YYYYDDDHHMMSS format
@@ -1472,7 +1472,7 @@ elk_str_parse_datetime_compact_doy(ElkStr str, ElkTime *out)
     return false;
 }
 
-static inline bool
+static inline b32
 elk_str_parse_datetime(ElkStr str, ElkTime *out)
 {
     // Check the length to find out what type of string we are parsing.
@@ -1544,7 +1544,7 @@ elk_string_interner_destroy(ElkStringInterner *interner)
     return;
 }
 
-static inline bool
+static inline b32
 elk_hash_table_large_enough(usize num_handles, i8 size_exp)
 {
     // Shoot for no more than 75% of slots filled.
@@ -1657,7 +1657,7 @@ elk_string_interner_intern(ElkStringInterner *interner, ElkStr str)
 }
 
 #ifndef NDEBUG
-static inline bool
+static inline b32
 elk_is_power_of_2(uptr p)
 {
     return (p & (p - 1)) == 0;
@@ -1804,7 +1804,7 @@ elk_static_arena_max_ratio(ElkStaticArena *arena)
     return (f64)arena->metrics_ptr->max_offset / (f64)arena->buf_size;
 }
 
-static inline bool 
+static inline b32 
 elk_static_arena_over_allocated(ElkStaticArena *arena)
 {
     return arena->metrics_ptr->over_allocation_attempted;
@@ -1909,13 +1909,13 @@ elk_queue_ledger_create(size capacity)
     };
 }
 
-static inline bool 
+static inline b32 
 elk_queue_ledger_full(ElkQueueLedger *queue)
 { 
     return queue->length == queue->capacity;
 }
 
-static inline bool
+static inline b32
 elk_queue_ledger_empty(ElkQueueLedger *queue)
 { 
     return queue->length == 0;
@@ -1967,13 +1967,13 @@ elk_array_ledger_create(size capacity)
     };
 }
 
-static inline bool 
+static inline b32 
 elk_array_ledger_full(ElkArrayLedger *array)
 { 
     return array->length == array->capacity;
 }
 
-static inline bool
+static inline b32
 elk_array_ledger_empty(ElkArrayLedger *array)
 { 
     return array->length == 0;
@@ -3107,7 +3107,7 @@ elk_csv_create_parser(ElkStr input)
     return parser;
 }
 
-static inline bool 
+static inline b32 
 elk_csv_finished(ElkCsvParser *parser)
 {
     return parser->error || parser->remaining.len == 0;
@@ -3143,7 +3143,7 @@ elk_csv_full_next_token(ElkCsvParser *parser)
     size next_value_len = 0;
 
     // Are we in a quoted string where we should ignore commas?
-    bool stop = false;
+    b32 stop = false;
     u32 carry = 0;
 
 #if __AVX2__
@@ -3194,9 +3194,9 @@ elk_csv_full_next_token(ElkCsvParser *parser)
         i32 bit_pos = 31 - __lzcnt32(first_non_zero_bit_lsb);
         bit_pos = bit_pos > 31 || bit_pos < 0 ? 31 : bit_pos;
 
-        bool comma = (comma_bits >> bit_pos) & 1;
-        bool newline = (newline_bits >> bit_pos) & 1;
-        bool comma_or_newline = (comma_or_newline_bits >> bit_pos) & 1;
+        b32 comma = (comma_bits >> bit_pos) & 1;
+        b32 newline = (newline_bits >> bit_pos) & 1;
+        b32 comma_or_newline = (comma_or_newline_bits >> bit_pos) & 1;
 
         parser->row += newline;
         parser->col += -col * newline + comma;
@@ -3211,7 +3211,7 @@ elk_csv_full_next_token(ElkCsvParser *parser)
 #endif
 
     /* Finish up when not 32 remaining. */
-    bool in_string = carry > 0;
+    b32 in_string = carry > 0;
     while(!stop && parser->remaining.len > num_chars_proc)
     {
         switch(*next_char)
@@ -3399,7 +3399,7 @@ elk_csv_fast_next_token(ElkCsvParser *parser)
 
     char *start = parser->remaining.start;
     size next_value_len = 0;
-    bool stop = false;
+    b32 stop = false;
     
     /* Stop will signal when a new delimiter is found, but we may need to process a few buffers worth of data to find one. */
     while(!stop)
@@ -3413,9 +3413,9 @@ elk_csv_fast_next_token(ElkCsvParser *parser)
         i32 run_len = bit_pos - parser->byte_pos;
 
         /* Detect type of delimiter, or maybe no delimiter and end of buffer. */
-        bool comma = (parser->buf_comma_bits >> bit_pos) & 1;
-        bool newline = (parser->buf_newline_bits >> bit_pos) & 1;
-        bool comma_or_newline = (any_delim >> bit_pos) & 1;
+        b32 comma = (parser->buf_comma_bits >> bit_pos) & 1;
+        b32 newline = (parser->buf_newline_bits >> bit_pos) & 1;
+        b32 comma_or_newline = (any_delim >> bit_pos) & 1;
 
         /* Turn off that bit so we don't find it again! This delimiter has been processed. */
         parser->buf_comma_bits &= ~first_non_zero_bit_lsb;

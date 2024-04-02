@@ -19,7 +19,7 @@ static u64 simple_str_hash(void const *str)
     return elk_fnv1a_hash_str(*(ElkStr *)str);
 }
 
-static bool str_eq(void const *left, void const *right)
+static b32 str_eq(void const *left, void const *right)
 {
     return elk_str_eq(*(ElkStr *)left, *(ElkStr *)right);
 }
@@ -90,7 +90,7 @@ test_elk_hash_set_iter(void)
     i32 found_count = 0;
     while(next)
     {
-        bool found = false;
+        b32 found = false;
         for(i32 i = 0; i < NUM_SET_TEST_STRINGS; ++i)
         {
             if(&strs[i] == next) 
