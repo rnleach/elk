@@ -106,6 +106,7 @@ static i64 const SECONDS_PER_DAY = INT64_C(60) * INT64_C(60) * INT64_C(24);
 static i64 const SECONDS_PER_YEAR = INT64_C(60) * INT64_C(60) * INT64_C(24) * INT64_C(365);
 
 typedef i64 ElkTime;
+typedef i64 ElkTimeDiff;
 
 typedef struct 
 {
@@ -135,7 +136,8 @@ static inline b32 elk_is_leap_year(int year);
 static inline ElkTime elk_make_time(ElkStructTime tm); /* Ignores the day_of_year member. */
 static inline ElkTime elk_time_truncate_to_hour(ElkTime time);
 static inline ElkTime elk_time_truncate_to_specific_hour(ElkTime time, int hour);
-static inline ElkTime elk_time_add(ElkTime time, int change_in_time);
+static inline ElkTime elk_time_add(ElkTime time, ElkTimeDiff change_in_time);
+static inline ElkTimeDiff elk_time_difference(ElkTime a, ElkTime b); /* a - b */
 
 static inline ElkTime elk_time_from_ymd_and_hms(int year, int month, int day, int hour, int minutes, int seconds);
 static inline ElkTime elk_time_from_yd_and_hms(int year, int day_of_year, int hour, int minutes, int seconds);
@@ -802,11 +804,17 @@ elk_time_truncate_to_specific_hour(ElkTime time, int hour)
 }
 
 static inline ElkTime
-elk_time_add(ElkTime time, int change_in_time)
+elk_time_add(ElkTime time, ElkTimeDiff change_in_time)
 {
     ElkTime result = time + change_in_time;
     Assert(result >= 0);
     return result;
+}
+
+static inline ElkTimeDiff
+elk_time_difference(ElkTime a, ElkTime b)
+{
+    return a - b;
 }
 
 // Days in a year up to beginning of month
