@@ -195,6 +195,8 @@ static inline b32 elk_str_robust_parse_f64(ElkStr str, f64 *out);
 static inline b32 elk_str_fast_parse_f64(ElkStr str, f64 *out);
 static inline b32 elk_str_parse_datetime(ElkStr str, ElkTime *out);
 
+#define elk_str_parse_elk_time(str, result) elk_str_parse_i64((str), (result))
+
 /*---------------------------------------------------------------------------------------------------------------------------
  *
  *                                                         Memory
