@@ -1666,13 +1666,11 @@ elk_string_interner_intern(ElkStringInterner *interner, ElkStr str)
     }
 }
 
-#ifndef NDEBUG
 static inline b32
 elk_is_power_of_2(uptr p)
 {
     return (p & (p - 1)) == 0;
 }
-#endif
 
 static inline uptr
 elk_align_pointer(uptr ptr, usize align)
