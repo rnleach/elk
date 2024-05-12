@@ -15,7 +15,7 @@ then
 elif [ "$#" -gt 0 -a "$1" != "clean" -o \( "$#" = 0 \) ]
 then
     echo "release build"
-    CFLAGS="$CFLAGS -O3"
+    CFLAGS="$CFLAGS -O3 -DNDEBUG"
 fi
 
 if [ "$#" -gt 0 -a "$1" = "clean" ] 

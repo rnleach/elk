@@ -77,7 +77,7 @@ int memcmp(const void *s1, const void *s2, size_t num_bytes);
   #ifndef NDEBUG
     #define Assert(assertion) if(!(assertion)) { HARD_EXIT; }
   #else
-    #define Assert(assertion)
+    #define Assert(assertion) (void)(assertion);
   #endif
 #endif
 
