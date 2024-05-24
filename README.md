@@ -22,8 +22,8 @@
      introduce any data races.
 
   6. Does not rely on system specific code. Also trying to minimalize dependencies on the C runtime
-     and the C standard library. However I sometimes need string.h (memcpy, memmove), stdio.h 
-     (printf and friends) and stdint.h (integer types with specified widths).
+     and the C standard library. However I sometimes need to reference functions in string.h (memcpy,
+     memmove) and stdint.h (integer types with specified widths).
 
 ## Design Notes
 
@@ -45,9 +45,9 @@
 
 ### Types
   I redefined many of the builtin types to be more succinct. So uint64_t is u64 and the like. I
-  many people find this annoying, but types are so ubiquitous it seems weird to make their names 
-  so long. Save the long names for custom or unusual types. Also some of the renames (like size
-  and byte) convey intent better than ptrdiff_t and char.
+  think many people find this annoying, but types are so ubiquitous it seems weird to make their
+  names so long. Save the long names for custom or unusual types. Also some of the renames (like 
+  size and byte) convey intent better than ptrdiff_t and char.
 
 ### Header (.h) File Layout
   The header file has prototypes at the top of the file and the implementation below it. All 
