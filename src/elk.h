@@ -77,7 +77,7 @@ int memcmp(const void *s1, const void *s2, size_t num_bytes);
   #ifndef NDEBUG
     #define Assert(assertion) if(!(assertion)) { HARD_EXIT; }
   #else
-    #define Assert(assertion) (void)(assertion);
+    #define Assert(assertion) (void)(assertion)
   #endif
 #endif
 
@@ -160,7 +160,7 @@ static inline ElkStructTime elk_make_struct_time(ElkTime time);
 
 typedef struct 
 {
-    char *start;      // points at first character in the string
+    char *start;  // points at first character in the string
     size len;     // the length of the string (not including a null terminator if it's there)
 } ElkStr;
 
@@ -172,10 +172,10 @@ typedef struct
 
 static inline ElkStr elk_str_from_cstring(char *src);
 static inline ElkStr elk_str_copy(size dst_len, char *restrict dest, ElkStr src);
-static inline ElkStr elk_str_strip(ElkStr input);                              // Strips leading and trailing whitespace
-static inline ElkStr elk_str_substr(ElkStr str, size start, size len);         // Create a substring from a longer string
-static inline int elk_str_cmp(ElkStr left, ElkStr right);                      // 0 if equal, -1 if left is first, 1 otherwise
-static inline b32 elk_str_eq(ElkStr const left, ElkStr const right);           // Faster than elk_str_cmp, checks length first
+static inline ElkStr elk_str_strip(ElkStr input);                           // Strips leading and trailing whitespace
+static inline ElkStr elk_str_substr(ElkStr str, size start, size len);      // Create a substring from a longer string
+static inline i32 elk_str_cmp(ElkStr left, ElkStr right);                   // 0 if equal, -1 if left is first, 1 otherwise
+static inline b32 elk_str_eq(ElkStr const left, ElkStr const right);        // Faster than elk_str_cmp, checks length first
 static inline ElkStrSplitPair elk_str_split_on_char(ElkStr str, char const split_char);
 
 /* Parsing values from strings.
@@ -283,8 +283,8 @@ typedef struct
 {
     size object_size;    // The size of each object
     size num_objects;    // The capacity, or number of objects storable in the pool
-    void *free;              // The head of a free list of available slots for objects
-    byte *buffer;   // The buffer we actually store the data in
+    void *free;          // The head of a free list of available slots for objects
+    byte *buffer;        // The buffer we actually store the data in
 } ElkStaticPool;
 
 static inline void elk_static_pool_create(ElkStaticPool *pool, size object_size, size num_objects, byte buffer[]);
@@ -302,14 +302,14 @@ static inline void * elk_static_pool_alloc(ElkStaticPool *pool); // returns NULL
  *
  * Non-cryptographically secure hash functions.
  *
- * If you're passing user supplied data to this, it's possible that a nefarious actor could send
- * data specifically designed to jam up one of these functions. So don't use them to write a web
- * browser or server, or banking software. They should be good and fast though for data munging.
+ * If you're passing user supplied data to this, it's possible that a nefarious actor could send data specifically designed
+ * to jam up one of these functions. So don't use them to write a web browser or server, or banking software. They should be
+ * good and fast though for data munging.
  *
- * To build a custom "fnv1a" hash function just follow the example of the implementation below of elk_fnv1a_hash below. For
- * the first member of a struct, call the accumulate function with the fnv_offset_bias, then call the accumulate function
- * for each remaining member of the struct. This will leave the padding out of the calculation, which is good because we
- * cannot guarantee what is in the padding.
+ * To build a custom "fnv1a" hash function just follow the example of the implementation of elk_fnv1a_hash below. For the 
+ * first member of a struct, call the accumulate function with the fnv_offset_bias, then call the accumulate function for
+ * each remaining member of the struct. This will leave the padding out of the calculation, which is good because we cannot 
+ * guarantee what is in the padding.
  */
 typedef b32 (*ElkEqFunction)(void const *left, void const *right);
 
@@ -346,7 +346,7 @@ typedef struct
 
     ElkStringInternerHandle *handles; // The hash table - handles index into storage
     u32 num_handles;                  // The number of handles
-    i8 size_exp;                  // Used to keep track of the length of *handles
+    i8 size_exp;                      // Used to keep track of the length of *handles
 } ElkStringInterner;
 
 
@@ -388,9 +388,9 @@ static inline ElkStr elk_string_interner_intern(ElkStringInterner *interner, Elk
  *  collections can require shuffling objects around in the backing buffer during the resize operation. A queue, for 
  *  instance, is non-trivial to expand because you have to account for wrap-around (assuming it is backed by a circular
  *  buffer). So not all the ledger types APIs will directly support resizing, and even those that do will further require 
- *  the user to make sure as they allocate more memory in the backing buffer, then also update the ledger. Finally, if you
- *  want to pass the collection as a whole to a function, you'll have to pass the ledger and buffer separately or create 
- *  your own composite type to package them together in.
+ *  the user to make sure that as they allocate more memory in the backing buffer, they also update the ledger. Finally, if
+ *  you want to pass the collection as a whole to a function, you'll have to pass the ledger and buffer(s) separately or
+ *  create your own composite type to package them together in.
  *
  *  The second part is an implementation that manages memory for the user. This gives the user less control over how memory
  *  is allocated / freed, but it also burdens them less with the responsibility of doing so. These types can reliably be
@@ -506,7 +506,7 @@ static inline void *elk_hash_map_key_iter_next(ElkHashMap *map, ElkHashMapKeyIte
  *
  * Uses fnv1a hash.
  */
-typedef struct // Internal only
+typedef struct
 {
     u64 hash;
     ElkStr key;
@@ -583,7 +583,6 @@ static inline void *elk_hash_set_value_iter_next(ElkHashSet *set, ElkHashSetIter
         ElkStrMap *: elk_str_map_len,                                                                                        \
         ElkHashSet *: elk_hash_set_len)(x)
 
-
 /*---------------------------------------------------------------------------------------------------------------------------
  *
  *                                         
@@ -595,7 +594,7 @@ static inline void *elk_hash_set_value_iter_next(ElkHashSet *set, ElkHashSetIter
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                       Radix Sort 
  *---------------------------------------------------------------------------------------------------------------------------
- * I've only implemented radix sort for fixed size signed intenger, unsigned integer, and floating point types thus far.
+ * I've only implemented radix sort for fixed size signed intengers, unsigned integers, and floating point types thus far.
  *
  * The sort requires extra memory that depends on the size of the list being sorted, so the user must provide that. In order
  * to ensure proper alignment and size, the user must provide the scratch buffer. Probably using an arena with 
@@ -644,16 +643,18 @@ static inline void elk_radix_sort(
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                       CSV Parsing
  *---------------------------------------------------------------------------------------------------------------------------
- * Parsing a string may modify it since tokens are returned as ElkStr and we may modify those strings in place, HOWEVER,
- * in this parser (and associated functions) I don't modify the underlying strings, so it can be used to parse read only
- * memory like a memory mapped file.
+ * Parsing a string may modify it, especially if it uses quotes a lot. The only function in this API that modifies the 
+ * the string in place is the elk_csv_unquote_str() function. So, this function cannot be used if you're parsing a string 
+ * stored in read only memory, which is probably the case if parsing a memory mapped file. None of the other functions in 
+ * this API modify the string they are parsing. However, you (the user) may modify strings (memory) returned by the 
+ * elk_csv_*_next_token() functions. So be very careful using this API if you're parsing read only memory.
  *
  * The CSV format I handle is pretty simple. Anything goes inside quoted strings. Quotes in a quoted string have to be 
  * escaped by another quote, e.g. "Frank ""The Tank"" Johnson". Comment lines are allowed, but they must be full lines, no
  * end of line comments, and they must start with a '#' character.
  *
  * Comments in CSV are rare, and can really slow down the parser. But I do find comments useful when I use CSV for some
- * smaller configuration files. So I'm implemented two CSV parser functions. The first is the "full" version, and it can
+ * smaller configuration files. So I've implemented two CSV parser functions. The first is the "full" version, and it can
  * handle comments anywhere. The second is the "fast" parser, which can handle comment lines at the beginning of the file, 
  * but once it gets past there it is more agressively optimized by assuming no more comment lines. This allows for a much
  * faster parser for large CSV files without interspersed comments.
@@ -696,12 +697,12 @@ static inline ElkStr elk_csv_simple_unquote_str(ElkStr str);
  *
  *
  *---------------------------------------------------------------------------------------------------------------------------
- * These are ONLY enabled if the coyote library has also been included. It must be included first.
+ * These are ONLY enabled if the coyote library has also been included. It must be included before this library.
  *
  */
 #ifdef _COYOTE_H_
-static inline ElkStaticArena elk_static_arena_allocate_and_create(size num_bytes); /* Allocates using Coyote.          */
-static inline void elk_static_arena_destroy_and_deallocate(ElkStaticArena *arena); /* Frees memory with Coyote.        */
+static inline ElkStaticArena elk_static_arena_allocate_and_create(size num_bytes); /* Allocates using Coyote.   */
+static inline void elk_static_arena_destroy_and_deallocate(ElkStaticArena *arena); /* Frees memory with Coyote. */
 
 /* Use Coyote file slurp with arena. */
 static inline size elk_file_slurp(char const *filename, byte **out, ElkStaticArena *arena);   
@@ -957,16 +958,13 @@ elk_str_from_cstring(char *src)
 static inline ElkStr
 elk_str_copy(size dst_len, char *restrict dest, ElkStr src)
 {
-    size const src_len = src.len;
-    size const copy_len = src_len < dst_len ? src_len : dst_len;
+    size const copy_len = src.len < dst_len ? src.len : dst_len;
     memcpy(dest, src.start, copy_len);
 
     // Add a terminating zero IFF we can.
     if(copy_len < dst_len) { dest[copy_len] = '\0'; }
 
-    size end = copy_len < dst_len ? copy_len : dst_len;
-
-    return (ElkStr){.start = dest, .len = end};
+    return (ElkStr){.start = dest, .len = copy_len};
 }
 
 static inline ElkStr
@@ -990,7 +988,7 @@ ElkStr elk_str_substr(ElkStr str, size start, size len)
     return (ElkStr) {.start = ptr_start, .len = len};
 }
 
-static inline int
+static inline i32
 elk_str_cmp(ElkStr left, ElkStr right)
 {
     if(left.start == right.start && left.len == right.len) { return 0; }
@@ -1895,14 +1893,6 @@ elk_static_pool_alloc(ElkStaticPool *pool)
     }
 
     return ptr;
-}
-
-// Just a stub so that it will work in the generic macros.
-static inline void *
-elk_static_pool_alloc_aligned(ElkStaticPool *pool, size num_bytes, size alignment)
-{
-    Assert(pool->object_size == num_bytes); // This will trip up elk_allocator_nmalloc if count > 1
-    return elk_static_pool_alloc(pool);
 }
 
 static inline ElkQueueLedger
@@ -2813,25 +2803,25 @@ elk_radix_sort_16(void *buffer, size num, size offset, size stride, void *scratc
     /* Build the output array. */
     void *dest = scratch;
     void *source = buffer;
-        for(size b = 0; b < 2; ++b)
+    for(size b = 0; b < 2; ++b)
+    {
+        if(!skips[b])
         {
-            if(!skips[b])
+            for(size i = num - 1; i >= 0; --i)
             {
-                for(size i = num - 1; i >= 0; --i)
-                {
-                    void *val_src = (byte *)source + i * stride;
-                    u16 val = *(u16 *)((byte *)val_src + offset);
-                    u8 cnts_idx = UINT16_C(0xFF) & (val >> (b * 8));
-                    void *val_dest = (byte *)dest + (--counts[cnts_idx][b]) * stride;
+                void *val_src = (byte *)source + i * stride;
+                u16 val = *(u16 *)((byte *)val_src + offset);
+                u8 cnts_idx = UINT16_C(0xFF) & (val >> (b * 8));
+                void *val_dest = (byte *)dest + (--counts[cnts_idx][b]) * stride;
 
-                    memcpy(val_dest, val_src, stride);
-                }
+                memcpy(val_dest, val_src, stride);
             }
-
-            /* Flip the source & destination buffers. */
-            dest = dest == scratch ? buffer : scratch;
-            source = source == scratch ? buffer : scratch;
         }
+
+        /* Flip the source & destination buffers. */
+        dest = dest == scratch ? buffer : scratch;
+        source = source == scratch ? buffer : scratch;
+    }
 }
 
 static inline void
@@ -2904,25 +2894,25 @@ elk_radix_sort_32(void *buffer, size num, size offset, size stride, void *scratc
     /* Build the output array. */
     void *dest = scratch;
     void *source = buffer;
-        for(size b = 0; b < 4; ++b)
+    for(size b = 0; b < 4; ++b)
+    {
+        if(!skips[b])
         {
-            if(!skips[b])
+            for(size i = num - 1; i >= 0; --i)
             {
-                for(size i = num - 1; i >= 0; --i)
-                {
-                    void *val_src = (byte *)source + i * stride;
-                    u32 val = *(u32 *)((byte *)val_src + offset);
-                    u8 cnts_idx = UINT32_C(0xFF) & (val >> (b * 8));
-                    void *val_dest = (byte *)dest + (--counts[cnts_idx][b]) * stride;
+                void *val_src = (byte *)source + i * stride;
+                u32 val = *(u32 *)((byte *)val_src + offset);
+                u8 cnts_idx = UINT32_C(0xFF) & (val >> (b * 8));
+                void *val_dest = (byte *)dest + (--counts[cnts_idx][b]) * stride;
 
-                    memcpy(val_dest, val_src, stride);
-                }
+                memcpy(val_dest, val_src, stride);
             }
-
-            /* Flip the source & destination buffers. */
-            dest = dest == scratch ? buffer : scratch;
-            source = source == scratch ? buffer : scratch;
         }
+
+        /* Flip the source & destination buffers. */
+        dest = dest == scratch ? buffer : scratch;
+        source = source == scratch ? buffer : scratch;
+    }
 }
 
 static inline void
@@ -3023,25 +3013,25 @@ elk_radix_sort_64(void *buffer, size num, size offset, size stride, void *scratc
     /* Build the output array. */
     void *dest = scratch;
     void *source = buffer;
-        for(size b = 0; b < 8; ++b)
+    for(size b = 0; b < 8; ++b)
+    {
+        if(!skips[b])
         {
-            if(!skips[b])
+            for(size i = num - 1; i >= 0; --i)
             {
-                for(size i = num - 1; i >= 0; --i)
-                {
-                    void *val_src = (byte *)source + i * stride;
-                    u64 val = *(u64 *)((byte *)val_src + offset);
-                    u8 cnts_idx = UINT64_C(0xFF) & (val >> (b * 8));
-                    void *val_dest = (byte *)dest + (--counts[cnts_idx][b]) * stride;
+                void *val_src = (byte *)source + i * stride;
+                u64 val = *(u64 *)((byte *)val_src + offset);
+                u8 cnts_idx = UINT64_C(0xFF) & (val >> (b * 8));
+                void *val_dest = (byte *)dest + (--counts[cnts_idx][b]) * stride;
 
-                    memcpy(val_dest, val_src, stride);
-                }
+                memcpy(val_dest, val_src, stride);
             }
-
-            /* Flip the source & destination buffers. */
-            dest = dest == scratch ? buffer : scratch;
-            source = source == scratch ? buffer : scratch;
         }
+
+        /* Flip the source & destination buffers. */
+        dest = dest == scratch ? buffer : scratch;
+        source = source == scratch ? buffer : scratch;
+    }
 }
 
 static inline void
