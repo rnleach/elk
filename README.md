@@ -64,7 +64,7 @@
   - Added optional (opt in) memory profiling for ElkStaticArena.
   - Added some convenience functions for memory when working with the Coyote library.
   - Added generic elk_len macro for several collections.
-  - Added functions to parse strings into int64_t, double, or ElkTime values. Some are robust, others a fast. You choose.
+  - Added functions to parse strings into int64_t, double, or ElkTime values. Some are robust, others are fast. You choose.
   - Added substring function.
   - Added day of year member to ElkStructTime.
   - Added function to create ElkTime from year, day of year, hours, minutes, and seconds.
