@@ -2289,8 +2289,11 @@ elk_str_map_insert(ElkStrMap *map, ElkStr key, void *value)
         }
         else if (handle->hash == hash && !elk_str_cmp(key, handle->key)) 
         {
-            // found it!
-            return handle->value;
+            // found it! Replace value
+            void *tmp = handle->value;
+            handle->value = value;
+
+            return tmp;
         }
     }
 }
