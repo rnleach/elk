@@ -6,6 +6,10 @@
 
 #include <immintrin.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #if defined(_WIN32) || defined(_WIN64)
 #define __lzcnt32(a) __lzcnt(a)
 #endif
@@ -3573,5 +3577,9 @@ ERR_RETURN:
 }
 
 #endif // Coyote
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #endif
