@@ -23,8 +23,11 @@ typedef int32_t     b32;
    #define false 0
    #define true  1
 #endif
-
+	
+#if !defined(_WIN64) && !defined(_WIN32)
 typedef char       byte;
+#endif
+
 typedef ptrdiff_t  size;
 typedef size_t    usize;
 
