@@ -6,7 +6,7 @@
 
 #include <immintrin.h>
 
-#if defined(_WINDOWS_) || defined(_INC_WINDOWS)
+#if !defined(_WIN64) && !defined(_WIN32)
 #define __lzcnt32(a) __lzcnt(a)
 #endif
 
@@ -24,7 +24,7 @@ typedef int32_t     b32;
    #define true  1
 #endif
 	
-#if !defined(_WIN64) && !defined(_WIN32)
+#if defined(_WINDOWS_) || defined(_INC_WINDOWS)
 typedef char       byte;
 #endif
 
