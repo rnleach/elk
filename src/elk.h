@@ -6,7 +6,7 @@
 
 #include <immintrin.h>
 
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(_WINDOWS_) || defined(_INC_WINDOWS)
 #define __lzcnt32(a) __lzcnt(a)
 #endif
 
