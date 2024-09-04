@@ -2,6 +2,9 @@
 
 #include <string.h>
 
+#pragma warning(push)
+#pragma warning(disable : 4996)
+
 /*---------------------------------------------------------------------------------------------------------------------------
  *
  *                                              Tests for the Memory Arena
@@ -201,3 +204,6 @@ elk_arena_tests(void)
     test_static_arena_realloc();
     test_static_arena_free();
 }
+
+#pragma warning(pop)
+

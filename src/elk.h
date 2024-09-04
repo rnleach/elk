@@ -1,6 +1,13 @@
 #ifndef _ELK_HEADER_
 #define _ELK_HEADER_
 
+/* Change some warning settings for MSVC. This code is well tested and we use some "tricks" for performance, and I don't
+ * want to be bothered in other projects by those warnings.
+ */
+
+#pragma warning(push)
+#pragma warning(disable:4146) /* Applying '-' unary operator to unsigned. Someimes we bit fiddle! */
+
 #include <stdint.h>
 #include <stddef.h>
 
@@ -256,7 +263,7 @@ static inline void elk_static_arena_create(ElkStaticArena *arena, size buf_size,
 static inline void elk_static_arena_destroy(ElkStaticArena *arena);
 static inline void elk_static_arena_reset(ElkStaticArena *arena);  // Set offset to 0, invalidates all previous allocations
 static inline void * elk_static_arena_alloc(ElkStaticArena *arena, size num_bytes, size alignment); // ret NULL if OOM
-static inline void * elk_static_arena_realloc(ElkStaticArena *arena, void *ptr, size size); // ret NULL if ptr is not most recent allocation
+static inline void * elk_static_arena_realloc(ElkStaticArena *arena, void *ptr, size asize); // ret NULL if ptr is not most recent allocation
 static inline void elk_static_arena_free(ElkStaticArena *arena, void *ptr); // Undo if it was last allocation, otherwise no-op
 
 #define elk_static_arena_malloc(arena, type) (type *)elk_static_arena_alloc(arena, sizeof(type), _Alignof(type))
@@ -947,17 +954,17 @@ elk_make_struct_time(ElkTime time)
     Assert(time >= 0);
 
     // Get the seconds part and then trim it off and convert to minutes
-    int const second = time % SECONDS_PER_MINUTE;
+    int const second = (int const)(time % SECONDS_PER_MINUTE);
     time = (time - second) / SECONDS_PER_MINUTE;
     Assert(time >= 0 && second >= 0 && second <= 59);
 
     // Get the minutes part, trim it off and convert to hours.
-    int const minute = time % MINUTES_PER_HOUR;
+    int const minute = (int const)(time % MINUTES_PER_HOUR);
     time = (time - minute) / MINUTES_PER_HOUR;
     Assert(time >= 0 && minute >= 0 && minute <= 59);
 
     // Get the hours part, trim it off and convert to days.
-    int const hour = time % HOURS_PER_DAY;
+    int const hour = (int const)(time % HOURS_PER_DAY);
     time = (time - hour) / HOURS_PER_DAY;
     Assert(time >= 0 && hour >= 0 && hour <= 23);
 
@@ -965,11 +972,11 @@ elk_make_struct_time(ElkTime time)
     i64 const days_since_epoch = time;
 
     // Calculate the year
-    int year = days_since_epoch / (DAYS_PER_YEAR) + 1; // High estimate, but good starting point.
+    int year = (int)(days_since_epoch / (DAYS_PER_YEAR) + 1); // High estimate, but good starting point.
     i64 test_time = elk_days_since_epoch(year);
     while (test_time > days_since_epoch) 
     {
-        int step = (test_time - days_since_epoch) / (DAYS_PER_YEAR + 1);
+        int step = (int)((test_time - days_since_epoch) / (DAYS_PER_YEAR + 1));
         step = step == 0 ? 1 : step;
         year -= step;
         test_time = elk_days_since_epoch(year);
@@ -977,7 +984,7 @@ elk_make_struct_time(ElkTime time)
     Assert(test_time <= elk_days_since_epoch(year));
     time -= elk_days_since_epoch(year); // Now it's days since start of the year.
     Assert(time >= 0);
-    i16 day_of_year = time + 1;
+    i16 day_of_year = (i16)(time + 1);
 
     // Calculate the month
     int month = 0;
@@ -990,7 +997,7 @@ elk_make_struct_time(ElkTime time)
     time -= sum_days_to_month[leap_year_idx][month]; // Now in days since start of month
 
     // Calculate the day
-    int const day = time + 1;
+    int const day = (int const)(time + 1);
     Assert(day > 0 && day <= 31);
 
     return (ElkStructTime)
@@ -1216,6 +1223,7 @@ elk_str_parse_i64(ElkStr str, i64 *result)
 #endif
 }
 
+#pragma warning(disable : 4723)
 static inline b32
 elk_str_robust_parse_f64(ElkStr str, f64 *out)
 {
@@ -1236,7 +1244,7 @@ elk_str_robust_parse_f64(ElkStr str, f64 *out)
     i8 exp_sign = 0;    // 0 is positive, 1 is negative
     i16 exponent = 0;
     i64 mantissa = 0;
-    i64 extra_exp = 0;  // decimal places after the point
+    i16 extra_exp = 0;  // decimal places after the point
 
     // Check & parse a sign
     if (*c == '-')      { sign =  1; --len_remaining; ++c; }
@@ -1349,7 +1357,9 @@ ERR_RETURN:
     *out = ELK_NAN;
     return false;
 }
+#pragma warning(default : 4723)
 
+#pragma warning(disable : 4723)
 static inline b32 
 elk_str_fast_parse_f64(ElkStr str, f64 *out)
 {
@@ -1369,7 +1379,7 @@ elk_str_fast_parse_f64(ElkStr str, f64 *out)
     i8 exp_sign = 0;    // 0 is positive, 1 is negative
     i16 exponent = 0;
     i64 mantissa = 0;
-    i64 extra_exp = 0;  // decimal places after the point
+    i16 extra_exp = 0;  // decimal places after the point
 
     // Check & parse a sign
     if (*c == '-')      { sign =  1; ++c; }
@@ -1443,6 +1453,7 @@ ERR_RETURN:
     *out = ELK_NAN;
     return false;
 }
+#pragma warning(default : 4723)
 
 static inline b32
 elk_str_parse_datetime_long_format(ElkStr str, ElkTime *out)
@@ -1506,7 +1517,7 @@ elk_str_parse_datetime_long_format(ElkStr str, ElkTime *out)
             elk_str_parse_i64(elk_str_substr(str, 14, 2), &minutes ) &&
             elk_str_parse_i64(elk_str_substr(str, 17, 2), &seconds ))
         {
-            *out = elk_time_from_ymd_and_hms(year, month, day, hour, minutes, seconds);
+            *out = elk_time_from_ymd_and_hms((i16)year, (i8)month, (i8)day, (i8)hour, (i8)minutes, (i8)seconds);
             return true;
         }
     }
@@ -1531,7 +1542,7 @@ elk_str_parse_datetime_compact_doy(ElkStr str, ElkTime *out)
         elk_str_parse_i64(elk_str_substr(str,  9, 2), &minutes     ) &&
         elk_str_parse_i64(elk_str_substr(str, 11, 2), &seconds     ))
     {
-        *out = elk_time_from_yd_and_hms(year, day_of_year, hour, minutes, seconds);
+        *out = elk_time_from_yd_and_hms((i16)year, (i8)day_of_year, (i8)hour, (i8)minutes, (i8)seconds);
         return true;
     }
 
@@ -1591,7 +1602,7 @@ elk_string_interner_create(i8 size_exp, ElkStaticArena *storage)
 {
     Assert(size_exp > 0 && size_exp <= 31); // Come on, 31 is HUGE
 
-    usize const handles_len = 1 << size_exp;
+    usize const handles_len = (usize)(1 << size_exp);
     ElkStringInternerHandle *handles = elk_static_arena_nmalloc(storage, handles_len, ElkStringInternerHandle);
     PanicIf(!handles);
 
@@ -1623,7 +1634,7 @@ elk_hash_lookup(u64 hash, i8 exp, u32 idx)
     // Copied from https://nullprogram.com/blog/2022/08/08
     // All code & writing on this blog is in the public domain.
     u32 mask = (UINT32_C(1) << exp) - 1;
-    u32 step = (hash >> (64 - exp)) | 1;    // the | 1 forces an odd number
+    u32 step = (u32)((hash >> (64 - exp)) | 1);    // the | 1 forces an odd number
     return (idx + step) & mask;
 }
 
@@ -1633,8 +1644,8 @@ elk_string_interner_expand_table(ElkStringInterner *interner)
     i8 const size_exp = interner->size_exp;
     i8 const new_size_exp = size_exp + 1;
 
-    usize const handles_len = 1 << size_exp;
-    usize const new_handles_len = 1 << new_size_exp;
+    usize const handles_len = (usize)(1 << size_exp);
+    usize const new_handles_len = (usize)(1 << new_size_exp);
 
     ElkStringInternerHandle *new_handles = elk_static_arena_nmalloc(interner->storage, new_handles_len, ElkStringInternerHandle);
     PanicIf(!new_handles);
@@ -1795,7 +1806,7 @@ elk_static_arena_alloc(ElkStaticArena *arena, size num_bytes, size alignment)
     offset -= (uptr)arena->buffer; // change to relative offset
 
     // Check to see if there is enough space left
-    if (offset + num_bytes <= arena->buf_size)
+    if ((size)(offset + num_bytes) <= arena->buf_size)
     {
         void *ptr = &arena->buffer[offset];
         memset(ptr, 0, num_bytes);
@@ -1820,9 +1831,9 @@ elk_static_arena_alloc(ElkStaticArena *arena, size num_bytes, size alignment)
 }
 
 static inline void * 
-elk_static_arena_realloc(ElkStaticArena *arena, void *ptr, size size)
+elk_static_arena_realloc(ElkStaticArena *arena, void *ptr, size asize)
 {
-    Assert(size > 0);
+    Assert(asize > 0);
 
     if(ptr == arena->prev_ptr)
     {
@@ -1830,9 +1841,9 @@ elk_static_arena_realloc(ElkStaticArena *arena, void *ptr, size size)
         uptr offset = (uptr)ptr - (uptr)arena->buffer; // relative offset accounting for alignment
 
         // Check to see if there is enough space left
-        if (offset + size <= arena->buf_size)
+        if ((size)(offset + asize) <= arena->buf_size)
         {
-            arena->buf_offset = offset + size;
+            arena->buf_offset = offset + asize;
 
 #ifdef _ELK_TRACK_MEM_USAGE
             arena->metrics_ptr->max_offset = arena->buf_offset > (arena->metrics_ptr->max_offset) ?
@@ -2077,7 +2088,7 @@ elk_hash_map_create(i8 size_exp, ElkSimpleHash key_hash, ElkEqFunction key_eq, E
 {
     Assert(size_exp > 0 && size_exp <= 31); // Come on, 31 is HUGE
 
-    size const handles_len = 1 << size_exp;
+    size const handles_len = (size)(1 << size_exp);
     ElkHashMapHandle *handles = elk_static_arena_nmalloc(arena, handles_len, ElkHashMapHandle);
     PanicIf(!handles);
 
@@ -2104,8 +2115,8 @@ elk_hash_table_expand(ElkHashMap *map)
     i8 const size_exp = map->size_exp;
     i8 const new_size_exp = size_exp + 1;
 
-    size const handles_len = 1 << size_exp;
-    size const new_handles_len = 1 << new_size_exp;
+    size const handles_len = (size)(1 << size_exp);
+    size const new_handles_len = (size)(1 << new_size_exp);
 
     ElkHashMapHandle *new_handles = elk_static_arena_nmalloc(map->arena, new_handles_len, ElkHashMapHandle);
     PanicIf(!new_handles);
@@ -2228,7 +2239,7 @@ elk_hash_map_key_iter(ElkHashMap *map)
 static inline void *
 elk_hash_map_key_iter_next(ElkHashMap *map, ElkHashMapKeyIter *iter)
 {
-    size const max_iter = (1 << map->size_exp);
+    size const max_iter = (size)(1 << map->size_exp);
     void *next_key = NULL;
     if(*iter >= max_iter) { return next_key; }
 
@@ -2248,7 +2259,7 @@ elk_str_map_create(i8 size_exp, ElkStaticArena *arena)
 {
     Assert(size_exp > 0 && size_exp <= 31); // Come on, 31 is HUGE
 
-    size const handles_len = 1 << size_exp;
+    size const handles_len = (size)(1 << size_exp);
     ElkStrMapHandle *handles = elk_static_arena_nmalloc(arena, handles_len, ElkStrMapHandle);
     PanicIf(!handles);
 
@@ -2273,8 +2284,8 @@ elk_str_table_expand(ElkStrMap *map)
     i8 const size_exp = map->size_exp;
     i8 const new_size_exp = size_exp + 1;
 
-    size const handles_len = 1 << size_exp;
-    size const new_handles_len = 1 << new_size_exp;
+    size const handles_len = (size)(1 << size_exp);
+    size const new_handles_len = (size)(1 << new_size_exp);
 
     ElkStrMapHandle *new_handles = elk_static_arena_nmalloc(map->arena, new_handles_len, ElkStrMapHandle);
     PanicIf(!new_handles);
@@ -2401,7 +2412,7 @@ elk_str_map_handle_iter(ElkStrMap *map)
 static inline ElkStr 
 elk_str_map_key_iter_next(ElkStrMap *map, ElkStrMapKeyIter *iter)
 {
-    size const max_iter = (1 << map->size_exp);
+    size const max_iter = (size)(1 << map->size_exp);
     if(*iter < max_iter) 
     {
         ElkStr next_key = map->handles[*iter].key;
@@ -2424,7 +2435,7 @@ elk_str_map_key_iter_next(ElkStrMap *map, ElkStrMapKeyIter *iter)
 static inline ElkStrMapHandle 
 elk_str_map_handle_iter_next(ElkStrMap *map, ElkStrMapHandleIter *iter)
 {
-    size const max_iter = (1 << map->size_exp);
+    size const max_iter = (size)(1 << map->size_exp);
     if(*iter < max_iter) 
     {
         ElkStrMapHandle next = map->handles[*iter];
@@ -2448,7 +2459,7 @@ elk_hash_set_create(i8 size_exp, ElkSimpleHash val_hash, ElkEqFunction val_eq, E
 {
     Assert(size_exp > 0 && size_exp <= 31); // Come on, 31 is HUGE
 
-    size const handles_len = 1 << size_exp;
+    size const handles_len = (size)(1 << size_exp);
     ElkHashSetHandle *handles = elk_static_arena_nmalloc(arena, handles_len, ElkHashSetHandle);
     PanicIf(!handles);
 
@@ -2475,8 +2486,8 @@ elk_hash_set_expand(ElkHashSet *set)
     i8 const size_exp = set->size_exp;
     i8 const new_size_exp = size_exp + 1;
 
-    size const handles_len = 1 << size_exp;
-    size const new_handles_len = 1 << new_size_exp;
+    size const handles_len = (size)(1 << size_exp);
+    size const new_handles_len = (size)(1 << new_size_exp);
 
     ElkHashSetHandle *new_handles = elk_static_arena_nmalloc(set->arena, new_handles_len, ElkHashSetHandle);
     PanicIf(!new_handles);
@@ -2599,7 +2610,7 @@ elk_hash_set_value_iter(ElkHashSet *set)
 static inline void *
 elk_hash_set_value_iter_next(ElkHashSet *set, ElkHashSetIter *iter)
 {
-    size const max_iter = (1 << set->size_exp);
+    size const max_iter = (size)(1 << set->size_exp);
     void *next_value = NULL;
     if(*iter >= max_iter) { return next_value; }
 
@@ -3157,7 +3168,7 @@ elk_csv_create_parser(ElkStr input)
     }
 
 #if __AVX2__
-    uptr skip_bytes = (uptr)parser.remaining.start - ((uptr)parser.remaining.start & ~0x1F); 
+    i8 skip_bytes = (i8)((uptr)parser.remaining.start - ((uptr)parser.remaining.start & ~0x1F));
     parser.remaining.start = (char *)((uptr)parser.remaining.start & ~0x1F); /* Force 32 byte alignment */
     parser.carry = 0;
     elk_csv_helper_load_new_buffer_aligned(&parser, skip_bytes);
@@ -3850,4 +3861,5 @@ ERR_RETURN:
 
 #endif // Coyote
 
+#pragma warning(pop)
 #endif
