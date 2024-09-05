@@ -266,9 +266,9 @@ static inline void * elk_static_arena_alloc(ElkStaticArena *arena, size num_byte
 static inline void * elk_static_arena_realloc(ElkStaticArena *arena, void *ptr, size asize); // ret NULL if ptr is not most recent allocation
 static inline void elk_static_arena_free(ElkStaticArena *arena, void *ptr); // Undo if it was last allocation, otherwise no-op
 
-#define elk_static_arena_malloc(arena, type) (type *)elk_static_arena_alloc(arena, sizeof(type), _Alignof(type))
-#define elk_static_arena_nmalloc(arena, count, type) (type *)elk_static_arena_alloc(arena, count * sizeof(type), _Alignof(type))
-#define elk_static_arena_nrealloc(arena, ptr, count, type) (type *) elk_static_arena_realloc(arena, (ptr), sizeof(type) * (count))
+#define elk_static_arena_malloc(arena, type) (type *)elk_static_arena_alloc((arena), sizeof(type), _Alignof(type))
+#define elk_static_arena_nmalloc(arena, count, type) (type *)elk_static_arena_alloc((arena), (count) * sizeof(type), _Alignof(type))
+#define elk_static_arena_nrealloc(arena, ptr, count, type) (type *) elk_static_arena_realloc((arena), (ptr), sizeof(type) * (count))
 
 #ifdef _ELK_TRACK_MEM_USAGE
 static ElkStaticArenaAllocationMetrics elk_static_arena_metrics[32] = {0};
