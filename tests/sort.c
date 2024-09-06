@@ -172,16 +172,18 @@ test_ordering(TestStruct *list, size num, size offset, ElkRadixSortByType cmp_ty
 static inline void
 elk_radix_sort_test(void)
 {
-    TestStruct test_data[8] = 
+    TestStruct test_data[] = 
     {
-        { .a =    1234567, .b =         5, .c =    INFINITY, .d =    2345678, .e =         5, .f =   INFINITY, .g =          0, .h =        -1, .i =         0, .j =       -2 },
-        { .a =     234567, .b =       -49, .c =   -INFINITY, .d =     345672, .e =       -48, .f =  -INFINITY, .g =         21, .h =        26, .i =         2, .j =        2 },
-        { .a =      34567, .b =        48, .c =     0.0    , .d =      45673, .e =        49, .f =    0.0    , .g =        305, .h =      -475, .i =         8, .j =      120 },
-        { .a =       4567, .b =      -470, .c =     1.23e53, .d =       5674, .e =      -469, .f =   1.23e23f, .g =       4007, .h =       173, .i =        16, .j =       22 },
-        { .a =        567, .b =       468, .c =  -500.2    , .d =        675, .e =       462, .f = -500.321f , .g =      50062, .h =    -31056, .i =        28, .j =      -22 },
-        { .a =        527, .b =      -468, .c =         NAN, .d =        527, .e =      -465, .f =        NAN, .g =      60006, .h =     10567, .i =       212, .j =     -120 },
-        { .a =          0, .b = INT64_MAX, .c =         NAN, .d =          0, .e = INT32_MAX, .f =        NAN, .g =       7010, .h = INT16_MAX, .i =       200, .j = INT8_MAX },
-        { .a = UINT64_MAX, .b = INT64_MIN, .c =         NAN, .d = UINT32_MAX, .e = INT32_MIN, .f =        NAN, .g = UINT16_MAX, .h = INT16_MIN, .i = UINT8_MAX, .j = INT8_MIN },
+        { .a =    1234567, .b =         5, .c =                    INFINITY, .d =    2345678, .e =         5, .f =   INFINITY, .g =          0, .h =        -1, .i =         0, .j =       -2 },
+        { .a =     234567, .b =       -49, .c =                   -INFINITY, .d =     345672, .e =       -48, .f =  -INFINITY, .g =         21, .h =        26, .i =         2, .j =        2 },
+        { .a =      34567, .b =        48, .c =     0.0                    , .d =      45673, .e =        49, .f =    0.0    , .g =        305, .h =      -475, .i =         8, .j =      120 },
+        { .a =       4567, .b =      -470, .c =     1.23e53                , .d =       5674, .e =      -469, .f =   1.23e23f, .g =       4007, .h =       173, .i =        16, .j =       22 },
+        { .a =       4567, .b =      -470, .c =     1.23e-53               , .d =       5674, .e =      -469, .f =   1.23e23f, .g =       4007, .h =       173, .i =        16, .j =       22 },
+        { .a =       4567, .b =      -470, .c =     4.9406564584124654e-324, .d =       5674, .e =      -469, .f =   1.23e23f, .g =       4007, .h =       173, .i =        16, .j =       22 },
+        { .a =        567, .b =       468, .c =  -500.2                    , .d =        675, .e =       462, .f = -500.321f , .g =      50062, .h =    -31056, .i =        28, .j =      -22 },
+        { .a =        527, .b =      -468, .c =                         NAN, .d =        527, .e =      -465, .f =        NAN, .g =      60006, .h =     10567, .i =       212, .j =     -120 },
+        { .a =          0, .b = INT64_MAX, .c =                         NAN, .d =          0, .e = INT32_MAX, .f =        NAN, .g =       7010, .h = INT16_MAX, .i =       200, .j = INT8_MAX },
+        { .a = UINT64_MAX, .b = INT64_MIN, .c =                         NAN, .d = UINT32_MAX, .e = INT32_MIN, .f =        NAN, .g = UINT16_MAX, .h = INT16_MIN, .i = UINT8_MAX, .j = INT8_MIN },
     };
 
     TestStruct scratch[ARRAY_LEN(test_data)] = {0};
@@ -223,6 +225,48 @@ elk_radix_sort_test(void)
     TEST(j, ELK_RADIX_SORT_INT8,   ELK_SORT_DESCENDING, "tenth");
 }
 
+#define NUM_ROWS 1000
+#define NUM_COLS 7
+static f64 test_array[NUM_ROWS * NUM_COLS] = {0};
+static f64 test_array_scratch[NUM_ROWS * NUM_COLS] = {0};
+
+static inline void
+elk_radix_sort_2darray_test(void)
+{
+    ElkRandomState state = elk_random_state_create(123456);
+
+    /* Fill the array with test data. */
+    for(size r = 0; r < NUM_ROWS; ++r)
+    {
+        size offset = r * NUM_COLS;
+        for(size c = 0; c < NUM_COLS; ++c)
+        {
+            test_array[offset + c] = elk_random_state_uniform_f64(&state);
+            /* Make  4th column really small! */
+            if(c == 4)
+            {
+                test_array[offset + c] *= 4.9406564584124654e-324;
+            }
+        }
+    }
+
+
+    size stride = NUM_COLS * sizeof(test_array[0]);
+    ElkRadixSortByType type = ELK_RADIX_SORT_F64;
+    ElkSortOrder order = ELK_SORT_ASCENDING;
+
+    for(size c = 0; c < NUM_COLS; ++c)
+    {
+        size offset = c * sizeof(test_array[0]);
+        elk_radix_sort(test_array, NUM_ROWS, offset, stride, test_array_scratch, type, order);
+
+        for(size r = 1; r < NUM_ROWS; ++r)
+        {
+            Assert(test_array[r * NUM_COLS + c] >= test_array[(r - 1) * NUM_COLS + c]);
+        }
+    }
+}
+
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                       All tests
  *-------------------------------------------------------------------------------------------------------------------------*/
@@ -230,6 +274,7 @@ void
 elk_sort_tests(void)
 {
     elk_radix_sort_test();
+    elk_radix_sort_2darray_test();
 }
 
 #pragma warning(pop)

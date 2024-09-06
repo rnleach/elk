@@ -2875,6 +2875,7 @@ elk_radix_sort_16(void *buffer, size num, size offset, size stride, void *scratc
     /* Build the output array. */
     void *dest = scratch;
     void *source = buffer;
+    size num_skips = 0;
     for(size b = 0; b < 2; ++b)
     {
         if(!skips[b])
@@ -2888,11 +2889,21 @@ elk_radix_sort_16(void *buffer, size num, size offset, size stride, void *scratc
 
                 memcpy(val_dest, val_src, stride);
             }
-        }
 
-        /* Flip the source & destination buffers. */
-        dest = dest == scratch ? buffer : scratch;
-        source = source == scratch ? buffer : scratch;
+            /* Flip the source & destination buffers. */
+            dest = dest == scratch ? buffer : scratch;
+            source = source == scratch ? buffer : scratch;
+        }
+        else
+        {
+            num_skips++;
+        }
+    }
+
+    /* Swap back into the original buffer. */
+    if(num_skips % 2)
+    {
+        memcpy(buffer, scratch, num * stride);
     }
 }
 
@@ -2966,6 +2977,7 @@ elk_radix_sort_32(void *buffer, size num, size offset, size stride, void *scratc
     /* Build the output array. */
     void *dest = scratch;
     void *source = buffer;
+    size num_skips = 0;
     for(size b = 0; b < 4; ++b)
     {
         if(!skips[b])
@@ -2979,11 +2991,21 @@ elk_radix_sort_32(void *buffer, size num, size offset, size stride, void *scratc
 
                 memcpy(val_dest, val_src, stride);
             }
-        }
 
-        /* Flip the source & destination buffers. */
-        dest = dest == scratch ? buffer : scratch;
-        source = source == scratch ? buffer : scratch;
+            /* Flip the source & destination buffers. */
+            dest = dest == scratch ? buffer : scratch;
+            source = source == scratch ? buffer : scratch;
+        }
+        else
+        {
+            num_skips++;
+        }
+    }
+
+    /* Swap back into the original buffer. */
+    if(num_skips % 2)
+    {
+        memcpy(buffer, scratch, num * stride);
     }
 }
 
@@ -3085,6 +3107,7 @@ elk_radix_sort_64(void *buffer, size num, size offset, size stride, void *scratc
     /* Build the output array. */
     void *dest = scratch;
     void *source = buffer;
+    size num_skips = 0;
     for(size b = 0; b < 8; ++b)
     {
         if(!skips[b])
@@ -3098,11 +3121,21 @@ elk_radix_sort_64(void *buffer, size num, size offset, size stride, void *scratc
 
                 memcpy(val_dest, val_src, stride);
             }
-        }
 
-        /* Flip the source & destination buffers. */
-        dest = dest == scratch ? buffer : scratch;
-        source = source == scratch ? buffer : scratch;
+            /* Flip the source & destination buffers. */
+            dest = dest == scratch ? buffer : scratch;
+            source = source == scratch ? buffer : scratch;
+        }
+        else
+        {
+            num_skips++;
+        }
+    }
+
+    /* Swap back into the original buffer. */
+    if(num_skips % 2)
+    {
+        memcpy(buffer, scratch, num * stride);
     }
 }
 
