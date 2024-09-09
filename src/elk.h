@@ -62,6 +62,7 @@ typedef int64_t     i64;
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                 Mathematical Constants
  *-------------------------------------------------------------------------------------------------------------------------*/
+#ifndef M_PI /* Assume if they have PI, they have them all.*/
 static f64 const ELK_PI       = 3.14159265358979323846;
 static f64 const ELK_PI_2     = 1.57079632679489661923;
 static f64 const ELK_PI_4     = 0.785398163397448309616;
@@ -75,6 +76,21 @@ static f64 const ELK_LN2      = 0.693147180559945309417;
 
 static f64 const ELK_SQRT2    = 1.41421356237309504880;
 static f64 const ELK_1_SQRT2  = 0.707106781186547524401;
+#else
+static f64 const ELK_PI       = M_PI;
+static f64 const ELK_PI_2     = M_PI_2;
+static f64 const ELK_PI_4     = M_PI_4;
+static f64 const ELK_1_PI     = M_1_PI;
+static f64 const ELK_2_PI     = M_2_PI;
+static f64 const ELK_2_SQRTPI = M_2_SQRTPI;
+
+static f64 const ELK_E        = M_E;
+
+static f64 const ELK_LN2      = M_LN2;
+
+static f64 const ELK_SQRT2    = M_SQRT2;
+static f64 const ELK_1_SQRT2  = M_SQRT1_2;
+#endif
 
 /*---------------------------------------------------------------------------------------------------------------------------
  * Declare parts of the standard C library I use. These should almost always be implemented as compiler intrinsics anyway.
