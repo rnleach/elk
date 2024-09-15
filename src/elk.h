@@ -1885,11 +1885,14 @@ elk_static_arena_realloc(ElkStaticArena *arena, void *ptr, size asize)
 
             return ptr;
         }
-    }
-
+        else
+        {
 #ifdef _ELK_TRACK_MEM_USAGE
             arena->metrics_ptr->over_allocation_attempted = true;
 #endif
+        }
+    }
+
     return NULL;
 }
 
