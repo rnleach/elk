@@ -576,6 +576,7 @@ static inline ElkStrMap elk_str_map_create(i8 size_exp, ElkStaticArena *arena);
 static inline void elk_str_map_destroy(ElkStrMap *map);
 static inline void *elk_str_map_insert(ElkStrMap *map, ElkStr key, void *value); // if return != value, key was already in the map
 static inline void *elk_str_map_lookup(ElkStrMap *map, ElkStr key); // return NULL if not in map, otherwise return pointer to value
+static inline ElkStrMapHandle const *elk_str_map_lookup_handle(ElkStrMap *map, ElkStr key); // return NULL if not in map, otherwise return pointer to handle
 static inline size elk_str_map_len(ElkStrMap *map);
 static inline ElkStrMapKeyIter elk_str_map_key_iter(ElkStrMap *map);
 static inline ElkStrMapHandleIter elk_str_map_handle_iter(ElkStrMap *map);
@@ -2421,6 +2422,30 @@ elk_str_map_lookup(ElkStrMap *map, ElkStr key)
         {
             // found it!
             return handle->value;
+        }
+    }
+
+    return NULL;
+}
+
+static inline ElkStrMapHandle const *
+elk_str_map_lookup_handle(ElkStrMap *map, ElkStr key)
+{
+    // Inspired by https://nullprogram.com/blog/2022/08/08
+    // All code & writing on this blog is in the public domain.
+
+    u64 const hash = elk_fnv1a_hash_str(key);
+    u32 i = hash & 0xffffffff; // truncate
+    while (true)
+    {
+        i = elk_hash_lookup(hash, map->size_exp, i);
+        ElkStrMapHandle *handle = &map->handles[i];
+
+        if (!handle->key.start) { return NULL; }
+        else if (handle->hash == hash && !elk_str_cmp(key, handle->key)) 
+        {
+            // found it!
+            return handle;
         }
     }
 
