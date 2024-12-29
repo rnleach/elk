@@ -307,7 +307,7 @@ static inline void elk_static_arena_free(ElkStaticArena *arena, void *ptr); // U
 #define elk_static_arena_nrealloc(arena, ptr, count, type) (type *) elk_static_arena_realloc((arena), (ptr), sizeof(type) * (count))
 
 #ifdef _ELK_TRACK_MEM_USAGE
-static ElkStaticArenaAllocationMetrics elk_static_arena_metrics[32] = {0};
+static ElkStaticArenaAllocationMetrics elk_static_arena_metrics[128] = {0};
 static size elk_static_arena_metrics_next = 0;
 static inline f64 elk_static_arena_max_ratio(ElkStaticArena *arena);
 static inline b32 elk_static_arena_over_allocated(ElkStaticArena *arena);
@@ -1809,8 +1809,10 @@ elk_static_arena_create(ElkStaticArena *arena, size buf_size, byte buffer[])
     };
 
 #ifdef _ELK_TRACK_MEM_USAGE
-        arena->metrics_ptr = &elk_static_arena_metrics[elk_static_arena_metrics_next++];
-        *arena->metrics_ptr = (ElkStaticArenaAllocationMetrics){0};
+    size idx = elk_static_arena_metrics_next++;
+    Assert(idx < (sizeof(elk_static_arena_metrics) / sizeof(elk_static_arena_metrics[0])));
+    arena->metrics_ptr = &elk_static_arena_metrics[idx];
+    *arena->metrics_ptr = (ElkStaticArenaAllocationMetrics){0};
 #endif
     return;
 }
