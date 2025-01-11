@@ -298,8 +298,8 @@ typedef struct
 static inline void elk_static_arena_create(ElkStaticArena *arena, size buf_size, byte buffer[]);
 static inline void elk_static_arena_destroy(ElkStaticArena *arena);
 static inline void elk_static_arena_reset(ElkStaticArena *arena);  // Set offset to 0, invalidates all previous allocations
-static inline void * elk_static_arena_alloc(ElkStaticArena *arena, size num_bytes, size alignment); // ret NULL if OOM
-static inline void * elk_static_arena_realloc(ElkStaticArena *arena, void *ptr, size asize); // ret NULL if ptr is not most recent allocation
+static inline void *elk_static_arena_alloc(ElkStaticArena *arena, size num_bytes, size alignment); // ret NULL if OOM
+static inline void *elk_static_arena_realloc(ElkStaticArena *arena, void *ptr, size asize); // ret NULL if ptr is not most recent allocation
 static inline void elk_static_arena_free(ElkStaticArena *arena, void *ptr); // Undo if it was last allocation, otherwise no-op
 
 #define elk_static_arena_malloc(arena, type) (type *)elk_static_arena_alloc((arena), sizeof(type), _Alignof(type))
@@ -617,7 +617,7 @@ typedef size ElkHashSetIter;
 static inline ElkHashSet elk_hash_set_create(i8 size_exp, ElkSimpleHash val_hash, ElkEqFunction val_eq, ElkStaticArena *arena);
 static inline void elk_hash_set_destroy(ElkHashSet *set);
 static inline void *elk_hash_set_insert(ElkHashSet *set, void *value); // if return != value, value was already in the set
-static inline void *elk_hash_set_lookup(ElkHashSet *set, void *value); // return NULL if not in set, otherwise return ptr to value
+static inline void *elk_hash_set_lookup(ElkHashSet *set, void *value); // return NULL if not in set, else return ptr to value
 static inline size elk_hash_set_len(ElkHashSet *set);
 static inline ElkHashSetIter elk_hash_set_value_iter(ElkHashSet *set);
 
@@ -632,7 +632,7 @@ static inline void *elk_hash_set_value_iter_next(ElkHashSet *set, ElkHashSetIter
         ElkQueueLedger *: elk_queue_ledger_len,                                                                             \
         ElkArrayLedger *: elk_array_ledger_len,                                                                             \
         ElkHashMap *: elk_hash_map_len,                                                                                     \
-        ElkStrMap *: elk_str_map_len,                                                                                        \
+        ElkStrMap *: elk_str_map_len,                                                                                       \
         ElkHashSet *: elk_hash_set_len)(x)
 
 /*---------------------------------------------------------------------------------------------------------------------------
