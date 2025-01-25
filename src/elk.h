@@ -95,6 +95,8 @@ static f64 const ELK_1_SQRT2  = M_SQRT1_2;
 static f64 const ELK_GOLDEN   = 1.61803398874989484820;
 static f64 const ELK_1_GOLDEN = 0.61803398874989484820;
 
+static f64 const ELK_SQRT2PI  = 2.50662827463100024161;
+
 /*---------------------------------------------------------------------------------------------------------------------------
  * Declare parts of the standard C library I use. These should almost always be implemented as compiler intrinsics anyway.
  *-------------------------------------------------------------------------------------------------------------------------*/
