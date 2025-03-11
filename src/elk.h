@@ -22,6 +22,7 @@
  *-------------------------------------------------------------------------------------------------------------------------*/
 // TODO: Substring Search.
 // TODO: Add ElkCStr type that guarantees a terminating zero to make life easier interoperating with C stdlib.
+// TODO: Dependent on coyote, add an expanding arena, or a dynamic arena.
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                 Define simpler types
