@@ -21,6 +21,7 @@
  * TODO: Things I'd like to add.
  *-------------------------------------------------------------------------------------------------------------------------*/
 // TODO: Substring Search.
+// TODO: Add ElkCStr type that guarantees a terminating zero to make life easier interoperating with C stdlib.
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                 Define simpler types
@@ -196,63 +197,6 @@ static inline ElkTime elk_time_from_ymd_and_hms(int year, int month, int day, in
 static inline ElkTime elk_time_from_yd_and_hms(int year, int day_of_year, int hour, int minutes, int seconds);
 static inline ElkStructTime elk_make_struct_time(ElkTime time);
 /*---------------------------------------------------------------------------------------------------------------------------
- *                                                      String Slice
- *---------------------------------------------------------------------------------------------------------------------------
- *
- * An altenrate implementation of strings with "fat pointers" that are pointers to the start and the length of the string.
- * When strings are copied or moved, every effort is made to keep them null terminated so they MIGHT play nice with the
- * standard C string implementation, but you can't count on this. If there isn't enough room when a string is copied for the
- * null terminator, it won't be there.
- *
- * WARNING: Slices are only meant to alias into larger strings and so have no built in memory management functions. It's
- * unadvised to have an ElkStr that is the only thing that contains a pointer from malloc(). A seperate pointer to any 
- * buffer should be kept around for memory management purposes.
- *
- * WARNING: Comparisions are NOT utf-8 safe. They look 1 byte at a time, so if you're using fancy utf-8 stuff, no promises.
- */
-
-typedef struct 
-{
-    char *start;  // points at first character in the string
-    size len;     // the length of the string (not including a null terminator if it's there)
-} ElkStr;
-
-typedef struct
-{
-    ElkStr left;
-    ElkStr right;
-} ElkStrSplitPair;
-
-static inline ElkStr elk_str_from_cstring(char *src);
-static inline ElkStr elk_str_copy(size dst_len, char *restrict dest, ElkStr src);
-static inline ElkStr elk_str_strip(ElkStr input);                           // Strips leading and trailing whitespace
-static inline ElkStr elk_str_substr(ElkStr str, size start, size len);      // Create a substring from a longer string
-static inline i32 elk_str_cmp(ElkStr left, ElkStr right);                   // 0 if equal, -1 if left is first, 1 otherwise
-static inline b32 elk_str_eq(ElkStr const left, ElkStr const right);        // Faster than elk_str_cmp, checks length first
-static inline ElkStrSplitPair elk_str_split_on_char(ElkStr str, char const split_char);
-
-/* Parsing values from strings.
- *
- * In all cases the input string is assumed to be stripped of leading and trailing whitespace. Any suffixes that are non-
- * numeric will cause a parse error for the number parsing cases. Robust parsers check for more error cases, and fast 
- * parsers make more assumptions. 
- *
- * For f64, the fast parser assumes no NaN or Infinity values or any errors of any kind. The robust parser checks for NaN,
- * +/- Infinity, and overflow.
- *
- * Parsing datetimes assumes a format YYYY-MM-DD HH:MM:SS, YYYY-MM-DDTHH:MM:SS, YYYYDDDHHMMSS. The latter format is the 
- * year, day of the year, hours, minutes, and seconds.
- *
- * In general, these functions return true on success and false on failure. On falure the out argument is left untouched.
- */
-static inline b32 elk_str_parse_i64(ElkStr str, i64 *result);
-static inline b32 elk_str_robust_parse_f64(ElkStr str, f64 *out);
-static inline b32 elk_str_fast_parse_f64(ElkStr str, f64 *out);
-static inline b32 elk_str_parse_datetime(ElkStr str, ElkTime *out);
-
-#define elk_str_parse_elk_time(str, result) elk_str_parse_i64((str), (result))
-
-/*---------------------------------------------------------------------------------------------------------------------------
  *
  *                                                         Memory
  *
@@ -348,6 +292,64 @@ static inline void * elk_static_pool_alloc(ElkStaticPool *pool); // returns NULL
 // no elk_static_pool_realloc because that doesn't make sense!
 
 #define elk_static_pool_malloc(alloc, type) (type *)elk_static_pool_alloc(alloc)
+
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                      String Slice
+ *---------------------------------------------------------------------------------------------------------------------------
+ *
+ * An altenrate implementation of strings with "fat pointers" that are pointers to the start and the length of the string.
+ * When strings are copied or moved, every effort is made to keep them null terminated so they MIGHT play nice with the
+ * standard C string implementation, but you can't count on this. If there isn't enough room when a string is copied for the
+ * null terminator, it won't be there.
+ *
+ * WARNING: Slices are only meant to alias into larger strings and so have no built in memory management functions. It's
+ * unadvised to have an ElkStr that is the only thing that contains a pointer from malloc(). A seperate pointer to any 
+ * buffer should be kept around for memory management purposes.
+ *
+ * WARNING: Comparisions are NOT utf-8 safe. They look 1 byte at a time, so if you're using fancy utf-8 stuff, no promises.
+ */
+
+typedef struct 
+{
+    char *start;  // points at first character in the string
+    size len;     // the length of the string (not including a null terminator if it's there)
+} ElkStr;
+
+typedef struct
+{
+    ElkStr left;
+    ElkStr right;
+} ElkStrSplitPair;
+
+static inline ElkStr elk_str_from_cstring(char *src);
+static inline ElkStr elk_str_copy(size dst_len, char *restrict dest, ElkStr src);
+static inline ElkStr elk_str_alloc_copy(ElkStr src, ElkStaticArena *dest);  // Allocate space and create a copy.
+static inline ElkStr elk_str_strip(ElkStr input);                           // Strips leading and trailing whitespace
+static inline ElkStr elk_str_substr(ElkStr str, size start, size len);      // Create a substring from a longer string
+static inline i32 elk_str_cmp(ElkStr left, ElkStr right);                   // 0 if equal, -1 if left is first, 1 otherwise
+static inline b32 elk_str_eq(ElkStr const left, ElkStr const right);        // Faster than elk_str_cmp, checks length first
+static inline ElkStrSplitPair elk_str_split_on_char(ElkStr str, char const split_char);
+
+/* Parsing values from strings.
+ *
+ * In all cases the input string is assumed to be stripped of leading and trailing whitespace. Any suffixes that are non-
+ * numeric will cause a parse error for the number parsing cases. Robust parsers check for more error cases, and fast 
+ * parsers make more assumptions. 
+ *
+ * For f64, the fast parser assumes no NaN or Infinity values or any errors of any kind. The robust parser checks for NaN,
+ * +/- Infinity, and overflow.
+ *
+ * Parsing datetimes assumes a format YYYY-MM-DD HH:MM:SS, YYYY-MM-DDTHH:MM:SS, YYYYDDDHHMMSS. The latter format is the 
+ * year, day of the year, hours, minutes, and seconds.
+ *
+ * In general, these functions return true on success and false on failure. On falure the out argument is left untouched.
+ */
+static inline b32 elk_str_parse_i64(ElkStr str, i64 *result);
+static inline b32 elk_str_robust_parse_f64(ElkStr str, f64 *out);
+static inline b32 elk_str_fast_parse_f64(ElkStr str, f64 *out);
+static inline b32 elk_str_parse_datetime(ElkStr str, ElkTime *out);
+
+#define elk_str_parse_elk_time(str, result) elk_str_parse_i64((str), (result))
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                      Hashes
@@ -1069,6 +1071,21 @@ elk_str_copy(size dst_len, char *restrict dest, ElkStr src)
     if(copy_len < dst_len) { dest[copy_len] = '\0'; }
 
     return (ElkStr){.start = dest, .len = copy_len};
+}
+
+
+static inline ElkStr 
+elk_str_alloc_copy(ElkStr src, ElkStaticArena *dest)
+{
+    ElkStr ret_val = {0};
+
+    size copy_len = src.len + 1; // Add room for terminating zero.
+    char *buffer = elk_static_arena_nmalloc(dest, copy_len, char);
+    StopIf(!buffer, return ret_val); // Return NULL string if out of memory
+
+    ret_val = elk_str_copy(copy_len, buffer, src);
+
+    return ret_val;
 }
 
 static inline ElkStr
