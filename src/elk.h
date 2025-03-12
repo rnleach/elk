@@ -22,7 +22,6 @@
  *-------------------------------------------------------------------------------------------------------------------------*/
 // TODO: Substring Search.
 // TODO: Add ElkCStr type that guarantees a terminating zero to make life easier interoperating with C stdlib.
-// TODO: Dependent on coyote, add an expanding arena, or a dynamic arena.
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                 Define simpler types
@@ -244,20 +243,66 @@ typedef struct
 
 static inline void elk_static_arena_create(ElkStaticArena *arena, size buf_size, byte buffer[]);
 static inline void elk_static_arena_destroy(ElkStaticArena *arena);
-static inline void elk_static_arena_reset(ElkStaticArena *arena);  // Set offset to 0, invalidates all previous allocations
+static inline void elk_static_arena_reset(ElkStaticArena *arena);                                  // Set offset to 0, invalidates all previous allocations
 static inline void *elk_static_arena_alloc(ElkStaticArena *arena, size num_bytes, size alignment); // ret NULL if OOM
-static inline void *elk_static_arena_realloc(ElkStaticArena *arena, void *ptr, size asize); // ret NULL if ptr is not most recent allocation
-static inline void elk_static_arena_free(ElkStaticArena *arena, void *ptr); // Undo if it was last allocation, otherwise no-op
+static inline void *elk_static_arena_realloc(ElkStaticArena *arena, void *ptr, size asize);        // ret NULL if ptr is not most recent allocation
+static inline void elk_static_arena_free(ElkStaticArena *arena, void *ptr);                        // Undo if it was last allocation, otherwise no-op
 
 #define elk_static_arena_malloc(arena, type) (type *)elk_static_arena_alloc((arena), sizeof(type), _Alignof(type))
 #define elk_static_arena_nmalloc(arena, count, type) (type *)elk_static_arena_alloc((arena), (count) * sizeof(type), _Alignof(type))
 #define elk_static_arena_nrealloc(arena, ptr, count, type) (type *) elk_static_arena_realloc((arena), (ptr), sizeof(type) * (count))
+
+#ifdef _COYOTE_H_
+/* Tools only available if the Coyote Library was included before this one. */
+static inline ElkStaticArena elk_static_arena_allocate_and_create(size num_bytes); /* Allocates using Coyote.   */
+static inline void elk_static_arena_destroy_and_deallocate(ElkStaticArena *arena); /* Frees memory with Coyote. */
+#endif
 
 #ifdef _ELK_TRACK_MEM_USAGE
 static ElkStaticArenaAllocationMetrics elk_static_arena_metrics[128] = {0};
 static size elk_static_arena_metrics_next = 0;
 static inline f64 elk_static_arena_max_ratio(ElkStaticArena *arena);
 static inline b32 elk_static_arena_over_allocated(ElkStaticArena *arena);
+#endif
+
+/*---------------------------------------------------------------------------------------------------------------------------
+ *                                                Dynamic Arena Allocator
+ *---------------------------------------------------------------------------------------------------------------------------
+ *
+ * A dynamically growable arena allocator that works with the system allocator to grow indefinitely.
+ *
+ * This relies on operating system dynamic allocation, so it's only available IFF this header is included AFTER the
+ * Coyote header.
+ */
+
+#ifdef _COYOTE_H_
+
+/* A dynamically size arena. */
+typedef struct ElkDynArenaBlock ElkDynArenaBlock;
+typedef struct
+{
+    ElkDynArenaBlock *head_block;
+    size num_blocks;
+    size num_total_bytes;
+    size default_block_size;
+
+    /* Keep track of the previous allocation for realloc. */
+    ElkDynArenaBlock *prev_block;
+    void *prev_ptr;
+    size prev_offset;
+} ElkDynArena;
+
+static inline void elk_dyn_arena_create(ElkDynArena *arena, size default_block_size);
+static inline void elk_dyn_arena_destroy(ElkDynArena *arena);
+static inline void elk_dyn_arena_reset(ElkDynArena *arena, b32 coalesce); /* Coalesce, keep the same size but in single block, else frees all excess blocks. */
+static inline void *elk_dyn_arena_alloc(ElkDynArena *arena, size num_bytes, size alignment);
+static inline void *elk_dyn_arena_realloc(ElkDynArena *arena, void *ptr, size num_bytes);
+static inline void elk_dyn_arena_free(ElkDynArena *arena, void *ptr);
+
+#define elk_dyn_arena_malloc(arena, type) (type *)elk_dyn_arena_alloc((arena), sizeof(type), _Alignof(type))
+#define elk_dyn_arena_nmalloc(arena, count, type) (type *)elk_dyn_arena_alloc((arena), (count) * sizeof(type), _Alignof(type))
+#define elk_dyn_arena_nrealloc(arena, ptr, count, type) (type *) elk_dyn_arena_realloc((arena), (ptr), sizeof(type) * (count))
+
 #endif
 
 /*---------------------------------------------------------------------------------------------------------------------------
@@ -312,8 +357,8 @@ static inline void * elk_static_pool_alloc(ElkStaticPool *pool); // returns NULL
 
 typedef struct 
 {
-    char *start;  // points at first character in the string
-    size len;     // the length of the string (not including a null terminator if it's there)
+    char *start;  /* points at first character in the string                                  */
+    size len;     /* the length of the string (not including a null terminator if it's there) */
 } ElkStr;
 
 typedef struct
@@ -324,13 +369,42 @@ typedef struct
 
 static inline ElkStr elk_str_from_cstring(char *src);
 static inline ElkStr elk_str_copy(size dst_len, char *restrict dest, ElkStr src);
-static inline ElkStr elk_str_alloc_copy(ElkStr src, ElkStaticArena *dest);  // Allocate space and create a copy.
-static inline ElkStr elk_str_strip(ElkStr input);                           // Strips leading and trailing whitespace
-static inline ElkStr elk_str_substr(ElkStr str, size start, size len);      // Create a substring from a longer string
-static inline i32 elk_str_cmp(ElkStr left, ElkStr right);                   // 0 if equal, -1 if left is first, 1 otherwise
-static inline b32 elk_str_eq(ElkStr const left, ElkStr const right);        // Faster than elk_str_cmp, checks length first
+static inline ElkStr elk_str_strip(ElkStr input);                          /* Strips leading and trailing whitespace       */
+static inline ElkStr elk_str_substr(ElkStr str, size start, size len);     /* Create a substring from a longer string      */
+static inline i32 elk_str_cmp(ElkStr left, ElkStr right);                  /* 0 if equal, -1 if left is first, 1 otherwise */
+static inline b32 elk_str_eq(ElkStr const left, ElkStr const right);       /* Faster than elk_str_cmp, checks length first */
 static inline ElkStrSplitPair elk_str_split_on_char(ElkStr str, char const split_char);
 
+/* See macros below to automatically select functions for dynamic vs static arenas. */
+static inline ElkStr elk_str_alloc_copy_static(ElkStr src, ElkStaticArena *arena);          /* Allocate space and create a copy.                                                        */
+static inline ElkStr elk_str_append_static(ElkStr dest, ElkStr src, ElkStaticArena *arena); /* If dest wasn't the last thing allocated on arena, this fails and returns an empty string */
+
+/* Tools only available if Coyote library is also used. See macros below that automatically select which tool to use. */
+#ifdef _COYOTE_H_
+
+static inline ElkStr elk_str_append_dyn(ElkStr dest, ElkStr src, ElkDynArena *arena); 
+static inline ElkStr elk_str_alloc_copy_dyn(ElkStr src, ElkDynArena *arena);
+
+#define elk_str_append(dest, src, arena) _Generic((arena),                                                                  \
+                                         ElkStaticArena *: elk_str_append_static,                                           \
+                                         ElkDynArena *:    elk_str_append_dyn                                               \
+                                         )(dest, src, arena)
+
+#define elk_str_alloc_copy(src, arena) _Generic((arena),                                                              \
+                                         ElkStaticArena *: elk_str_alloc_copy_static,                                       \
+                                         ElkDynArena *:    elk_str_alloc_copy_dyn                                           \
+                                         )(src, arena)
+
+#else
+
+/* Only works with static arenas without Coyote. */
+#define elk_str_append(dest, src, arena) elk_str_append_static(dest, src, arena)
+#define elk_str_alloc_copy(dest, src, arena) elk_str_alloc_copy_static(dest, src, arena)
+
+#endif
+
+
+                                                                                            
 /* Parsing values from strings.
  *
  * In all cases the input string is assumed to be stripped of leading and trailing whitespace. Any suffixes that are non-
@@ -808,12 +882,11 @@ static inline ElkKahanAccumulator elk_kahan_accumulator_add(ElkKahanAccumulator 
  *
  */
 #ifdef _COYOTE_H_
-static inline ElkStaticArena elk_static_arena_allocate_and_create(size num_bytes); /* Allocates using Coyote.   */
-static inline void elk_static_arena_destroy_and_deallocate(ElkStaticArena *arena); /* Frees memory with Coyote. */
 
 /* Use Coyote file slurp with arena. */
 static inline size elk_file_slurp(char const *filename, byte **out, ElkStaticArena *arena);   
 static inline ElkStr elk_file_slurp_text(char const *filename, ElkStaticArena *arena);
+
 #endif
 
 /*---------------------------------------------------------------------------------------------------------------------------
@@ -1074,19 +1147,39 @@ elk_str_copy(size dst_len, char *restrict dest, ElkStr src)
     return (ElkStr){.start = dest, .len = copy_len};
 }
 
-
 static inline ElkStr 
-elk_str_alloc_copy(ElkStr src, ElkStaticArena *dest)
+elk_str_alloc_copy_static(ElkStr src, ElkStaticArena *arena)
 {
     ElkStr ret_val = {0};
 
     size copy_len = src.len + 1; // Add room for terminating zero.
-    char *buffer = elk_static_arena_nmalloc(dest, copy_len, char);
+    char *buffer = elk_static_arena_nmalloc(arena, copy_len, char);
     StopIf(!buffer, return ret_val); // Return NULL string if out of memory
 
     ret_val = elk_str_copy(copy_len, buffer, src);
 
     return ret_val;
+}
+
+static inline ElkStr 
+elk_str_append_static(ElkStr dest, ElkStr src, ElkStaticArena *arena)
+{
+    ElkStr result = {0};
+
+    if(src.len <= 0) { return result; }
+
+    size new_len = dest.len + src.len;
+    char *buf = dest.start;
+    buf = elk_static_arena_nrealloc(arena, buf, new_len, char);
+
+    if(!buf) { return result; }
+
+    result.start = buf;
+    result.len = new_len;
+    char *dest_ptr = dest.start + dest.len;
+    memcpy(dest_ptr, src.start, src.len);
+
+    return result;
 }
 
 static inline ElkStr
@@ -3976,6 +4069,309 @@ elk_file_slurp_text(char const *filename, ElkStaticArena *arena)
 
 ERR_RETURN:
     return (ElkStr){ .start = NULL, .len = 0 };
+}
+
+struct ElkDynArenaBlock
+{
+    size buf_size;
+    size buf_offset;
+    byte *buffer;
+    struct ElkDynArenaBlock *next;
+};
+
+static inline ElkDynArenaBlock *
+elk_dyn_arena_block_create(size block_size)
+{
+    CoyMemoryBlock mem = coy_memory_allocate(block_size + sizeof(ElkDynArenaBlock));
+    if(mem.valid)
+    {
+        /* Place the block metadata at the beginning of the memory block. */
+        ElkDynArenaBlock *block = mem.mem;
+        block->buf_size = mem.size;
+        block->buf_offset = sizeof(ElkDynArenaBlock);
+        block->buffer = mem.mem;
+        block->next = NULL;
+        return block;
+    }
+    else
+    {
+        return NULL;
+    }
+}
+
+static inline void *
+elk_dyn_arena_block_alloc(ElkDynArenaBlock *block, size num_bytes, size alignment, void **prev_ptr, size *prev_offset)
+{
+    Assert(num_bytes > 0 && alignment > 0);
+
+    // Align 'curr_offset' forward to the specified alignment
+    uptr curr_ptr = (uptr)block->buffer + (uptr)block->buf_offset;
+    uptr offset = elk_align_pointer(curr_ptr, alignment);
+    offset -= (uptr)block->buffer; // change to relative offset
+
+    // Check to see if there is enough space left
+    if ((size)(offset + num_bytes) <= block->buf_size)
+    {
+        void *ptr = &block->buffer[offset];
+        memset(ptr, 0, num_bytes);
+        *prev_offset = block->buf_offset;
+        block->buf_offset = offset + num_bytes;
+        *prev_ptr = ptr;
+
+        return ptr;
+    }
+    else { return NULL; }
+}
+
+static inline void 
+elk_dyn_arena_create(ElkDynArena *arena, size default_block_size)
+{
+    ElkDynArenaBlock *block = elk_dyn_arena_block_create(default_block_size);
+    if(!block)
+    {
+        *arena = (ElkDynArena){0};
+        return;
+    }
+
+    arena->head_block = block;
+    arena->num_blocks = 1;
+    arena->num_total_bytes = block->buf_size;
+    arena->default_block_size = default_block_size;
+
+    arena->prev_block = block;
+    arena->prev_offset = 0;
+    arena->prev_ptr = block;
+
+    return;
+}
+
+static inline void elk_dyn_arena_destroy(ElkDynArena *arena)
+{
+    /* Iterate through linked list and free all the blocks. */
+    ElkDynArenaBlock *curr = arena->head_block;
+    while(curr)
+    {
+        ElkDynArenaBlock *next = curr->next;
+        CoyMemoryBlock mem = { .mem = curr, .size = curr->buf_size, .valid = true} ;
+        coy_memory_free(&mem);
+        curr = next;
+    }
+
+    *arena = (ElkDynArena){0};
+    return;
+}
+
+static inline void 
+elk_dyn_arena_reset(ElkDynArena *arena, b32 coalesce)
+{
+    /* Only actually do the coalesce if we need to. */
+    b32 do_coalesce = coalesce && arena->num_total_bytes > arena->default_block_size;
+
+    ElkDynArenaBlock *curr = NULL;
+    if(do_coalesce)
+    {
+        /* Queue up all of the blocks to be deleted. */
+        curr = arena->head_block;
+    }
+    else
+    {
+        /* Reset the first block. */
+        arena->head_block->buf_offset = sizeof(ElkDynArenaBlock); /* Not 0! Don't overwrite the block metadata. */
+
+        arena->prev_block = arena->head_block;
+        arena->prev_offset = 0;
+        arena->prev_ptr = arena->head_block;
+
+        /* Queue up the rest of the blocks to be deleted. */
+        curr = arena->head_block->next;
+    }
+
+    /* Free the unneeded blocks. */
+    while(curr)
+    {
+        ElkDynArenaBlock *next = curr->next;
+        CoyMemoryBlock mem = { .mem = curr, .size = curr->buf_size, .valid = true} ;
+        coy_memory_free(&mem);
+        curr = next;
+    }
+
+    /* Create a new head block if necesssary. */
+    if(do_coalesce)
+    {
+        /* Create a block large enough to hold ALL the data from last time in a single block. */
+        ElkDynArenaBlock *block = elk_dyn_arena_block_create(arena->num_total_bytes);
+        if(!block)
+        {
+            /* Not sure how this is possible because we JUST freed up this much memory! */
+            *arena = (ElkDynArena){0};
+            return;
+        }
+
+        arena->head_block = block;
+        arena->num_blocks = 1;
+        arena->num_total_bytes = block->buf_size;
+        /* arena->default_block_size = ...doesn't need changed; */
+
+        arena->prev_block = block;
+        arena->prev_offset = 0;
+        arena->prev_ptr = block;
+    }
+
+    return;
+}
+
+static inline ElkDynArenaBlock *
+elk_dyn_arena_add_block(ElkDynArena *arena, size min_bytes)
+{
+    ElkDynArenaBlock *block = elk_dyn_arena_block_create(min_bytes);
+
+    if(block)
+    {
+        ElkDynArenaBlock *curr = arena->prev_block;
+        ElkDynArenaBlock *next = curr->next;
+        while(next)
+        {
+            curr = next;
+            next = curr->next;
+        }
+
+        curr->next = block;
+
+        arena->num_blocks += 1;
+        arena->num_total_bytes += block->buf_size;
+    }
+
+    return block;
+}
+
+static inline void *
+elk_dyn_arena_alloc(ElkDynArena *arena, size num_bytes, size alignment)
+{
+    Assert(num_bytes > 0 && alignment > 0);
+
+    /* Find a block to use - start with the last block used. */
+    ElkDynArenaBlock *block = arena->prev_block;
+    void *ptr = elk_dyn_arena_block_alloc(block, num_bytes, alignment, &arena->prev_ptr, &arena->prev_offset);
+    if(ptr) { return ptr; }
+
+    /* If that didn't work, look for space in any other block. */
+    block = arena->head_block;
+    while(block)
+    {
+        ElkDynArenaBlock *next = block->next;
+        ptr = elk_dyn_arena_block_alloc(block, num_bytes, alignment, &arena->prev_ptr, &arena->prev_offset);
+
+        if(ptr)
+        {
+            /* Found one! */
+            arena->prev_block = block;
+            return ptr;
+        }
+
+        block = next;
+    }
+
+    /* We need to add another block. */
+    size block_size = num_bytes + alignment > arena->default_block_size ? num_bytes + alignment : arena->default_block_size;
+    block = elk_dyn_arena_add_block(arena, block_size);
+    if(block)
+    {
+        ptr = elk_dyn_arena_block_alloc(block, num_bytes, alignment, &arena->prev_ptr, &arena->prev_offset);
+        if(ptr)
+        {
+            arena->prev_block = block;
+            return ptr;
+        }
+    }
+
+    /* Give up. */
+    return NULL;
+}
+
+static inline void *
+elk_dyn_arena_realloc(ElkDynArena *arena, void *ptr, size num_bytes)
+{
+    Assert(num_bytes > 0);
+
+    if(ptr == arena->prev_ptr)
+    {
+        // Get previous extra offset due to alignment
+        uptr offset = (uptr)ptr - (uptr)arena->prev_block->buffer; // relative offset accounting for alignment
+
+        // Check to see if there is enough space left
+        if ((size)(offset + num_bytes) <= arena->prev_block->buf_size)
+        {
+            arena->prev_block->buf_offset = offset + num_bytes;
+            return ptr;
+        }
+    }
+
+    return NULL;
+}
+
+static inline void 
+elk_dyn_arena_free(ElkDynArena *arena, void *ptr)
+{
+    if(ptr == arena->prev_ptr)
+    {
+        arena->prev_block->buf_offset = arena->prev_offset;
+    }
+
+    return;
+}
+
+static inline ElkStr 
+elk_str_append_dyn(ElkStr dest, ElkStr src, ElkDynArena *arena)
+{
+    ElkStr result = {0};
+
+    if(src.len <= 0) { return result; }
+
+    size new_len = dest.len + src.len;
+    char *buf = dest.start;
+    buf = elk_dyn_arena_nrealloc(arena, buf, new_len, char);
+
+    if(!buf)
+    { 
+        /* Failed to grow in place. */
+        buf = elk_dyn_arena_nmalloc(arena, new_len, char);
+        if(buf)
+        {
+            char *dest_ptr = buf;
+            memcpy(dest_ptr, dest.start, dest.len);
+            dest_ptr = dest_ptr + dest.len;
+            memcpy(dest_ptr, src.start, src.len);
+
+            result.start = buf;
+            result.len = new_len;
+        }
+
+        /* else leave result as empty - a null string. */
+    }
+    else
+    {
+        /* Grew in place! */
+        result.start = buf;
+        result.len = new_len;
+        char *dest_ptr = dest.start + dest.len;
+        memcpy(dest_ptr, src.start, src.len);
+    }
+
+    return result;
+}
+
+static inline ElkStr 
+elk_str_alloc_copy_dyn(ElkStr src, ElkDynArena *arena)
+{
+    ElkStr ret_val = {0};
+
+    size copy_len = src.len + 1; // Add room for terminating zero.
+    char *buffer = elk_dyn_arena_nmalloc(arena, copy_len, char);
+    StopIf(!buffer, return ret_val); // Return NULL string if out of memory
+
+    ret_val = elk_str_copy(copy_len, buffer, src);
+
+    return ret_val;
 }
 
 #endif // Coyote

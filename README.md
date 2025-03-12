@@ -63,9 +63,14 @@
   - Added more succinct type aliases for builtin types.
   - Added optional (opt in) memory profiling for ElkStaticArena.
   - Added some convenience functions for memory when working with the Coyote library.
+    - Slurp files into an arena.
+    - Dynamically and automatically growing Arenas.
   - Added generic elk_len macro for several collections.
   - Added functions to parse strings into int64_t, double, or ElkTime values. Some are robust, others are fast. You choose.
-  - Added substring function.
+  - Added more strings functions.
+    - Substrings
+    - Split on character.
+    - Copy and append strings with an arena allocator.
   - Added day of year member to ElkStructTime.
   - Added function to create ElkTime from year, day of year, hours, minutes, and seconds.
   - Added a general hashmap and one specialized for strings as keys.
