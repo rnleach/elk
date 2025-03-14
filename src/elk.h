@@ -303,6 +303,47 @@ static inline void elk_dyn_arena_free(ElkDynArena *arena, void *ptr);
 #define elk_dyn_arena_nmalloc(arena, count, type) (type *)elk_dyn_arena_alloc((arena), (count) * sizeof(type), _Alignof(type))
 #define elk_dyn_arena_nrealloc(arena, ptr, count, type) (type *) elk_dyn_arena_realloc((arena), (ptr), sizeof(type) * (count))
 
+#define elk_dyn_arena_reset_default(arena) elk_dyn_arena_reset(arena, true)
+
+#define elk_arena_malloc(arena, type) (type *) _Generic((arena),                                                            \
+                                               ElkStaticArena *: elk_static_arena_alloc,                                    \
+                                               ElkDynArena *:    elk_dyn_arena_alloc                                        \
+                                              )(arena, sizeof(type), _Alignof(type))
+
+#define elk_arena_nmalloc(arena, count, type) (type *) _Generic((arena),                                                    \
+                                                       ElkStaticArena *: elk_static_arena_alloc,                            \
+                                                       ElkDynArena *:    elk_dyn_arena_alloc                                \
+                                                      )(arena, (count) * sizeof(type), _Alignof(type))
+
+#define elk_arena_nrealloc(arena, ptr, count, type) _Generic((arena),                                                       \
+                                                    ElkStaticArena *: elk_static_arena_realloc,                             \
+                                                    ElkDynArena *:    elk_dyn_arena_realloc                                 \
+                                                  )(arena, ptr, sizeof(type) * (count))
+
+#define elk_arena_destroy(arena) _Generic((arena),                                                                          \
+                                 ElkStaticArena *: elk_static_arena_destroy,                                                \
+                                 ElkDynArena *:    elk_dyn_arena_destroy                                                    \
+                                )(arena)
+
+#define elk_arena_free(arena, ptr) _Generic((arena),                                                                        \
+                                 ElkStaticArena *: elk_static_arena_free,                                                   \
+                                 ElkDynArena *:    elk_dyn_arena_free                                                       \
+                                )(arena, ptr)
+
+#define elk_arena_reset(arena) _Generic((arena),                                                                            \
+                            ElkStaticArena *: elk_static_arena_reset,                                                       \
+                            ElkDynArena *:    elk_dyn_arena_reset_default                                                   \
+                           )(arena)
+
+#else
+
+#define elk_arena_malloc(arena, type) elk_static_arena_malloc(arena, type)
+#define elk_arena_nmalloc(arena, count, type) elk_static_arena_nmalloc(arena, count, type)
+#define elk_arena_nrealloc(arena, ptr, count, type) elk_static_arena_nrealloc(arena, ptr, count, type)
+#define elk_arena_destroy(arena) elk_static_arena_destroy(arena)
+#define elk_arena_free(arena, ptr) elk_static_arena_free(arena, ptr)
+#define elk_arena_reset(arena) elk_static_arena_reset(arena)
+
 #endif
 
 /*---------------------------------------------------------------------------------------------------------------------------
@@ -885,7 +926,13 @@ static inline ElkKahanAccumulator elk_kahan_accumulator_add(ElkKahanAccumulator 
 
 /* Use Coyote file slurp with arena. */
 static inline size elk_file_slurp(char const *filename, byte **out, ElkStaticArena *arena);   
-static inline ElkStr elk_file_slurp_text(char const *filename, ElkStaticArena *arena);
+static inline ElkStr elk_file_slurp_text_static(char const *filename, ElkStaticArena *arena);
+static inline ElkStr elk_file_slurp_text_dyn(char const *filename, ElkDynArena *arena);
+
+#define elk_file_slurp_text(fname, arena) _Generic((arena),                                                                 \
+                                         ElkStaticArena *: elk_file_slurp_text_static,                                      \
+                                         ElkDynArena *:    elk_file_slurp_text_dyn                                          \
+                                         )(fname, arena)
 
 #endif
 
@@ -4053,13 +4100,32 @@ ERR_RETURN:
 }
 
 static inline ElkStr 
-elk_file_slurp_text(char const *filename, ElkStaticArena *arena)
+elk_file_slurp_text_static(char const *filename, ElkStaticArena *arena)
 {
 
     size fsize = coy_file_size(filename);
     StopIf(fsize < 0, goto ERR_RETURN);
 
     byte *out = elk_static_arena_nmalloc(arena, fsize, byte);
+    StopIf(!out, goto ERR_RETURN);
+
+    size size_read = coy_file_slurp(filename, fsize, out);
+    StopIf(fsize != size_read, goto ERR_RETURN);
+
+    return (ElkStr){ .start = out, .len = fsize };
+
+ERR_RETURN:
+    return (ElkStr){ .start = NULL, .len = 0 };
+}
+
+static inline ElkStr 
+elk_file_slurp_text_dyn(char const *filename, ElkDynArena *arena)
+{
+
+    size fsize = coy_file_size(filename);
+    StopIf(fsize < 0, goto ERR_RETURN);
+
+    byte *out = elk_dyn_arena_nmalloc(arena, fsize, byte);
     StopIf(!out, goto ERR_RETURN);
 
     size size_read = coy_file_slurp(filename, fsize, out);
