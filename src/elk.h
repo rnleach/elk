@@ -22,6 +22,8 @@
  *-------------------------------------------------------------------------------------------------------------------------*/
 // TODO: Substring Search.
 // TODO: Add ElkCStr type that guarantees a terminating zero to make life easier interoperating with C stdlib.
+// TODO: Add ElkConstStr a string slice whose contents are const. Maybe I should go the other way around and make ElkStr
+//       const by default and make an ElkMutableStr.
 
 /*---------------------------------------------------------------------------------------------------------------------------
  *                                                 Define simpler types
