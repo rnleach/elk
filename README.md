@@ -57,6 +57,10 @@
 
 ## Releases
 
+### Version 4.0.0 - IN PROGRESS
+  - (XXXX-XX-XX) NOTES ON REVISIONS
+  -
+
 ### Version 3.0.0 - Many, many changes!
   - (2025-03-22) NOTES ON REVISIONS
   - Added radix sort.
