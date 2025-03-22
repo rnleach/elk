@@ -57,8 +57,8 @@
 
 ## Releases
 
-### Version 3.0.0 - IN PROGRESS
-  - (XXXX-XX-XX) NOTES ON REVISIONS
+### Version 3.0.0 - Many, many changes!
+  - (2025-03-22) NOTES ON REVISIONS
   - Added radix sort.
   - Added more succinct type aliases for builtin types.
   - Added optional (opt in) memory profiling for ElkStaticArena.
