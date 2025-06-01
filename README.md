@@ -1,3 +1,7 @@
+# I am archiving this repository because all of this code has moved to the eco-lib repository. 
+I'm keeping it around instead of deleting it because there is some old code that was removed, 
+but still lives in the history of this repository that I may want back someday.
+
 # elk - A general purpose C11 library.
 
   I like elk. They're really interesting, majestic animals. And did you know they have ivory?! So
